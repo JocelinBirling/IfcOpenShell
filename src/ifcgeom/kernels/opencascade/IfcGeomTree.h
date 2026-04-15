@@ -1088,7 +1088,12 @@ namespace IfcGeom {
                                 is_manifold = true;
                                 clash intersection = test_intersection(task.a, task.b, tolerance, check_all);
                                 if (intersection.clash_type != -1) {
+<<<<<<< HEAD
                                     has_clash = true;                                   
+=======
+                                    has_clash = true;
+                                    result = intersection;
+>>>>>>> parent of 2695f85ec (repair order for IfcClash)
                                     if ( ! check_all) {
                                         thread_results.push_back(result);
                                         continue;
