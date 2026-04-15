@@ -1088,19 +1088,7 @@ namespace IfcGeom {
                                 is_manifold = true;
                                 clash intersection = test_intersection(task.a, task.b, tolerance, check_all);
                                 if (intersection.clash_type != -1) {
-                                    has_clash = true;
-                                    //We invert the result, in order to keep the initial order, otherwise, it's all mixed.
-                                    //For pierce, we need to keep the order for p1 entry and p2.
-
-                                    if (intersection.clash_type !=1){
-                                        result = {intersection.clash_type,intersection.b,intersection.a,intersection.distance,intersection.p2,intersection.p1}
-                                    }
-                                    else{
-                                        result = {intersection.clash_type,intersection.b,intersection.a,intersection.distance,intersection.p1,intersection.p2}
-                                    }
-
-
-                                    
+                                    has_clash = true;                                   
                                     if ( ! check_all) {
                                         thread_results.push_back(result);
                                         continue;
@@ -1112,6 +1100,17 @@ namespace IfcGeom {
                                 is_manifold = true;
                                 clash intersection = test_intersection(task.b, task.a, tolerance, check_all);
                                 if (intersection.clash_type != -1) {
+                                    //We invert the result, in order to keep the initial order, otherwise, it's all mixed.
+                                    //For pierce, we need to keep the order for p1 entry and p2.
+
+                                    if (intersection.clash_type !=1){
+                                        result = {intersection.clash_type,intersection.b,intersection.a,intersection.distance,intersection.p2,intersection.p1}
+                                    }
+                                    else{
+                                        result = {intersection.clash_type,intersection.b,intersection.a,intersection.distance,intersection.p1,intersection.p2}
+                                    }
+
+
                                     // Replace the clash result if any of these criteria apply:
                                     // - We don't have a clash yet
                                     // - Our previous clash is piercing, and our new one is a protrusion
