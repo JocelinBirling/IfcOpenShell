@@ -1093,9 +1093,6 @@ namespace IfcGeom {
 =======
                                     has_clash = true;
                                     result = intersection;
-<<<<<<< HEAD
->>>>>>> parent of 2695f85ec (repair order for IfcClash)
-=======
 >>>>>>> parent of 2695f85ec (repair order for IfcClash)
                                     if ( ! check_all) {
                                         thread_results.push_back(result);
