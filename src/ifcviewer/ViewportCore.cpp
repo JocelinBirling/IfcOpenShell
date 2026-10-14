@@ -6565,6 +6565,19 @@ void ViewportCore::clearObjectColors() {
     host_->requestFrame();
 }
 
+void ViewportCore::setAllObjectsColor(std::uint32_t rgba8) {
+    for (auto& [session_model_id, m] : models_gpu_) {
+        bool touched = false;
+        for (InstanceInfo& inst : m.instances) {
+            if (inst.color_override_rgba8 == rgba8) continue;
+            inst.color_override_rgba8 = rgba8;
+            touched = true;
+        }
+        if (touched) uploadInstanceRecords(m);
+    }
+    host_->requestFrame();
+}
+
 void ViewportCore::toggleXray() {
     constexpr float kXrayOnCap = 0.3f;
     xray_alpha_cap_ = (xray_alpha_cap_ < 1.0f) ? 1.0f : kXrayOnCap;

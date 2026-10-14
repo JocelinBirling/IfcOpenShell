@@ -46,5 +46,6 @@
         <file alias="database.svg">icons/database.svg</file>
         <file alias="database-restore.svg">icons/database-restore.svg</file>
         <file alias="cube-bandage.svg">icons/cube-bandage.svg</file>
+        <file alias="paint.svg">icons/paint.svg</file>
     </qresource>
 </RCC>

@@ -1139,6 +1139,8 @@ void ViewportWindow::setSelectedObjectId(uint32_t id) {
 void ViewportWindow::hideSelectedElements()    { core_.hideSelected(); }
 void ViewportWindow::isolateSelectedElements() { core_.isolateSelected(); }
 void ViewportWindow::showAllElements()         { core_.showAll(); }
+void ViewportWindow::colorAllElements(uint32_t rgba8) { core_.setAllObjectsColor(rgba8); }
+void ViewportWindow::clearElementColors()             { core_.clearObjectColors(); }
 
 void ViewportWindow::invertElementVisibility() {
     // Compute the new hidden set: every live object_id in a visible model

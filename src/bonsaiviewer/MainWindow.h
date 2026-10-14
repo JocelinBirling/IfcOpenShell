@@ -61,6 +61,7 @@ private:
     QWidget* buildNavigateRibbonPage();
     QWidget* buildInspectRibbonPage();
     QWidget* buildPanelsRibbonPage();
+    QWidget* buildGeometryRuleRibbonPage();
     void updateWindowTitle();
     QToolButton* makePanelToggle(const QString& text, QDockWidget* dock);
     // Rebuilds `menu` from the persisted recent-projects list. Wired to the
@@ -91,6 +92,9 @@ private:
     QDockWidget* audit_panel_ = nullptr;
     QDockWidget* clash_panel_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;
+    QDockWidget* rule_panel_ = nullptr;
+    QDockWidget* rule_library_panel_ = nullptr;
+    QDockWidget* rule_config_panel_ = nullptr;
     bonsaiviewer::modules::models::ModelsPanelView* models_view_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanelView* spatial_view_ = nullptr;
     bonsaiviewer::modules::properties::PropertiesPanelView* properties_view_ = nullptr;

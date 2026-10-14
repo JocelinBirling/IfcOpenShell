@@ -82,6 +82,14 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/View.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/View.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Catalogue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Catalogue.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RulePanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RulePanel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleConfigPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleConfigPanel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleLibraryPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleLibraryPanel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/todo/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/todo/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/properties/Types.h

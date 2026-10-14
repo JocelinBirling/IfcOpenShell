@@ -99,4 +99,14 @@ void invertVisibility(ViewportWindow& viewport) {
     viewport.invertElementVisibility();
 }
 
+void colorAllRed(ViewportWindow& viewport) {
+    // Opaque red, packed 0xAABBGGRR as ViewportCore expects.
+    constexpr std::uint32_t kRedRgba8 = 0xFF0000FFu;
+    viewport.colorAllElements(kRedRgba8);
+}
+
+void clearColors(ViewportWindow& viewport) {
+    viewport.clearElementColors();
+}
+
 } // namespace bonsaiviewer::modules::viewport::commands

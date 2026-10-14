@@ -952,6 +952,10 @@ public:
     // colouring a whole model is one upload, not one per object.
     void setObjectsColor(const std::vector<std::uint32_t>& object_ids, std::uint32_t rgba8);
     void clearObjectColors();   // drop every override in every model
+    // setObjectsColor for "every object in every loaded model" without the
+    // host having to enumerate ids. 0 is the no-override sentinel, so
+    // setAllObjectsColor(0) == clearObjectColors().
+    void setAllObjectsColor(std::uint32_t rgba8);
     // Global X-ray: translucent everything. Flips the frame uniform's alpha cap;
     // the cull classifier routes every instance through the transparent pass.
     void toggleXray();

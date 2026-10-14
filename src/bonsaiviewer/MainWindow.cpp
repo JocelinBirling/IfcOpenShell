@@ -30,6 +30,9 @@
 #include "components/Tabs.h"
 #include "modules/models/Commands.h"
 #include "modules/todo/Panel.h"
+#include "modules/rule/RulePanel.h"
+#include "modules/rule/RuleConfigPanel.h"
+#include "modules/rule/RuleLibraryPanel.h"
 #include "modules/models/View.h"
 #include "modules/models/Panel.h"
 #include "modules/project/Commands.h"
@@ -381,6 +384,27 @@ QWidget* MainWindow::buildPanelsRibbonPage() {
     return page;
 }
 
+QWidget* MainWindow::buildGeometryRuleRibbonPage() {
+    auto* page = new QFrame(this);
+    page->setObjectName("ribbonPage");
+    auto* row = new QHBoxLayout(page);
+    row->setContentsMargins(2, 4, 2, 4);
+    row->setSpacing(0);
+
+    auto* color_all_red = components::buttons::makeButton("Color Red", ":/icons/paint.svg", this);
+    color_all_red->setCheckable(true);
+    connect(color_all_red, &QToolButton::toggled, this, [this](bool checked) {
+        if (checked) modules::viewport::commands::colorAllRed(*viewport_widget_->viewport());
+        else         modules::viewport::commands::clearColors(*viewport_widget_->viewport());
+    });
+
+    components::buttons::addButtonGroups(row, {
+        components::buttons::makeButtonGroup("COLOR", {color_all_red}, this),
+    });
+    row->addStretch(1);
+    return page;
+}
+
 void MainWindow::setupRibbon() {
     auto* shell = new QFrame(this);
 
@@ -393,6 +417,7 @@ void MainWindow::setupRibbon() {
     ribbon_tabs_->addTab("Navigate");
     ribbon_tabs_->addTab("Inspect");
     ribbon_tabs_->addTab("Panels");
+    ribbon_tabs_->addTab("GeometryRule");
     ribbon_tabs_->setCurrentIndex(0);
 
     auto* ribbon_band = new QFrame(shell);
@@ -406,6 +431,8 @@ void MainWindow::setupRibbon() {
     ribbon_pages_->addWidget(buildNavigateRibbonPage());
     ribbon_pages_->addWidget(buildInspectRibbonPage());
     ribbon_pages_->addWidget(buildPanelsRibbonPage());
+    QWidget* geometry_rule_page = buildGeometryRuleRibbonPage();
+    ribbon_pages_->addWidget(geometry_rule_page);
 
     band_layout->addWidget(ribbon_pages_);
     shell_layout->addWidget(ribbon_tabs_);
@@ -413,6 +440,17 @@ void MainWindow::setupRibbon() {
 
     connect(ribbon_tabs_, &components::TabBar::currentChanged,
             ribbon_pages_, &QStackedWidget::setCurrentIndex);
+
+    // The GeometryRule page is a full-width workspace: the left column swaps
+    // Models/Spatial for Rule Library/Rule Config, same dock position.
+    connect(ribbon_tabs_, &components::TabBar::currentChanged, this,
+            [this, geometry_rule_page](int index) {
+        const bool on_geometry_rule = ribbon_pages_->widget(index) == geometry_rule_page;
+        models_panel_->setVisible(!on_geometry_rule);
+        spatial_panel_->setVisible(!on_geometry_rule);
+        rule_library_panel_->setVisible(on_geometry_rule);
+        rule_config_panel_->setVisible(on_geometry_rule);
+    });
 
     setMenuWidget(shell);
 }
@@ -443,6 +481,16 @@ void MainWindow::setupPanels() {
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
     issues_panel_ = new components::Panel("Issues", new modules::todo::TodoPanel("Issues", this), this);
+    auto* rule_content = new modules::rule::RulePanel(this);
+    auto* rule_library_content = new modules::rule::RuleLibraryPanel(this);
+    auto* rule_config_content = new modules::rule::RuleConfigPanel(this);
+    rule_panel_ = new components::Panel("Rule", rule_content, this);
+    rule_library_panel_ = new components::Panel("Rule Library", rule_library_content, this);
+    rule_config_panel_ = new components::Panel("Rule Config", rule_config_content, this);
+    connect(rule_library_content, &modules::rule::RuleLibraryPanel::ruleDefinitionSelected,
+            rule_config_content, &modules::rule::RuleConfigPanel::showDefinition);
+    connect(rule_content, &modules::rule::RulePanel::ruleNodeSelected,
+            rule_config_content, &modules::rule::RuleConfigPanel::showInstance);
 
     addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
     addDockWidget(Qt::LeftDockWidgetArea, spatial_panel_);
@@ -456,6 +504,13 @@ void MainWindow::setupPanels() {
     addDockWidget(Qt::RightDockWidgetArea, audit_panel_);
     addDockWidget(Qt::RightDockWidgetArea, clash_panel_);
     addDockWidget(Qt::RightDockWidgetArea, issues_panel_);
+    addDockWidget(Qt::RightDockWidgetArea, rule_panel_);
+    splitDockWidget(properties_panel_, rule_panel_, Qt::Vertical);
+    // The GeometryRule workspace swaps the left column: Rule Library sits
+    // where Models was, Rule Config where Spatial Hierarchy was.
+    addDockWidget(Qt::LeftDockWidgetArea, rule_library_panel_);
+    addDockWidget(Qt::LeftDockWidgetArea, rule_config_panel_);
+    splitDockWidget(rule_library_panel_, rule_config_panel_, Qt::Vertical);
 
     tabifyDockWidget(properties_panel_, layers_panel_);
     tabifyDockWidget(layers_panel_, stored_views_panel_);
@@ -473,6 +528,8 @@ void MainWindow::setupPanels() {
     audit_panel_->hide();
     clash_panel_->hide();
     issues_panel_->hide();
+    rule_library_panel_->hide();
+    rule_config_panel_->hide();
 
     resizeDocks({models_panel_, properties_panel_}, {290, 330}, Qt::Horizontal);
     resizeDocks({models_panel_, spatial_panel_}, {280, 240}, Qt::Vertical);

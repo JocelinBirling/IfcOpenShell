@@ -216,6 +216,13 @@ public:
     void showAllElements();
     void invertElementVisibility();
 
+    // Element-level colour verbs. Runtime colour override for every object
+    // in every loaded model (rgba8 packed 0xAABBGGRR — see ViewportCore::
+    // setObjectsColor); clearElementColors restores the baked vertex
+    // colours everywhere.
+    void colorAllElements(uint32_t rgba8);
+    void clearElementColors();
+
     // Replace the selection with {id} (or clear if id == 0). Used by
     // SessionState mirroring and by project commands that drop selection
     // on model removal. Wrapper around selection_.replace / clear.

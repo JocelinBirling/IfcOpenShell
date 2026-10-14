@@ -42,6 +42,8 @@ void hideSelected(ViewportWindow& viewport);
 void isolateSelected(ViewportWindow& viewport);
 void showAll(ViewportWindow& viewport);
 void invertVisibility(ViewportWindow& viewport);
+void colorAllRed(ViewportWindow& viewport);
+void clearColors(ViewportWindow& viewport);
 
 } // namespace bonsaiviewer::modules::viewport::commands
 
