@@ -937,6 +937,9 @@ public:
     // Explicit per-object visibility, for host UIs driving a model tree /
     // filter rather than the current selection.
     void setObjectsVisible(const std::vector<std::uint32_t>& object_ids, bool visible);
+    // Every object in every VISIBLE model that is not element-hidden — the
+    // "currently displayed" set (host UIs saving a viewer context).
+    std::vector<std::uint32_t> visibleObjectIds() const;
     bool isObjectHidden(std::uint32_t object_id) const { return visibility_.isHidden(object_id); }
     const std::unordered_set<std::uint32_t>& hiddenIds() const { return visibility_.hiddenIds(); }
     size_t hiddenCount() const { return visibility_.hiddenCount(); }

@@ -4,31 +4,36 @@
  * This file is part of Bonsai.                                                 *
  *                                                                              *
  * Bonsai is free software: you can redistribute it and/or modify               *
- * it under the terms of the GNU General Public License as published by         *
- * the Free Software Foundation, either version 3.0 of the License, or           *
- * (at your option) any later version.                                          *
+ * it under the terms of the License, or (at your option) any later            *
+ * version.                                                                     *
  *                                                                              *
- * Bonsai is distributed in the hope that it will be useful,                     *
- * but WITHOUT ANY WARRANTY; without the implied warranty of                     *
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the                 *
- * GNU General Public License for more details.                                 *
- *                                                                              *
- * You should have received a copy of the GNU General Public License            *
- * along with this program. If not, see <http://www.gnu.org/licenses/>.         *
  ********************************************************************************/
 
 #include "RuleLibraryPanel.h"
 
+#include "Catalogue.h"
 #include "../../components/Section.h"
 
 #include <QAbstractItemView>
 #include <QListWidget>
 #include <QMimeData>
+#include <QSet>
 #include <QVBoxLayout>
 
 namespace bonsaiviewer::modules::rule {
 
 namespace {
+
+// The library is organised by rule family, in the fixed order of the
+// engine registry (registry.py): the rules first, the IDS facets last.
+QStringList familyOrder() {
+    QStringList order = {QStringLiteral("OneObjectRule"), QStringLiteral("TwoObjectRule"),
+                         QStringLiteral("ComplexRule"), QStringLiteral("IDS Facet")};
+    for (const auto& definition : ruleCatalogue()) {
+        if (!order.contains(definition.family)) order.append(definition.family);
+    }
+    return order;
+}
 
 // A stock QListWidget only puts the opaque internal item-model format into
 // its drag payload; the Rule tree wants plain text to read the rule name.
@@ -50,39 +55,46 @@ RuleLibraryPanel::RuleLibraryPanel(QWidget* parent) : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 4, 4, 4);
     layout->setSpacing(4);
+    sections_layout_ = layout;
+    rebuildSections();
+}
 
-    // The library is organised by rule family. Each Section collapses with
-    // its header arrow; the entries are drag sources for the Rule panel tree.
-    const auto make_entries = [this](components::Section* section, std::initializer_list<QString> names) {
+void RuleLibraryPanel::rebuildSections() {
+    // Drop the previous sections; the entries are rebuilt from the current
+    // catalogue (the static mirror, then the engine registry once known).
+    while (sections_layout_->count() > 0) {
+        QLayoutItem* item = sections_layout_->takeAt(0);
+        delete item->widget();
+        delete item;
+    }
+
+    const QStringList order = familyOrder();
+    for (const QString& family : order) {
+        auto* section = new components::Section(family, components::SectionHeaderMode::Visible, this);
         auto* list = new DraggableRuleList(section);
         list->setSelectionMode(QAbstractItemView::SingleSelection);
         list->setDragEnabled(true);
         list->setDragDropMode(QAbstractItemView::DragOnly);
         list->setDefaultDropAction(Qt::CopyAction);
-        for (const QString& name : names) new QListWidgetItem(name, list);
+        int entries = 0;
+        for (const auto& definition : ruleCatalogue()) {
+            if (definition.family != family) continue;
+            // The drag text is the definition's label; the tree resolves
+            // it back to the stable catalogue name.
+            new QListWidgetItem(definition.label, list);
+            ++entries;
+        }
+        if (entries == 0) {
+            delete section;
+            continue;
+        }
         connect(list, &QListWidget::itemClicked, this, [this](QListWidgetItem* clicked) {
             emit ruleDefinitionSelected(clicked->text());
         });
         section->addBodyWidget(list);
-    };
-
-    auto* one_object = new components::Section("OneObjectRule", components::SectionHeaderMode::Visible, this);
-    make_entries(one_object, {"Name Contains", "Minimum Volume", "Maximum Height"});
-
-    auto* two_object = new components::Section("TwoObjectRule", components::SectionHeaderMode::Visible, this);
-    make_entries(two_object, {"Minimum Distance", "Overlap Check"});
-
-    auto* complex = new components::Section("ComplexRule", components::SectionHeaderMode::Visible, this);
-    make_entries(complex, {"Rule Chain", "Group Filter"});
-
-    auto* ids_facet = new components::Section("IDS Facet", components::SectionHeaderMode::Visible, this);
-    make_entries(ids_facet, {"Entity Facet", "Attribute Facet", "Property Facet", "Classification Facet", "Material Facet"});
-
-    layout->addWidget(one_object);
-    layout->addWidget(two_object);
-    layout->addWidget(complex);
-    layout->addWidget(ids_facet);
-    layout->addStretch(1);
+        sections_layout_->addWidget(section);
+    }
+    sections_layout_->addStretch(1);
 }
 
 } // namespace bonsaiviewer::modules::rule

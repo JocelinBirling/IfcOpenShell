@@ -6486,9 +6486,11 @@ void ViewportCore::hideSelected() {
 void ViewportCore::isolateSelected() {
     markCullInputsChanged();
     if (selection_.count() == 0) return;
-    // Hide every object in a VISIBLE model that isn't selected. Model-hidden
-    // objects stay model-hidden (element-level hiding on top is redundant), and
-    // object_id 0 (unpickable) is skipped.
+    // Hide every object in a VISIBLE model that isn't selected — and unhide
+    // the selected ones: "isolate" leaves only the selection visible, so a
+    // previously hidden object that is now isolated must come back. Model-
+    // hidden objects stay model-hidden (element-level hiding on top is
+    // redundant), and object_id 0 (unpickable) is skipped.
     const auto& sel_ids = selection_.selectionIds();
     for (const auto& [session_model_id, m] : models_gpu_) {
         if (!m.drawable()) continue;
@@ -6496,6 +6498,8 @@ void ViewportCore::isolateSelected() {
             if (inst.object_id == 0) continue;
             if (sel_ids.find(inst.object_id) == sel_ids.end())
                 visibility_.hide(inst.object_id);
+            else
+                visibility_.show(inst.object_id);
         }
     }
     Log::info().noquote().nospace() << "[wgpu] isolated " << selection_.count();
@@ -6530,6 +6534,18 @@ void ViewportCore::setObjectsVisible(const std::vector<std::uint32_t>& object_id
         else         visibility_.hide(id);
     }
     host_->requestFrame();
+}
+
+std::vector<std::uint32_t> ViewportCore::visibleObjectIds() const {
+    std::vector<std::uint32_t> ids;
+    for (const auto& [session_model_id, m] : models_gpu_) {
+        if (!m.drawable()) continue;
+        for (const InstanceInfo& inst : m.instances) {
+            if (inst.object_id == 0) continue;
+            if (!visibility_.isHidden(inst.object_id)) ids.push_back(inst.object_id);
+        }
+    }
+    return ids;
 }
 
 void ViewportCore::setObjectsColor(const std::vector<std::uint32_t>& object_ids,

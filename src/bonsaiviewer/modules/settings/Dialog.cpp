@@ -85,6 +85,18 @@ void SettingsDialog::setupUi() {
     geometry_library_edit_->setMinimumWidth(300);
     general_form->addRow("Geometry Library", geometry_library_edit_);
 
+    // The IfcClash_Plus rule engine: the Python interpreter of its
+    // environment and the IPC entry point (ifcclash_plus/ipc.py). The rule
+    // features stay disabled until both are set.
+    rule_engine_interpreter_edit_ = new QLineEdit(general_body);
+    rule_engine_interpreter_edit_->setMinimumWidth(300);
+    rule_engine_interpreter_edit_->setPlaceholderText("/path/to/python (conda env of the engine)");
+    general_form->addRow("Rule Engine Interpreter", rule_engine_interpreter_edit_);
+    rule_engine_script_edit_ = new QLineEdit(general_body);
+    rule_engine_script_edit_->setMinimumWidth(300);
+    rule_engine_script_edit_->setPlaceholderText("/path/to/ifcclash_plus/ipc.py");
+    general_form->addRow("Rule Engine Script", rule_engine_script_edit_);
+
     show_stats_check_ = new QCheckBox(general_body);
     general_form->addRow("Show Performance Stats", show_stats_check_);
 
@@ -370,6 +382,8 @@ void SettingsDialog::setupUi() {
 
 void SettingsDialog::syncFromSettings() {
     geometry_library_edit_->setText(AppSettings::instance().geometryLibrary());
+    rule_engine_interpreter_edit_->setText(AppSettings::instance().ruleEngineInterpreter());
+    rule_engine_script_edit_->setText(AppSettings::instance().ruleEngineScript());
     show_stats_check_->setChecked(AppSettings::instance().showStats());
     backface_culling_check_->setChecked(AppSettings::instance().backfaceCulling());
     void_limit_spin_->setValue(AppSettings::instance().voidLimit());
@@ -416,6 +430,8 @@ void SettingsDialog::pickThemeColor(QLineEdit* edit) {
 
 void SettingsDialog::onAccepted() {
     AppSettings::instance().setGeometryLibrary(geometry_library_edit_->text());
+    AppSettings::instance().setRuleEngineInterpreter(rule_engine_interpreter_edit_->text().trimmed());
+    AppSettings::instance().setRuleEngineScript(rule_engine_script_edit_->text().trimmed());
     AppSettings::instance().setShowStats(show_stats_check_->isChecked());
     AppSettings::instance().setBackfaceCulling(backface_culling_check_->isChecked());
     AppSettings::instance().setVoidLimit(void_limit_spin_->value());

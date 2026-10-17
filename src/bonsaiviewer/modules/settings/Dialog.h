@@ -64,6 +64,8 @@ private:
     };
 
     QLineEdit* geometry_library_edit_ = nullptr;
+    QLineEdit* rule_engine_interpreter_edit_ = nullptr;
+    QLineEdit* rule_engine_script_edit_ = nullptr;
     QCheckBox* show_stats_check_ = nullptr;
     QCheckBox* backface_culling_check_ = nullptr;
     QSpinBox* void_limit_spin_ = nullptr;

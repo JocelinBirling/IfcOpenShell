@@ -4,22 +4,15 @@
  * This file is part of Bonsai.                                                 *
  *                                                                              *
  * Bonsai is free software: you can redistribute it and/or modify               *
- * it under the terms of the GNU General Public License as published by         *
- * the Free Software Foundation, either version 3.0 of the License, or           *
- * (at your option) any later version.                                          *
+ * it under the terms of the License, or (at your option) any later            *
+ * version.                                                                     *
  *                                                                              *
- * Bonsai is distributed in the hope that it will be useful,                     *
- * but WITHOUT ANY WARRANTY; without the implied warranty of                     *
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the                 *
- * GNU General Public License for more details.                                 *
- *                                                                              *
- * You should have received a copy of the GNU General Public License            *
- * along with this program. If not, see <http://www.gnu.org/licenses/>.         *
  ********************************************************************************/
 
 #ifndef IFCINTERFACE_MODULES_RULE_CATALOGUE_H
 #define IFCINTERFACE_MODULES_RULE_CATALOGUE_H
 
+#include <QJsonArray>
 #include <QString>
 #include <QVariant>
 #include <vector>
@@ -33,6 +26,7 @@ constexpr int kRuleKeyRole = Qt::UserRole + 1;    // catalogue name of a rule in
 constexpr int kRuleValuesRole = Qt::UserRole + 2; // QVariantMap of property values
 constexpr int kDescriptionRole = Qt::UserRole + 3;
 constexpr int kSlotNameRole = Qt::UserRole + 4;  // role label ("source"/"target"/"context") a rule was dropped into
+constexpr int kNodeIdRole = Qt::UserRole + 5;    // the engine node id (uuid) of a rule/folder/file
 
 // What a tree node is. Stored on the item as int in Qt::UserRole.
 enum class RuleNodeType {
@@ -42,32 +36,57 @@ enum class RuleNodeType {
     Slot,   // placeholder under a rule (source/target/context) that accepts a dropped rule
 };
 
+// The editor kinds of the engine registry (registry.py): they mirror the
+// serialization parameter names of ifcclash_plus/serialization.py exactly,
+// so the instance value map serializes to the engine's JSON as is.
 enum class RulePropertyType {
-    Text,
-    Float,
-    Bool,
+    Text,       // a plain string (or a facet value with a Complex restriction)
+    Float,      // QDoubleSpinBox
+    NullableFloat, // a float or "none" (empty QLineEdit)
+    Int,        // QSpinBox-like text field
+    Bool,       // QCheckBox
+    Enum,       // combo box (enum_values)
+    StringList, // a stack of text lines (one value per line)
+    Direction,  // three floats (x, y, z)
 };
 
 struct RulePropertyDef {
     QString name;
-    RulePropertyType type;
-    QVariant default_value;
+    RulePropertyType type = RulePropertyType::Text;
+    QVariant default_value; // double / QString / bool / QStringList / QVariantList
+    bool nullable = false;  // the engine accepts "absent" for this parameter
+    QStringList enum_values;
+    QString doc;
+    QString unit;
 };
 
 struct RuleDefinition {
-    QString name;
-    QString family;      // library section: OneObjectRule, TwoObjectRule, ...
+    QString name;        // the engine type (OBB_Above, Entity) — the serialization key
+    QString label;       // the display name (OBB Above, Entity Facet)
+    QString family;      // library section: OneObjectRule, TwoObjectRule, ComplexRule, IDS Facet
     QString description;
     std::vector<RulePropertyDef> properties;
-    // Child placeholders the rule exposes once instantiated; other rules are
-    // dragged from the library into these slots, recursively. ("slot_names"
-    // because "slots" is a Qt macro.)
+    // Child placeholders the rule exposes once instantiated. A slot is
+    // filled by an IDS facet (a SelectFacet on the engine side) or by a
+    // rule (a SelectRule referencing it). ("slot_names" because "slots" is
+    // a Qt macro.)
     std::vector<QString> slot_names;
 };
 
-// The invented rule library. Each rule carries its own property set.
+// The rule catalogue: a static mirror of the engine registry (a startup
+// fallback usable before the engine answers) replaced by the engine's own
+// registry as soon as the catalogue IPC reply arrives.
 const std::vector<RuleDefinition>& ruleCatalogue();
 const RuleDefinition* findRuleDefinition(const QString& name);
+// Resolves a dragged library text or stored key to its definition: by
+// catalogue name first (the stable key), then by display label.
+const RuleDefinition* resolveRuleDefinition(const QString& text);
+
+// Replaces the catalogue with the engine registry (EngineClient's
+// catalogueReady payload). Rules and facets both arrive in the same
+// format; facets become family "IDS Facet" entries. Returns the number
+// of definitions installed.
+int setCatalogueFromEngine(const QJsonArray& rules, const QJsonArray& facets);
 
 // Instantiates rule values on a tree item from the catalogue defaults.
 void initRuleInstance(QTreeWidgetItem* item, const RuleDefinition& definition);

@@ -54,6 +54,15 @@ public:
     QString geometryLibrary() const;
     void setGeometryLibrary(const QString& value);
 
+    // Rule engine (IfcClash_Plus) — the Python interpreter of the engine's
+    // environment and the path of the engine's IPC entry point
+    // (ifcclash_plus/ipc.py). Both empty until configured: the rule
+    // features stay disabled rather than guessing an interpreter.
+    QString ruleEngineInterpreter() const;
+    void setRuleEngineInterpreter(const QString& value);
+    QString ruleEngineScript() const;
+    void setRuleEngineScript(const QString& value);
+
     bool showStats() const;
     void setShowStats(bool value);
 
@@ -115,6 +124,8 @@ public:
 
 signals:
     void geometryLibraryChanged(const QString& value);
+    void ruleEngineInterpreterChanged(const QString& value);
+    void ruleEngineScriptChanged(const QString& value);
     void showStatsChanged(bool value);
     void backfaceCullingChanged(bool value);
     void voidLimitChanged(int value);
@@ -133,6 +144,8 @@ private:
     void persist();
 
     QString geometry_library_;
+    QString rule_engine_interpreter_;
+    QString rule_engine_script_;
     bool show_stats_ = false;
     bool backface_culling_ = true;
     int void_limit_ = 30;

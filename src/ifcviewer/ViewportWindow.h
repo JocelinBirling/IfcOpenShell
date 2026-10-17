@@ -221,12 +221,22 @@ public:
     // setObjectsColor); clearElementColors restores the baked vertex
     // colours everywhere.
     void colorAllElements(uint32_t rgba8);
+    void colorElements(const std::vector<uint32_t>& object_ids, uint32_t rgba8);
     void clearElementColors();
+
+    // Explicit per-object visibility for UI-driven contexts (Clash Filter's
+    // saved context); visibleObjectIds is the currently displayed set.
+    void setObjectsVisible(const std::vector<uint32_t>& object_ids, bool visible);
+    std::vector<uint32_t> visibleObjectIds() const;
 
     // Replace the selection with {id} (or clear if id == 0). Used by
     // SessionState mirroring and by project commands that drop selection
     // on model removal. Wrapper around selection_.replace / clear.
     void setSelectedObjectId(uint32_t id);
+    // Replace the selection with the given object set (empty clears, 0s are
+    // ignored). For multi-object actions like isolating a clash pair.
+    // Wrapper around selection_.clear / add.
+    void setSelectedObjectIds(const std::vector<uint32_t>& ids);
 
     // FPS / fly mode. enterFpsMode swaps the orbit camera for a WASD/QE
     // free-fly camera (hotkey: Shift+F). exitFpsMode restores the orbit

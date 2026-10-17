@@ -84,6 +84,16 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Catalogue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Catalogue.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultInfoPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultInfoPanel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultPanel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/engineproxy/Messages.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/engineproxy/Messages.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/engineproxy/EngineClient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/engineproxy/EngineClient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/engineproxy/RuleFileJson.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/engineproxy/RuleFileJson.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RulePanel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RulePanel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleConfigPanel.cpp
@@ -146,6 +156,8 @@ target_link_libraries(BonsaiViewer PRIVATE
     # GeometryStreamer, IfcViewAssembler, ViewportWindow, OverlayRenderer,
     # BufferPool, …) since the wgpu/ifcviewer merge.
     IfcViewer
+    # The rule detection runs in the ifcclash_plus Python process (JSON
+    # Lines IPC, modules/rule/engineproxy); the viewer only maps results.
     plugin
     Qt${QT_VERSION}::Core
     Qt${QT_VERSION}::CorePrivate

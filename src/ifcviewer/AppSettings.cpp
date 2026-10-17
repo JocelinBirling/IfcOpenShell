@@ -23,6 +23,8 @@
 
 namespace {
 constexpr const char* kGeometryLibraryKey = "geometry/library";
+constexpr const char* kRuleEngineInterpreterKey = "ruleengine/interpreter";
+constexpr const char* kRuleEngineScriptKey = "ruleengine/script";
 constexpr const char* kGeometryLibraryDefault = "hybrid-cgal-simple-opencascade";
 constexpr const char* kShowStatsKey = "viewport/show_stats";
 constexpr const char* kBackfaceCullingKey = "viewport/backface_culling";
@@ -63,6 +65,28 @@ void AppSettings::setGeometryLibrary(const QString& value) {
     geometry_library_ = value;
     persist();
     emit geometryLibraryChanged(value);
+}
+
+QString AppSettings::ruleEngineInterpreter() const {
+    return rule_engine_interpreter_;
+}
+
+void AppSettings::setRuleEngineInterpreter(const QString& value) {
+    if (rule_engine_interpreter_ == value) return;
+    rule_engine_interpreter_ = value;
+    persist();
+    emit ruleEngineInterpreterChanged(value);
+}
+
+QString AppSettings::ruleEngineScript() const {
+    return rule_engine_script_;
+}
+
+void AppSettings::setRuleEngineScript(const QString& value) {
+    if (rule_engine_script_ == value) return;
+    rule_engine_script_ = value;
+    persist();
+    emit ruleEngineScriptChanged(value);
 }
 
 bool AppSettings::showStats() const {
@@ -206,6 +230,8 @@ void AppSettings::setNavPreset(NavPreset value) {
 void AppSettings::load() {
     QSettings settings;
     geometry_library_ = settings.value(kGeometryLibraryKey, kGeometryLibraryDefault).toString();
+    rule_engine_interpreter_ = settings.value(kRuleEngineInterpreterKey).toString();
+    rule_engine_script_ = settings.value(kRuleEngineScriptKey).toString();
     show_stats_ = settings.value(kShowStatsKey, false).toBool();
     backface_culling_ = settings.value(kBackfaceCullingKey, true).toBool();
     void_limit_ = settings.value(kVoidLimitKey, kVoidLimitDefault).toInt();
@@ -241,6 +267,8 @@ void AppSettings::load() {
 void AppSettings::persist() {
     QSettings settings;
     settings.setValue(kGeometryLibraryKey, geometry_library_);
+    settings.setValue(kRuleEngineInterpreterKey, rule_engine_interpreter_);
+    settings.setValue(kRuleEngineScriptKey, rule_engine_script_);
     settings.setValue(kShowStatsKey, show_stats_);
     settings.setValue(kBackfaceCullingKey, backface_culling_);
     settings.setValue(kVoidLimitKey, void_limit_);
