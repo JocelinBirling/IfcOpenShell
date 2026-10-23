@@ -101,6 +101,20 @@ QString buildAppStyleSheet() {
         QFrame#ribbonPage {
             background: transparent;
         }
+        QFrame#genericTopPanel {
+            background: ${ribbon_background};
+            border-bottom: 1px solid ${border};
+            font-size: 7pt;
+        }
+        QFrame#genericTopPanel QToolButton,
+        QFrame#genericTopPanel QLineEdit,
+        QFrame#genericTopPanel QLabel {
+            font-size: 7pt;
+        }
+        QFrame#specificTopPanel {
+            background: ${ribbon_background};
+            border-bottom: 1px solid ${border};
+        }
         QFrame#ribbonGroup {
             background: transparent;
             border-right: 1px solid ${border};

@@ -48,6 +48,10 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Style.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Style.h
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/GenericTopPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/GenericTopPanel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/SpecificTopPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/SpecificTopPanel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Dialog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Tabs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Tabs.h

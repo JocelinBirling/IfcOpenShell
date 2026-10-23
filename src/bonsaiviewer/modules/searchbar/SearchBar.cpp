@@ -61,7 +61,9 @@ SearchBar::SearchBar(bonsaiviewer::services::QueryEngine* engine,
     edit_->setPlaceholderText(QStringLiteral("Search..."));
     edit_->setClearButtonEnabled(true);
     edit_->setToolTip(QString::fromUtf8(kCheatSheet));
-    edit_->setMinimumWidth(260);
+    // Compact band: half the former width so the groups keep their room.
+    edit_->setMinimumWidth(130);
+    edit_->setFixedHeight(30);
     layout->addWidget(edit_, 1);
 
     magnifier_ = new QToolButton(this);

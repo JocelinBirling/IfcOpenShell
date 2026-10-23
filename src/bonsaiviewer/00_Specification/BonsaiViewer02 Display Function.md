@@ -11,23 +11,17 @@ The goal here is to specify the basic functions of a viewer. Users must be able 
 Cut the model with one or several planes, control their visibility and effect, and move or delete them directly in the viewport. Planes are created by clicking a surface and can coexist; all cuts apply simultaneously.
 
 #### Add Section
-Clicking on "Add a section plane" changes the cursor into a small knife.
+Clicking the "Section" button changes the cursor into a small knife.
 On the next left click, the normal of the surface just clicked is looked up.
 A section plane is produced, perpendicular to the normal of the surface, facing the same way as the normal.
-After the creation of a cut, the cursor returns to its initial selection functionality and its original shape.
-#### Remove Sections
-This function deletes all the section planes present in the view.
-The cut may be hidden or not, it will be deleted.
-#### Hide Planes
-This button hides the section plane object. The cut is still there, but the section plane is no longer visible. When clicked, the button must change its look (highlighted outline or changed icon), so it is clear that the button is active.
+After the creation of a cut, the tool deactivates and the cursor returns to its initial selection functionality and its original shape.
 
-It is a toggle button. On the 1st click, the section plane is hidden.
-On the 2nd click, the plane objects are displayed again.
-#### Suspend Sections
-This button suspends the section planes. The section planes are hidden and the cut is stopped.
+#### Modify (menu)
+The "Modify" button gathers the three section maintenance functions in one dropdown, so the section group stays compact:
 
-It is a toggle button. On the 1st click, the cuts are suspended.
-On the 2nd click, the section planes are reactivated.
+- **Remove Section** — deletes all the section planes present in the view. The cut may be hidden or not, it will be deleted.
+- **Hide Section** — a toggle that hides the section plane objects. The cut is still there, but the section planes are no longer visible. The checked state of the menu item shows the active state: on the 1st activation, the section planes are hidden; on the 2nd, the plane objects are displayed again.
+- **Suspend Section** — a toggle that suspends the section planes. The section planes are hidden and the cut is stopped. The checked state of the menu item shows the active state: on the 1st activation, the cuts are suspended; on the 2nd, the section planes are reactivated.
 #### Move a plane
 The section plane can be translated by clicking on it and keeping the button pressed. The plane then moves one way or the other.
 #### Delete one plane
@@ -38,7 +32,7 @@ right-click a plane gizmo and choose « Delete plane ».
 Change the appearance of the selected elements, with colour and opacity as two independent settings. Both reset on model reload and override Clash Filter colouring until a new clash run.
 
 - **Paint** — opens a colour dialog and colours every selected element on OK.
-- **Remove Color** — restores each element's original baked colour, keeping its transparency.
+- **Remove Colour** — restores each element's original baked colour, keeping its transparency.
 - **Transparency** — opens a preset dialog (100 / 75 / 50 / 25 % opacity); 100 % restores the original opacity.
 
 ### Display
@@ -48,7 +42,6 @@ Control element visibility globally and per IFC category. A disabled category ca
 - **Show Selection** — shows the selected elements.
 - **Hide Selection** — hides the selected elements.
 - **Show All** — shows everything, then re-applies the category filters.
-- **Hide All** — hides every element of the active view.
 - **Invert View** — flips the visibility of every element: hidden elements are shown, visible elements are hidden. The category filters are re-applied, so a disabled category cannot come back through this path.
 - **Select Everything in view** - select every displayed element of the actual view
 - **Restore the View** — resets the display state in one click: removes every colour and transparency override and shows every object and every model again.

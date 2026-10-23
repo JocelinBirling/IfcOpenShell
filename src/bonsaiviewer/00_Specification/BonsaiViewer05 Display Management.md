@@ -20,9 +20,14 @@ A generic panel is always attached below the Tabs Ribbon Bar. It holds a few fun
 
 - The search bar
 - The display functions
+- The section functions
 - The box functions
 - The zoom functions
 - The colour functions
+
+The groups are arranged along the band: the search bar in the left corner, then the display and section groups; the box functions are centred; the zoom and colour groups are justified on the right edge.
+
+The band is deliberately compact so the 3D view keeps the room: the generic top panel uses a 7 pt font, its buttons are capped at 63 x 58 px, and the search bar is 130 x 30 px.
 
 ### Specific Function Panel
 
@@ -38,6 +43,13 @@ Current panels:
 - Properties
 - Models
 - Spatial Hierarchy
+- Layers
+- Stored Views
+- Search and Query
+- Spreadsheet
+- Audit
+- Clash
+- Issues
 
 ## Open Subject
 

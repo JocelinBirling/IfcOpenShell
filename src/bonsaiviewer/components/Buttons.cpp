@@ -40,7 +40,7 @@ QToolButton* makeButton(const QString& text,
     button->setIcon(components::icons::makeAccentSvgIcon(icon_path));
     button->setIconSize(QSize(20, 20));
     button->setText(text);
-    button->setMinimumSize(QSize(90, 68));
+    button->setMinimumSize(QSize(63, 58));
     button->setAutoRaise(false);
     return button;
 }

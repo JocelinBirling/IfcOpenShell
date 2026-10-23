@@ -26,6 +26,8 @@
 #include "SessionState.h"
 #include "components/Buttons.h"
 #include "components/Dialog.h"
+#include "components/GenericTopPanel.h"
+#include "components/SpecificTopPanel.h"
 #include "components/Panel.h"
 #include "components/Style.h"
 #include "components/Tabs.h"
@@ -64,6 +66,7 @@
 #include <QDockWidget>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QFont>
 #include <QIcon>
 #include <QLabel>
 #include <QMenu>
@@ -278,12 +281,6 @@ QWidget* MainWindow::buildNavigateRibbonPage() {
     connect(go_home, &QToolButton::clicked, this, [this]() {
         modules::viewport::commands::goHome(*session_state_, *viewport_widget_->viewport());
     });
-    auto* view_all = components::buttons::makeButton("View All", ":/icons/cube-scan.svg", this);
-    connect(view_all, &QToolButton::clicked, this, [this]() {
-        // TI02 Fit View: frames the visible set (B02) and runs the
-        // 200 m heuristic with its popups (B10 + B17).
-        camera_service_->fitView();
-    });
     auto* view_selected = components::buttons::makeButton("View Selected", ":/icons/cube-scan-solid.svg", this);
     connect(view_selected, &QToolButton::clicked, this, [this]() {
         modules::viewport::commands::viewSelected(*viewport_widget_->viewport());
@@ -317,93 +314,25 @@ QWidget* MainWindow::buildNavigateRibbonPage() {
     connect(fly_mode, &QToolButton::clicked, this, [this]() {
         modules::viewport::commands::fly(*session_state_, *viewport_widget_->viewport());
     });
-    auto* section_mode = components::buttons::makeButton("Section", ":/icons/cube-cut-with-curve.svg", this);
-    section_mode->setCheckable(true);
-    connect(section_mode, &QToolButton::toggled, this, [this](bool checked) {
-        // Guarded: the sectionToolChanged sync below also sets the
-        // button, and the tool can be toggled from the K shortcut or
-        // Esc — only push the user's click when it changes the state.
-        if (checked != viewport_widget_->viewport()->sectionToolActive()) {
-            modules::viewport::commands::toggleSection(*session_state_,
-                                                       *viewport_widget_->viewport());
-        }
-    });
-    // Spec 02: arming the section tool turns the cursor into a knife
-    // (the section icon as a custom cursor — no dedicated knife asset);
-    // the one-shot auto-deactivation restores it after the plane is
-    // created.
-    connect(viewport_widget_->viewport(), &ViewportWindow::sectionToolChanged,
-            this, [this, section_mode](bool active) {
-        section_mode->blockSignals(true);
-        section_mode->setChecked(active);
-        section_mode->blockSignals(false);
-        if (active) {
-            const QPixmap knife =
-                QIcon(QStringLiteral(":/icons/cube-cut-with-curve.svg"))
-                    .pixmap(QSize(24, 24));
-            viewport_widget_->viewport()->setCursor(QCursor(knife, 8, 8));
-        } else {
-            viewport_widget_->viewport()->unsetCursor();
-        }
-    });
-
-    // TI02 section controls: remove every plane, hide the gizmos (cuts
-    // stay), suspend (gizmos and cuts both stop). The toggles are
-    // checkable so their state is visible, per the spec.
-    auto* remove_sections = components::buttons::makeButton("Remove Sections", ":/icons/cube-cut-with-curve.svg", this);
-    connect(remove_sections, &QToolButton::clicked, this, [this]() {
-        section_manager_->clear();
-    });
-    auto* hide_planes = components::buttons::makeButton("Hide Planes", ":/icons/eye-closed.svg", this);
-    hide_planes->setCheckable(true);
-    connect(hide_planes, &QToolButton::toggled, this, [this](bool checked) {
-        section_manager_->setGizmosHidden(checked);
-    });
-    auto* suspend_sections = components::buttons::makeButton("Suspend", ":/icons/clock-rotate-right.svg", this);
-    suspend_sections->setCheckable(true);
-    connect(suspend_sections, &QToolButton::toggled, this, [this](bool checked) {
-        section_manager_->setSuspended(checked);
-    });
-
-    // TI02 Perpendicular View: arms the tool; the next right click in
-    // the viewport (eventFilter) retrieves the normal and frames against
-    // it. A distinct cursor while armed.
-    auto* perpendicular_view = components::buttons::makeButton("Perpendicular", ":/icons/perspective-view.svg", this);
-    perpendicular_view->setCheckable(true);
-    connect(perpendicular_view, &QToolButton::toggled, this, [this, perpendicular_view](bool checked) {
-        perpendicular_mode_ = checked;
-        if (!viewport_widget_) return;
-        if (checked) viewport_widget_->viewport()->setCursor(Qt::CrossCursor);
-        else viewport_widget_->viewport()->unsetCursor();
-        session_state_->setStatusMessage(
-            "Orientation",
-            checked ? "Perpendicular view armed - right click a surface"
-                    : QStringLiteral("Orientation"));
-    });
 
     components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("CAMERA", {set_home, go_home, view_all, view_selected}, this),
-        components::buttons::makeButtonGroup("ORIENTATION", {plan_view, front_view, side_view, align_object, projection_button, perpendicular_view}, this),
-        components::buttons::makeButtonGroup("MODE", {fly_mode, section_mode, remove_sections, hide_planes, suspend_sections}, this),
+        components::buttons::makeButtonGroup("CAMERA", {set_home, go_home, view_selected}, this),
+        components::buttons::makeButtonGroup("ORIENTATION", {plan_view, front_view, side_view, align_object, projection_button}, this),
+        components::buttons::makeButtonGroup("MODE", {fly_mode}, this),
     });
     row->addStretch(1);
     return page;
 }
 
-QWidget* MainWindow::buildInspectRibbonPage() {
-    auto* page = new QFrame(this);
-    page->setObjectName("ribbonPage");
-    auto* row = new QHBoxLayout(page);
-    row->setContentsMargins(2, 4, 2, 4);
-    row->setSpacing(0);
+// TI05: the generic top panel hosts the search bar's neighbours — the
+// display, box, zoom and colour groups — always visible whatever the
+// ribbon tab.
+void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
+    auto* row = panel->row();
 
     auto* hide_selected = components::buttons::makeButton("Hide", ":/icons/eye-closed.svg", this);
     connect(hide_selected, &QToolButton::clicked, this, [this]() {
         active_view_->remove(selection_service_->selectionIdsAsVector());
-    });
-    auto* isolate_selected = components::buttons::makeButton("Isolate", ":/icons/eye-solid.svg", this);
-    connect(isolate_selected, &QToolButton::clicked, this, [this]() {
-        active_view_->isolate(selection_service_->selectionIdsAsVector());
     });
     auto* show_all = components::buttons::makeButton("Show All", ":/icons/eye.svg", this);
     connect(show_all, &QToolButton::clicked, this, [this]() {
@@ -419,10 +348,6 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     connect(show_selected, &QToolButton::clicked, this, [this]() {
         active_view_->add(selection_service_->selectionIdsAsVector());
     });
-    auto* hide_all = components::buttons::makeButton("Hide All", ":/icons/eye-closed.svg", this);
-    connect(hide_all, &QToolButton::clicked, this, [this]() {
-        active_view_->hideAll();
-    });
     auto* select_in_view = components::buttons::makeButton("Select Everything", ":/icons/cursor-pointer.svg", this);
     connect(select_in_view, &QToolButton::clicked, this, [this]() {
         selection_service_->setSelection(active_view_->visibleIds(),
@@ -433,7 +358,7 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     // every colour / transparency override (B04), every hidden model,
     // and every hidden element (B02's showAll, which re-applies the
     // category filter).
-    auto* restore_view = components::buttons::makeButton("Restore View", ":/icons/database-restore.svg", this);
+    auto* restore_view = components::buttons::makeButton("Restore View", ":/icons/refresh-double.svg", this);
     connect(restore_view, &QToolButton::clicked, this, [this]() {
         appearance_service_->clearOverrides();
         for (std::uint32_t session_model_id : session_state_->sessionModelIds()) {
@@ -473,22 +398,22 @@ QWidget* MainWindow::buildInspectRibbonPage() {
             "Box", QStringLiteral("Box: %1 objects")
                        .arg(entity_set_store_->current().size()));
     };
-    auto* selection_to_box = components::buttons::makeButton("Selection to Box", ":/icons/box-3d-center.svg", this);
+    auto* selection_to_box = components::buttons::makeButton("Selection", ":/icons/box-arrow-in.svg", this);
     connect(selection_to_box, &QToolButton::clicked, this, [this, report_box]() {
         entity_set_store_->replaceCurrent(selection_service_->selectionIdsAsVector());
         report_box();
     });
-    auto* add_to_box = components::buttons::makeButton("Add to Box", ":/icons/box-3d-three-points.svg", this);
+    auto* add_to_box = components::buttons::makeButton("Add", ":/icons/box-plus.svg", this);
     connect(add_to_box, &QToolButton::clicked, this, [this, report_box]() {
         entity_set_store_->addToCurrent(selection_service_->selectionIdsAsVector());
         report_box();
     });
-    auto* remove_from_box = components::buttons::makeButton("Remove from Box", ":/icons/folder-minus.svg", this);
+    auto* remove_from_box = components::buttons::makeButton("Remove", ":/icons/box-minus.svg", this);
     connect(remove_from_box, &QToolButton::clicked, this, [this, report_box]() {
         entity_set_store_->removeFromCurrent(selection_service_->selectionIdsAsVector());
         report_box();
     });
-    auto* isolate_box = components::buttons::makeButton("Isolate Box", ":/icons/eye-solid.svg", this);
+    auto* isolate_box = components::buttons::makeButton("Isolate", ":/icons/box-eye.svg", this);
     connect(isolate_box, &QToolButton::clicked, this, [this]() {
         const auto& current = entity_set_store_->current();
         if (current.empty()) {
@@ -497,7 +422,7 @@ QWidget* MainWindow::buildInspectRibbonPage() {
         }
         action_pipeline_->run(current, bonsaiviewer::services::ActionPipeline::Action::Isolate);
     });
-    auto* hide_box = components::buttons::makeButton("Hide Box", ":/icons/eye-closed.svg", this);
+    auto* hide_box = components::buttons::makeButton("Hide", ":/icons/box-eye-off.svg", this);
     connect(hide_box, &QToolButton::clicked, this, [this]() {
         const auto& current = entity_set_store_->current();
         if (current.empty()) {
@@ -543,7 +468,7 @@ QWidget* MainWindow::buildInspectRibbonPage() {
         if (!colour.isValid()) return;
         appearance_service_->setColour(selection_service_->selectionIdsAsVector(), colour);
     });
-    auto* remove_colour = components::buttons::makeButton("Remove Colour", ":/icons/eye.svg", this);
+    auto* remove_colour = components::buttons::makeButton("Remove Colour", ":/icons/paint-bucket-off.svg", this);
     connect(remove_colour, &QToolButton::clicked, this, [this]() {
         appearance_service_->removeColour(selection_service_->selectionIdsAsVector());
     });
@@ -566,6 +491,103 @@ QWidget* MainWindow::buildInspectRibbonPage() {
         dialog.exec();
     });
 
+    // TI05 ZOOM group (TI02's Fit View and Perpendicular View).
+    auto* fit_view = components::buttons::makeButton("Fit View", ":/icons/cube-scan.svg", this);
+    connect(fit_view, &QToolButton::clicked, this, [this]() {
+        camera_service_->fitView();
+    });
+    auto* perpendicular_view = components::buttons::makeButton("Perpendicular", ":/icons/perspective-view.svg", this);
+    perpendicular_view->setCheckable(true);
+    connect(perpendicular_view, &QToolButton::toggled, this, [this](bool checked) {
+        perpendicular_mode_ = checked;
+        if (!viewport_widget_) return;
+        if (checked) viewport_widget_->viewport()->setCursor(Qt::CrossCursor);
+        else viewport_widget_->viewport()->unsetCursor();
+        session_state_->setStatusMessage(
+            "Orientation",
+            checked ? "Perpendicular view armed - right click a surface"
+                    : QStringLiteral("Orientation"));
+    });
+
+    // Spec 02 section controls (user-placed in the generic band): arm
+    // the tool, remove every plane, hide the gizmos (cuts stay),
+    // suspend (gizmos and cuts both stop). The toggles are checkable so
+    // their state is visible, per the spec.
+    auto* section_mode = components::buttons::makeButton("Add", ":/icons/cube-cut-with-curve.svg", this);
+    section_mode->setCheckable(true);
+    connect(section_mode, &QToolButton::toggled, this, [this](bool checked) {
+        // Guarded: the sectionToolChanged sync below also sets the
+        // button, and the tool can be toggled from the K shortcut or
+        // Esc — only push the user's click when it changes the state.
+        if (checked != viewport_widget_->viewport()->sectionToolActive()) {
+            modules::viewport::commands::toggleSection(*session_state_,
+                                                       *viewport_widget_->viewport());
+        }
+    });
+    // Spec 02: arming the section tool turns the cursor into a knife
+    // (the section icon as a custom cursor — no dedicated knife asset);
+    // the one-shot auto-deactivation restores it after the plane is
+    // created.
+    connect(viewport_widget_->viewport(), &ViewportWindow::sectionToolChanged,
+            this, [this, section_mode](bool active) {
+        section_mode->blockSignals(true);
+        section_mode->setChecked(active);
+        section_mode->blockSignals(false);
+        if (active) {
+            const QPixmap knife =
+                QIcon(QStringLiteral(":/icons/cube-cut-with-curve.svg"))
+                    .pixmap(QSize(24, 24));
+            viewport_widget_->viewport()->setCursor(QCursor(knife, 8, 8));
+        } else {
+            viewport_widget_->viewport()->unsetCursor();
+        }
+    });
+    // Remove / Hide / Suspend gathered under one "Modify" dropdown so the
+    // SECTION group stays two buttons wide; the toggles stay checkable
+    // in the menu so their state remains visible.
+    auto* modify_section = components::buttons::makeButton("Modify", ":/icons/settings.svg", this);
+    modify_section->setPopupMode(QToolButton::InstantPopup);
+    auto* modify_menu = new QMenu(modify_section);
+    modify_menu->addAction(QStringLiteral("Remove Section"), this, [this]() {
+        section_manager_->clear();
+    });
+    auto* hide_action = modify_menu->addAction(QStringLiteral("Hide Section"));
+    hide_action->setCheckable(true);
+    connect(hide_action, &QAction::toggled, this, [this](bool checked) {
+        section_manager_->setGizmosHidden(checked);
+    });
+    auto* suspend_action = modify_menu->addAction(QStringLiteral("Suspend Section"));
+    suspend_action->setCheckable(true);
+    connect(suspend_action, &QAction::toggled, this, [this](bool checked) {
+        section_manager_->setSuspended(checked);
+    });
+    modify_section->setMenu(modify_menu);
+
+    components::buttons::addButtonGroups(row, {
+        components::buttons::makeButtonGroup("SELECTION", {hide_selected, show_selected, show_all, invert_selection, select_in_view, restore_view}, this),
+        components::buttons::makeButtonGroup("CATEGORIES", {categories}, this),
+        components::buttons::makeButtonGroup("SECTION", {section_mode, modify_section}, this),
+    });
+    // Box centred in the band: stretches on both sides push it to the
+    // middle while Zoom and Colour justify to the right edge.
+    row->addStretch(1);
+    components::buttons::addButtonGroups(row, {
+        components::buttons::makeButtonGroup("BOX", {selection_to_box, add_to_box, remove_from_box, isolate_box, hide_box, box_storage}, this),
+    });
+    row->addStretch(1);
+    components::buttons::addButtonGroups(row, {
+        components::buttons::makeButtonGroup("ZOOM", {fit_view, perpendicular_view}, this),
+        components::buttons::makeButtonGroup("COLOUR", {paint, remove_colour, transparency}, this),
+    });
+}
+
+QWidget* MainWindow::buildInspectRibbonPage() {
+    auto* page = new QFrame(this);
+    page->setObjectName("ribbonPage");
+    auto* row = new QHBoxLayout(page);
+    row->setContentsMargins(2, 4, 2, 4);
+    row->setSpacing(0);
+
     auto* distance = components::buttons::makeButton("Distance", ":/icons/select-edge3d.svg", this);
     connect(distance, &QToolButton::clicked, this, [this]() {
         modules::viewport::commands::toggleDistance(*viewport_widget_->viewport());
@@ -580,10 +602,6 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     });
 
     components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("SELECTION", {hide_selected, isolate_selected, show_selected, hide_all, show_all, invert_selection, select_in_view, restore_view}, this),
-        components::buttons::makeButtonGroup("CATEGORIES", {categories}, this),
-        components::buttons::makeButtonGroup("BOX", {selection_to_box, add_to_box, remove_from_box, isolate_box, hide_box, box_storage}, this),
-        components::buttons::makeButtonGroup("COLOUR", {paint, remove_colour, transparency}, this),
         components::buttons::makeButtonGroup("MEASURE", {distance, area, volume}, this),
     });
     row->addStretch(1);
@@ -650,18 +668,26 @@ void MainWindow::setupRibbon() {
     // replaces the QMainWindow's own menu area, so the QMenuBar holding
     // the File / Display / Window / Help menus becomes its first row.
     shell_layout->addWidget(menuBar());
-    // TI03: the search bar in the left corner of the top band, above
-    // the tabs (its final home is TI05's generic top panel).
-    auto* search_bar = new modules::searchbar::SearchBar(query_engine_,
-                                                         action_pipeline_, shell);
-    auto* search_row = new QHBoxLayout();
-    search_row->setContentsMargins(2, 0, 2, 0);
-    search_row->addWidget(search_bar);
-    search_row->addStretch(1);
-    auto* search_container = new QWidget(shell);
-    search_container->setLayout(search_row);
-    shell_layout->addWidget(search_container);
     shell_layout->addWidget(ribbon_tabs_);
+    // TI05: the generic top panel below the tabs bar — search bar in the
+    // left corner, then the display / box / zoom / colour groups. Always
+    // visible whatever the ribbon tab.
+    auto* generic_panel = new components::GenericTopPanel(shell);
+    auto* search_bar = new modules::searchbar::SearchBar(query_engine_,
+                                                         action_pipeline_, generic_panel);
+    generic_panel->setSearchBar(search_bar);
+    populateGenericTopPanel(generic_panel);
+    shell_layout->addWidget(generic_panel);
+    // TI05: one specific top panel per tab, switched with the ribbon.
+    // Empty until a feature registers its content.
+    auto* specific_panel = new components::SpecificTopPanel(shell);
+    specific_panel->addTab(QStringLiteral("Home"));
+    specific_panel->addTab(QStringLiteral("Navigate"));
+    specific_panel->addTab(QStringLiteral("Inspect"));
+    specific_panel->addTab(QStringLiteral("Panels"));
+    connect(ribbon_tabs_, &components::TabBar::currentChanged,
+            specific_panel, &components::SpecificTopPanel::setCurrentIndex);
+    shell_layout->addWidget(specific_panel);
     shell_layout->addWidget(ribbon_band);
 
     connect(ribbon_tabs_, &components::TabBar::currentChanged,

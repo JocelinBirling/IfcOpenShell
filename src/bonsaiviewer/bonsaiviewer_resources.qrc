@@ -39,7 +39,13 @@
         <file alias="square3d-from-center.svg">icons/square3d-from-center.svg</file>
         <file alias="filter.svg">icons/filter.svg</file>
         <file alias="paint-bucket.svg">icons/paint-bucket.svg</file>
+        <file alias="paint-bucket-off.svg">icons/paint-bucket-off.svg</file>
         <file alias="search.svg">icons/search.svg</file>
+        <file alias="box-arrow-in.svg">icons/box-arrow-in.svg</file>
+        <file alias="box-plus.svg">icons/box-plus.svg</file>
+        <file alias="box-minus.svg">icons/box-minus.svg</file>
+        <file alias="box-eye.svg">icons/box-eye.svg</file>
+        <file alias="box-eye-off.svg">icons/box-eye-off.svg</file>
         <file alias="cube-dots.svg">icons/cube-dots.svg</file>
         <file alias="cursor-pointer.svg">icons/cursor-pointer.svg</file>
         <file alias="sidebar-expand.svg">icons/sidebar-expand.svg</file>

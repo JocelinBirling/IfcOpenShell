@@ -34,6 +34,7 @@ class QStackedWidget;
 class QToolButton;
 namespace bonsaiviewer { class SessionState; }
 namespace bonsaiviewer::components { class TabBar; }
+namespace bonsaiviewer::components { class GenericTopPanel; }
 namespace bonsaiviewer::modules::models { class ModelsPanel; }
 namespace bonsaiviewer::modules::models { class ModelsPanelView; }
 namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanel; }
@@ -72,6 +73,9 @@ private:
     void setupStatus();
     void setupLoader();
     void setupMenuBar();
+    // TI05: fill the generic top panel (search bar neighbours: display,
+    // box, zoom, colour groups).
+    void populateGenericTopPanel(components::GenericTopPanel* panel);
     // TI02: viewport-level interactions the shell owns — the Perpendicular
     // View right click and the section gizmo right-click delete menu.
     bool eventFilter(QObject* watched, QEvent* event) override;
