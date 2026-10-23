@@ -42,6 +42,10 @@ namespace bonsaiviewer::modules::properties { class PropertiesPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
 namespace bonsaiviewer::modules::viewport { class ViewportPanel; }
+namespace bonsaiviewer::services { class ActiveView; }
+namespace bonsaiviewer::services { class CategoryOverrideFilter; }
+namespace bonsaiviewer::services { class PropertyIndex; }
+namespace bonsaiviewer::services { class SelectionService; }
 
 namespace bonsaiviewer::shell {
 
@@ -81,6 +85,12 @@ private:
     bonsaiviewer::modules::viewport::ViewportPanel* viewport_widget_ = nullptr;
     bonsaiviewer::modules::viewport::ViewportView* viewport_view_ = nullptr;
     bonsaiviewer::SessionState* session_state_ = nullptr;
+    // TI00 phase 1 services (B01/B02/B03/B05), created in setupLoader once
+    // the viewport and the element registry exist.
+    bonsaiviewer::services::SelectionService* selection_service_ = nullptr;
+    bonsaiviewer::services::CategoryOverrideFilter* category_filter_ = nullptr;
+    bonsaiviewer::services::ActiveView* active_view_ = nullptr;
+    bonsaiviewer::services::PropertyIndex* property_index_ = nullptr;
     bonsaiviewer::modules::models::ModelsPanel* models_panel_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanel* spatial_panel_ = nullptr;
     QDockWidget* layers_panel_ = nullptr;

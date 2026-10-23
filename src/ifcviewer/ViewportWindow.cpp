@@ -1134,11 +1134,28 @@ void ViewportWindow::setSelectedObjectId(uint32_t id) {
     if (isExposed()) requestUpdate();
 }
 
+void ViewportWindow::setSelectedObjectIds(const std::vector<uint32_t>& ids) {
+    selection_.clear();
+    for (uint32_t id : ids) {
+        if (id != 0) selection_.add(id);
+    }
+    if (isExposed()) requestUpdate();
+}
+
 // Visibility ops now live in ViewportCore (shared with web); these stay as thin
 // Qt-facing wrappers for the menu actions.
 void ViewportWindow::hideSelectedElements()    { core_.hideSelected(); }
 void ViewportWindow::isolateSelectedElements() { core_.isolateSelected(); }
 void ViewportWindow::showAllElements()         { core_.showAll(); }
+void ViewportWindow::hideAllElements()         { core_.hideAll(); }
+
+void ViewportWindow::setObjectsVisible(const std::vector<uint32_t>& object_ids, bool visible) {
+    core_.setObjectsVisible(object_ids, visible);
+}
+
+bool ViewportWindow::isObjectHidden(uint32_t object_id) const {
+    return core_.isObjectHidden(object_id);
+}
 
 void ViewportWindow::invertElementVisibility() {
     // Compute the new hidden set: every live object_id in a visible model

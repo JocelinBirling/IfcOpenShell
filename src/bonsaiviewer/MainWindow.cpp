@@ -39,6 +39,10 @@
 #include "modules/settings/Dialog.h"
 #include "modules/spatial_hierarchy/View.h"
 #include "modules/spatial_hierarchy/Panel.h"
+#include "services/ActiveView.h"
+#include "services/CategoryOverrideFilter.h"
+#include "services/IfcDataAccess.h"
+#include "services/SelectionService.h"
 #include "modules/viewport/Commands.h"
 #include "modules/viewport/Panel.h"
 #include "modules/viewport/View.h"
@@ -124,13 +128,13 @@ void MainWindow::setupChrome() {
         modules::viewport::commands::clearSection(*session_state_, *viewport_widget_->viewport());
     });
     bind_shortcut(QKeySequence(Qt::Key_H), [this]() {
-        modules::viewport::commands::hideSelected(*viewport_widget_->viewport());
+        active_view_->remove(selection_service_->selectionIdsAsVector());
     });
     bind_shortcut(QKeySequence(Qt::SHIFT | Qt::Key_H), [this]() {
-        modules::viewport::commands::isolateSelected(*viewport_widget_->viewport());
+        active_view_->isolate(selection_service_->selectionIdsAsVector());
     });
     bind_shortcut(QKeySequence(Qt::ALT | Qt::Key_H), [this]() {
-        modules::viewport::commands::showAll(*viewport_widget_->viewport());
+        active_view_->showAll();
     });
     updateWindowTitle();
 }
@@ -316,19 +320,19 @@ QWidget* MainWindow::buildInspectRibbonPage() {
 
     auto* hide_selected = components::buttons::makeButton("Hide", ":/icons/eye-closed.svg", this);
     connect(hide_selected, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::hideSelected(*viewport_widget_->viewport());
+        active_view_->remove(selection_service_->selectionIdsAsVector());
     });
     auto* isolate_selected = components::buttons::makeButton("Isolate", ":/icons/eye-solid.svg", this);
     connect(isolate_selected, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::isolateSelected(*viewport_widget_->viewport());
+        active_view_->isolate(selection_service_->selectionIdsAsVector());
     });
     auto* show_all = components::buttons::makeButton("Show All", ":/icons/eye.svg", this);
     connect(show_all, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::showAll(*viewport_widget_->viewport());
+        active_view_->showAll();
     });
     auto* invert_selection = components::buttons::makeButton("Invert", ":/icons/intersect.svg", this);
     connect(invert_selection, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::invertVisibility(*viewport_widget_->viewport());
+        active_view_->invert();
     });
 
     auto* distance = components::buttons::makeButton("Distance", ":/icons/select-edge3d.svg", this);
@@ -551,6 +555,27 @@ void MainWindow::setupStatus() {
 
 void MainWindow::setupLoader() {
     session_state_->createLoader(viewport_widget_->viewport());
+
+    // TI00 phase 1 services. B01/B02/B03 drive the viewport and the
+    // element registry; B05's index is (re)built as each model's geometry
+    // becomes ready, and the category filter re-applies there too so a
+    // freshly loaded model cannot resurrect a disabled category.
+    selection_service_ = new bonsaiviewer::services::SelectionService(
+        *session_state_, *viewport_widget_->viewport(), this);
+    category_filter_ = new bonsaiviewer::services::CategoryOverrideFilter(
+        *session_state_, *viewport_widget_->viewport(), this);
+    active_view_ = new bonsaiviewer::services::ActiveView(
+        *session_state_, *viewport_widget_->viewport(), *category_filter_);
+    property_index_ = new bonsaiviewer::services::PropertyIndex(
+        *session_state_->elementRegistry(), this);
+    connect(session_state_, &bonsaiviewer::SessionState::modelGeometryReady, this,
+            [this](uint32_t session_model_id) {
+                property_index_->indexModel(session_model_id);
+                category_filter_->applyToViewport();
+            });
+    connect(session_state_, &bonsaiviewer::SessionState::federationChanged, this,
+            [this]() { category_filter_->applyToViewport(); });
+
     viewport_view_ = new modules::viewport::ViewportView(
         session_state_, viewport_widget_->viewport(), this);
 
@@ -619,8 +644,7 @@ void MainWindow::setupLoader() {
     });
     connect(viewport_widget_->viewport(), &ViewportWindow::objectPicked,
             this, [this](uint32_t object_id) {
-        session_state_->setSelectedObjectId(object_id);
-        session_state_->notifySelectionChanged();
+        selection_service_->onViewportPicked(object_id);
     });
 }
 

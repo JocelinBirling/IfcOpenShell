@@ -214,12 +214,22 @@ public:
     void hideSelectedElements();
     void isolateSelectedElements();
     void showAllElements();
+    void hideAllElements();
     void invertElementVisibility();
+    // Explicit per-object visibility, for the shell's ActiveView service
+    // (B02) and CategoryOverrideFilter (B03) rather than the current
+    // selection. Thin Qt-facing wrapper around the ViewportCore op.
+    void setObjectsVisible(const std::vector<uint32_t>& object_ids, bool visible);
+    bool isObjectHidden(uint32_t object_id) const;
 
     // Replace the selection with {id} (or clear if id == 0). Used by
     // SessionState mirroring and by project commands that drop selection
     // on model removal. Wrapper around selection_.replace / clear.
     void setSelectedObjectId(uint32_t id);
+    // Replace the whole multi-selection with `ids` (empty clears). Used by
+    // the shell's SelectionService (B01) — non-viewport sources (tree,
+    // table, search) select whole sets, not one active object.
+    void setSelectedObjectIds(const std::vector<uint32_t>& ids);
 
     // FPS / fly mode. enterFpsMode swaps the orbit camera for a WASD/QE
     // free-fly camera (hotkey: Shift+F). exitFpsMode restores the orbit

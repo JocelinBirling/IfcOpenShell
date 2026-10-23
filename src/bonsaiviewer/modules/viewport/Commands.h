@@ -38,11 +38,6 @@ void toggleDistance(ViewportWindow& viewport);
 void toggleArea(ViewportWindow& viewport);
 void toggleVolume(ViewportWindow& viewport);
 
-void hideSelected(ViewportWindow& viewport);
-void isolateSelected(ViewportWindow& viewport);
-void showAll(ViewportWindow& viewport);
-void invertVisibility(ViewportWindow& viewport);
-
 } // namespace bonsaiviewer::modules::viewport::commands
 
 #endif

@@ -83,20 +83,4 @@ void toggleVolume(ViewportWindow& viewport) {
     viewport.toggleVolumeTool();
 }
 
-void hideSelected(ViewportWindow& viewport) {
-    viewport.hideSelectedElements();
-}
-
-void isolateSelected(ViewportWindow& viewport) {
-    viewport.isolateSelectedElements();
-}
-
-void showAll(ViewportWindow& viewport) {
-    viewport.showAllElements();
-}
-
-void invertVisibility(ViewportWindow& viewport) {
-    viewport.invertElementVisibility();
-}
-
 } // namespace bonsaiviewer::modules::viewport::commands

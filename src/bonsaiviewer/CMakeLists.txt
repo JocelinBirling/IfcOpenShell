@@ -108,6 +108,18 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/viewport/Commands.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/viewport/View.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/viewport/View.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveView.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveView.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/CategoryOverrideFilter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/CategoryOverrideFilter.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PersistenceService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PersistenceService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PopupService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PopupService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/SelectionService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/SelectionService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/bonsaiviewer_resources.qrc
 )
 
