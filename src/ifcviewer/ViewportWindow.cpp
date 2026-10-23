@@ -1153,6 +1153,15 @@ void ViewportWindow::setObjectsVisible(const std::vector<uint32_t>& object_ids, 
     core_.setObjectsVisible(object_ids, visible);
 }
 
+void ViewportWindow::setObjectsColor(const std::vector<uint32_t>& object_ids,
+                                      uint32_t rgba8, uint32_t override_flags) {
+    core_.setObjectsColor(object_ids, rgba8, override_flags);
+}
+
+void ViewportWindow::clearObjectColors() {
+    core_.clearObjectColors();
+}
+
 bool ViewportWindow::isObjectHidden(uint32_t object_id) const {
     return core_.isObjectHidden(object_id);
 }

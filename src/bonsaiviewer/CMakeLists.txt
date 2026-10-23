@@ -110,12 +110,20 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/viewport/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveView.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveView.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/AppearanceService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/AppearanceService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/CameraService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/CameraService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CategoryOverrideFilter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CategoryOverrideFilter.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/ContextMenuBuilder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/ContextMenuBuilder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PersistenceService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PersistenceService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PickingService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PickingService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PopupService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PopupService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/SelectionService.cpp

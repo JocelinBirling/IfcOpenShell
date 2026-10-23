@@ -136,7 +136,7 @@ std::vector<InstanceGpu> instanceGpuRecords(const std::vector<InstanceInfo>& ins
         dst.object_id            = inst.object_id;
         dst.color_override_rgba8 = inst.color_override_rgba8;
         dst.mesh_id              = inst.mesh_id;
-        dst._pad1                = 0;
+        dst.override_flags       = inst.override_flags;
     }
     return gpu;
 }
@@ -884,7 +884,7 @@ struct InstanceRecord {
     object_id: u32,
     color_override: u32,
     mesh_id: u32,
-    _pad1: u32,
+    override_flags: u32,
 };
 
 struct MeshQuant {
@@ -1059,7 +1059,15 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VsOut {
         let cg = f32((inst.color_override >>  8u) & 0xFFu) / 255.0;
         let cb = f32((inst.color_override >> 16u) & 0xFFu) / 255.0;
         let ca = f32((inst.color_override >> 24u) & 0xFFu) / 255.0;
-        if (ca > 0.0) { color = vec4<f32>(cr, cg, cb, ca); }
+        if (ca > 0.0) {
+            // Flag bit 0: opacity-only override — keep the baked vertex
+            // RGB, take the alpha byte from the override.
+            if ((inst.override_flags & 1u) != 0u) {
+                color = vec4<f32>(r, g, b, ca);
+            } else {
+                color = vec4<f32>(cr, cg, cb, ca);
+            }
+        }
     }
 
     var out: VsOut;
@@ -6533,7 +6541,8 @@ void ViewportCore::setObjectsVisible(const std::vector<std::uint32_t>& object_id
 }
 
 void ViewportCore::setObjectsColor(const std::vector<std::uint32_t>& object_ids,
-                                   std::uint32_t rgba8) {
+                                   std::uint32_t rgba8,
+                                   std::uint32_t override_flags) {
     if (object_ids.empty()) return;
     const std::unordered_set<std::uint32_t> wanted(object_ids.begin(), object_ids.end());
 
@@ -6542,9 +6551,10 @@ void ViewportCore::setObjectsColor(const std::vector<std::uint32_t>& object_ids,
     for (auto& [session_model_id, m] : models_gpu_) {
         bool touched = false;
         for (InstanceInfo& inst : m.instances) {
-            if (inst.color_override_rgba8 == rgba8) continue;
+            if (inst.color_override_rgba8 == rgba8 && inst.override_flags == override_flags) continue;
             if (wanted.find(inst.object_id) == wanted.end()) continue;
             inst.color_override_rgba8 = rgba8;
+            inst.override_flags        = override_flags;
             touched = true;
         }
         if (touched) uploadInstanceRecords(m);
@@ -6556,8 +6566,9 @@ void ViewportCore::clearObjectColors() {
     for (auto& [session_model_id, m] : models_gpu_) {
         bool touched = false;
         for (InstanceInfo& inst : m.instances) {
-            if (inst.color_override_rgba8 == 0u) continue;
+            if (inst.color_override_rgba8 == 0u && inst.override_flags == 0u) continue;
             inst.color_override_rgba8 = 0u;
+            inst.override_flags        = 0u;
             touched = true;
         }
         if (touched) uploadInstanceRecords(m);

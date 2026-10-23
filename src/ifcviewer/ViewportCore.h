@@ -945,12 +945,15 @@ public:
     // WGSL unpacks); 0 is the sentinel for "no override — use the baked vertex
     // colour", so clearing is just setObjectsColor(ids, 0). An alpha below 255
     // routes the instance through the transparent pass on the next cull, which
-    // re-reads the byte every frame — nothing else to invalidate.
+    // re-reads the byte every frame — nothing else to invalidate. `override_flags`
+    // bit 0 keeps the baked vertex RGB and takes only the alpha byte — the
+    // shell's opacity-without-paint path (BonsaiViewer AppearanceService).
     //
     // Writes the CPU instance mirror and re-uploads the touched models' instance
     // records. Cost is one buffer write per model that actually changed, so
     // colouring a whole model is one upload, not one per object.
-    void setObjectsColor(const std::vector<std::uint32_t>& object_ids, std::uint32_t rgba8);
+    void setObjectsColor(const std::vector<std::uint32_t>& object_ids, std::uint32_t rgba8,
+                         std::uint32_t override_flags = 0);
     void clearObjectColors();   // drop every override in every model
     // Global X-ray: translucent everything. Flips the frame uniform's alpha cap;
     // the cull classifier routes every instance through the transparent pass.

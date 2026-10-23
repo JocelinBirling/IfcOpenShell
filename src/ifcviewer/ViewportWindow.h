@@ -221,6 +221,14 @@ public:
     // selection. Thin Qt-facing wrapper around the ViewportCore op.
     void setObjectsVisible(const std::vector<uint32_t>& object_ids, bool visible);
     bool isObjectHidden(uint32_t object_id) const;
+    // Per-object colour override, for the shell's AppearanceService (B04)
+    // rather than the current selection. `rgba8` packs 0xAABBGGRR; 0 restores
+    // the baked vertex colour. `override_flags` bit 0 keeps the baked RGB and
+    // takes only the alpha byte (opacity without paint). Thin Qt-facing
+    // wrappers around the ViewportCore ops.
+    void setObjectsColor(const std::vector<uint32_t>& object_ids,
+                         uint32_t rgba8, uint32_t override_flags = 0);
+    void clearObjectColors();
 
     // Replace the selection with {id} (or clear if id == 0). Used by
     // SessionState mirroring and by project commands that drop selection
@@ -257,8 +265,9 @@ public:
     // thin wrapper around the float[3] version.
     bool computeObjectAabb(uint32_t object_id,
                            Eigen::Vector3f& mn, Eigen::Vector3f& mx) const;
-private:
     // Re-aim the orbit camera so the bounding sphere of [mn, mx] fits.
+    // Public for the shell's CameraService (B10) — its fitView frames the
+    // union AABB of the visible elements itself instead of calling viewAll.
     void frameAabb(const float mn[3], const float mx[3], float padding);
 
     // chunkScreenAreaPx moved to ViewportCore (#84-h).
@@ -335,6 +344,7 @@ private:
     // Repack the CPU selection into bit-flags and wgpuQueueWriteBuffer to
     // the GPU. Called from render() when selection_.dirty().
     void  uploadSelectionFlagsIfDirty();
+public:
     // Synchronous pick: encodes a one-shot R32UInt render of the current
     // visible_draws against the click pixel, copies the single texel back,
     // waits, and returns the object_id (0 if nothing was hit). Call from
