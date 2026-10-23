@@ -43,13 +43,16 @@ namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
 namespace bonsaiviewer::modules::viewport { class ViewportPanel; }
 namespace bonsaiviewer::services { class ActiveView; }
+namespace bonsaiviewer::services { class ActionPipeline; }
 namespace bonsaiviewer::services { class AppearanceService; }
 namespace bonsaiviewer::services { class CameraService; }
 namespace bonsaiviewer::services { class CategoryOverrideFilter; }
+namespace bonsaiviewer::services { class EntitySetStore; }
 namespace bonsaiviewer::services { class IfcDataAccess; }
 namespace bonsaiviewer::services { class PanelManager; }
 namespace bonsaiviewer::services { class PickingService; }
 namespace bonsaiviewer::services { class PropertyIndex; }
+namespace bonsaiviewer::services { class QueryEngine; }
 namespace bonsaiviewer::services { class SectionPlaneManager; }
 namespace bonsaiviewer::services { class SelectionService; }
 namespace bonsaiviewer::modules::menubar { class MenuBar; }
@@ -109,6 +112,11 @@ private:
     bonsaiviewer::services::CameraService* camera_service_ = nullptr;
     bonsaiviewer::services::PickingService* picking_service_ = nullptr;
     bonsaiviewer::services::SectionPlaneManager* section_manager_ = nullptr;
+    // TI03 search bar services: B06 parses and evaluates, B07 carries the
+    // -box scope, B08 executes the isolate / add / remove actions.
+    bonsaiviewer::services::QueryEngine* query_engine_ = nullptr;
+    bonsaiviewer::services::EntitySetStore* entity_set_store_ = nullptr;
+    bonsaiviewer::services::ActionPipeline* action_pipeline_ = nullptr;
     // TI02 Perpendicular View: armed on the button, consumed by the
     // first right click in the viewport.
     bool perpendicular_mode_ = false;

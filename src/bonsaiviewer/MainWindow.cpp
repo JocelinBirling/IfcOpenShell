@@ -41,15 +41,19 @@
 #include "modules/spatial_hierarchy/View.h"
 #include "modules/spatial_hierarchy/Panel.h"
 #include "modules/menubar/MenuBar.h"
+#include "modules/searchbar/SearchBar.h"
+#include "services/ActionPipeline.h"
 #include "services/AppearanceService.h"
 #include "services/ActiveView.h"
 #include "services/CameraService.h"
 #include "services/CategoryOverrideFilter.h"
 #include "services/ContextMenuBuilder.h"
+#include "services/EntitySetStore.h"
 #include "services/IfcDataAccess.h"
 #include "services/PanelManager.h"
 #include "services/PickingService.h"
 #include "services/PopupService.h"
+#include "services/QueryEngine.h"
 #include "services/SectionPlaneManager.h"
 #include "services/SelectionService.h"
 #include "modules/viewport/Commands.h"
@@ -575,6 +579,17 @@ void MainWindow::setupRibbon() {
     // replaces the QMainWindow's own menu area, so the QMenuBar holding
     // the File / Display / Window / Help menus becomes its first row.
     shell_layout->addWidget(menuBar());
+    // TI03: the search bar in the left corner of the top band, above
+    // the tabs (its final home is TI05's generic top panel).
+    auto* search_bar = new modules::searchbar::SearchBar(query_engine_,
+                                                         action_pipeline_, shell);
+    auto* search_row = new QHBoxLayout();
+    search_row->setContentsMargins(2, 0, 2, 0);
+    search_row->addWidget(search_bar);
+    search_row->addStretch(1);
+    auto* search_container = new QWidget(shell);
+    search_container->setLayout(search_row);
+    shell_layout->addWidget(search_container);
     shell_layout->addWidget(ribbon_tabs_);
     shell_layout->addWidget(ribbon_band);
 
@@ -752,6 +767,15 @@ void MainWindow::setupLoader() {
         *viewport_widget_->viewport(), this);
     section_manager_ = new bonsaiviewer::services::SectionPlaneManager(
         *viewport_widget_->viewport(), this);
+    // TI03: the search path — B07 (the -box scope), B06 (prefix grammar
+    // evaluated against B05) and B08 (isolate / -add / -rm).
+    entity_set_store_ = new bonsaiviewer::services::EntitySetStore(*session_state_, this);
+    query_engine_ = new bonsaiviewer::services::QueryEngine(
+        *session_state_, *property_index_, *data_access_);
+    query_engine_->setActiveView(active_view_);
+    query_engine_->setEntitySetStore(entity_set_store_);
+    action_pipeline_ = new bonsaiviewer::services::ActionPipeline(
+        *active_view_, *appearance_service_, *data_access_);
     // Perpendicular View (right click) and the section gizmo right-click
     // delete menu are viewport-level interactions owned by the shell.
     viewport_widget_->viewport()->installEventFilter(this);

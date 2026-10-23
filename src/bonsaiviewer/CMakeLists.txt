@@ -99,6 +99,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/settings/Dialog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/menubar/MenuBar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/menubar/MenuBar.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/searchbar/SearchBar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/searchbar/SearchBar.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Types.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.h
