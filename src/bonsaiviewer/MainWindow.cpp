@@ -25,6 +25,7 @@
 #include "../ifcviewer/ViewportWindow.h"
 #include "SessionState.h"
 #include "components/Buttons.h"
+#include "components/Dialog.h"
 #include "components/Panel.h"
 #include "components/Style.h"
 #include "components/Tabs.h"
@@ -40,10 +41,16 @@
 #include "modules/spatial_hierarchy/View.h"
 #include "modules/spatial_hierarchy/Panel.h"
 #include "modules/menubar/MenuBar.h"
+#include "services/AppearanceService.h"
 #include "services/ActiveView.h"
+#include "services/CameraService.h"
 #include "services/CategoryOverrideFilter.h"
+#include "services/ContextMenuBuilder.h"
 #include "services/IfcDataAccess.h"
 #include "services/PanelManager.h"
+#include "services/PickingService.h"
+#include "services/PopupService.h"
+#include "services/SectionPlaneManager.h"
 #include "services/SelectionService.h"
 #include "modules/viewport/Commands.h"
 #include "modules/viewport/Panel.h"
@@ -56,8 +63,11 @@
 #include <QIcon>
 #include <QLabel>
 #include <QMenu>
+#include <QColorDialog>
+#include <QPushButton>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QShortcut>
 #include <QSignalBlocker>
 #include <QStackedWidget>
@@ -266,7 +276,9 @@ QWidget* MainWindow::buildNavigateRibbonPage() {
     });
     auto* view_all = components::buttons::makeButton("View All", ":/icons/cube-scan.svg", this);
     connect(view_all, &QToolButton::clicked, this, [this]() {
-        if (viewport_widget_) viewport_widget_->viewport()->viewAll();
+        // TI02 Fit View: frames the visible set (B02) and runs the
+        // 200 m heuristic with its popups (B10 + B17).
+        camera_service_->fitView();
     });
     auto* view_selected = components::buttons::makeButton("View Selected", ":/icons/cube-scan-solid.svg", this);
     connect(view_selected, &QToolButton::clicked, this, [this]() {
@@ -302,14 +314,73 @@ QWidget* MainWindow::buildNavigateRibbonPage() {
         modules::viewport::commands::fly(*session_state_, *viewport_widget_->viewport());
     });
     auto* section_mode = components::buttons::makeButton("Section", ":/icons/cube-cut-with-curve.svg", this);
-    connect(section_mode, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::toggleSection(*session_state_, *viewport_widget_->viewport());
+    section_mode->setCheckable(true);
+    connect(section_mode, &QToolButton::toggled, this, [this](bool checked) {
+        // Guarded: the sectionToolChanged sync below also sets the
+        // button, and the tool can be toggled from the K shortcut or
+        // Esc — only push the user's click when it changes the state.
+        if (checked != viewport_widget_->viewport()->sectionToolActive()) {
+            modules::viewport::commands::toggleSection(*session_state_,
+                                                       *viewport_widget_->viewport());
+        }
+    });
+    // Spec 02: arming the section tool turns the cursor into a knife
+    // (the section icon as a custom cursor — no dedicated knife asset);
+    // the one-shot auto-deactivation restores it after the plane is
+    // created.
+    connect(viewport_widget_->viewport(), &ViewportWindow::sectionToolChanged,
+            this, [this, section_mode](bool active) {
+        section_mode->blockSignals(true);
+        section_mode->setChecked(active);
+        section_mode->blockSignals(false);
+        if (active) {
+            const QPixmap knife =
+                QIcon(QStringLiteral(":/icons/cube-cut-with-curve.svg"))
+                    .pixmap(QSize(24, 24));
+            viewport_widget_->viewport()->setCursor(QCursor(knife, 8, 8));
+        } else {
+            viewport_widget_->viewport()->unsetCursor();
+        }
+    });
+
+    // TI02 section controls: remove every plane, hide the gizmos (cuts
+    // stay), suspend (gizmos and cuts both stop). The toggles are
+    // checkable so their state is visible, per the spec.
+    auto* remove_sections = components::buttons::makeButton("Remove Sections", ":/icons/cube-cut-with-curve.svg", this);
+    connect(remove_sections, &QToolButton::clicked, this, [this]() {
+        section_manager_->clear();
+    });
+    auto* hide_planes = components::buttons::makeButton("Hide Planes", ":/icons/eye-closed.svg", this);
+    hide_planes->setCheckable(true);
+    connect(hide_planes, &QToolButton::toggled, this, [this](bool checked) {
+        section_manager_->setGizmosHidden(checked);
+    });
+    auto* suspend_sections = components::buttons::makeButton("Suspend", ":/icons/clock-rotate-right.svg", this);
+    suspend_sections->setCheckable(true);
+    connect(suspend_sections, &QToolButton::toggled, this, [this](bool checked) {
+        section_manager_->setSuspended(checked);
+    });
+
+    // TI02 Perpendicular View: arms the tool; the next right click in
+    // the viewport (eventFilter) retrieves the normal and frames against
+    // it. A distinct cursor while armed.
+    auto* perpendicular_view = components::buttons::makeButton("Perpendicular", ":/icons/perspective-view.svg", this);
+    perpendicular_view->setCheckable(true);
+    connect(perpendicular_view, &QToolButton::toggled, this, [this, perpendicular_view](bool checked) {
+        perpendicular_mode_ = checked;
+        if (!viewport_widget_) return;
+        if (checked) viewport_widget_->viewport()->setCursor(Qt::CrossCursor);
+        else viewport_widget_->viewport()->unsetCursor();
+        session_state_->setStatusMessage(
+            "Orientation",
+            checked ? "Perpendicular view armed - right click a surface"
+                    : QStringLiteral("Orientation"));
     });
 
     components::buttons::addButtonGroups(row, {
         components::buttons::makeButtonGroup("CAMERA", {set_home, go_home, view_all, view_selected}, this),
-        components::buttons::makeButtonGroup("ORIENTATION", {plan_view, front_view, side_view, align_object, projection_button}, this),
-        components::buttons::makeButtonGroup("MODE", {fly_mode, section_mode}, this),
+        components::buttons::makeButtonGroup("ORIENTATION", {plan_view, front_view, side_view, align_object, projection_button, perpendicular_view}, this),
+        components::buttons::makeButtonGroup("MODE", {fly_mode, section_mode, remove_sections, hide_planes, suspend_sections}, this),
     });
     row->addStretch(1);
     return page;
@@ -334,9 +405,91 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     connect(show_all, &QToolButton::clicked, this, [this]() {
         active_view_->showAll();
     });
-    auto* invert_selection = components::buttons::makeButton("Invert", ":/icons/intersect.svg", this);
+    auto* invert_selection = components::buttons::makeButton("Invert View", ":/icons/intersect.svg", this);
     connect(invert_selection, &QToolButton::clicked, this, [this]() {
         active_view_->invert();
+    });
+    // TI02 Display group: show the selection, hide everything, and
+    // "Select Everything in view" (B01 from B02's visible set).
+    auto* show_selected = components::buttons::makeButton("Show", ":/icons/eye-solid.svg", this);
+    connect(show_selected, &QToolButton::clicked, this, [this]() {
+        active_view_->add(selection_service_->selectionIdsAsVector());
+    });
+    auto* hide_all = components::buttons::makeButton("Hide All", ":/icons/eye-closed.svg", this);
+    connect(hide_all, &QToolButton::clicked, this, [this]() {
+        active_view_->hideAll();
+    });
+    auto* select_in_view = components::buttons::makeButton("Select Everything", ":/icons/cursor-pointer.svg", this);
+    connect(select_in_view, &QToolButton::clicked, this, [this]() {
+        selection_service_->setSelection(active_view_->visibleIds(),
+                                         bonsaiviewer::services::SelectionSource::Service,
+                                         bonsaiviewer::services::SelectionMode::Replace);
+    });
+    // Spec 02 Restore the View: one click resets the display state —
+    // every colour / transparency override (B04), every hidden model,
+    // and every hidden element (B02's showAll, which re-applies the
+    // category filter).
+    auto* restore_view = components::buttons::makeButton("Restore View", ":/icons/database-restore.svg", this);
+    connect(restore_view, &QToolButton::clicked, this, [this]() {
+        appearance_service_->clearOverrides();
+        for (std::uint32_t session_model_id : session_state_->sessionModelIds()) {
+            viewport_widget_->viewport()->showModel(session_model_id);
+        }
+        active_view_->showAll();
+        session_state_->setStatusMessage("Display", "View restored");
+    });
+
+    // TI02 quick category menu: « Show / Hide » toggles for the
+    // categories a neophyte needs (B03 is the gate — a disabled
+    // category can never come back through isolation or Show All).
+    auto* categories = components::buttons::makeButton("Categories", ":/icons/filter.svg", this);
+    categories->setPopupMode(QToolButton::InstantPopup);
+    auto* categories_menu = new QMenu(categories);
+    for (const char* category : {"IfcWall", "IfcSlab", "IfcRoof", "IfcCeiling",
+                                 "IfcSpace", "IfcOpeningElement"}) {
+        const QString ifc_class = QString::fromUtf8(category);
+        auto* action = categories_menu->addAction(QString::fromUtf8(category));
+        action->setCheckable(true);
+        action->setChecked(category_filter_->isCategoryEnabled(ifc_class));
+        connect(action, &QAction::toggled, this, [this, ifc_class](bool enabled) {
+            category_filter_->setCategoryEnabled(ifc_class, enabled);
+        });
+        connect(category_filter_, &bonsaiviewer::services::CategoryOverrideFilter::categoryChanged,
+                this, [action, ifc_class](const QString& changed, bool enabled) {
+                    if (changed == ifc_class) action->setChecked(enabled);
+                });
+    }
+    categories->setMenu(categories_menu);
+
+    // TI02 Colour group (B04): paint, restore the baked colour (opacity
+    // kept), and the transparency presets.
+    auto* paint = components::buttons::makeButton("Paint", ":/icons/paint-bucket.svg", this);
+    connect(paint, &QToolButton::clicked, this, [this]() {
+        const QColor colour = QColorDialog::getColor(Qt::white, this, QStringLiteral("Paint"));
+        if (!colour.isValid()) return;
+        appearance_service_->setColour(selection_service_->selectionIdsAsVector(), colour);
+    });
+    auto* remove_colour = components::buttons::makeButton("Remove Colour", ":/icons/eye.svg", this);
+    connect(remove_colour, &QToolButton::clicked, this, [this]() {
+        appearance_service_->removeColour(selection_service_->selectionIdsAsVector());
+    });
+    auto* transparency = components::buttons::makeButton("Transparency", ":/icons/cube-bandage.svg", this);
+    connect(transparency, &QToolButton::clicked, this, [this]() {
+        // The spec's preset dialog: 100/75/50/25 % opacity, 100 restores.
+        components::Dialog dialog(this);
+        auto* presets = new QWidget(&dialog);
+        auto* preset_layout = new QHBoxLayout(presets);
+        for (int percent : {100, 75, 50, 25}) {
+            auto* preset_button = new QPushButton(QString::number(percent) + QStringLiteral("%"), &dialog);
+            connect(preset_button, &QPushButton::clicked, &dialog, [this, percent, &dialog]() {
+                appearance_service_->setOpacity(
+                    selection_service_->selectionIdsAsVector(), percent);
+                dialog.accept();
+            });
+            preset_layout->addWidget(preset_button);
+        }
+        dialog.addBodyWidget(presets);
+        dialog.exec();
     });
 
     auto* distance = components::buttons::makeButton("Distance", ":/icons/select-edge3d.svg", this);
@@ -353,7 +506,9 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     });
 
     components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("SELECTION", {hide_selected, isolate_selected, show_all, invert_selection}, this),
+        components::buttons::makeButtonGroup("SELECTION", {hide_selected, isolate_selected, show_selected, hide_all, show_all, invert_selection, select_in_view, restore_view}, this),
+        components::buttons::makeButtonGroup("CATEGORIES", {categories}, this),
+        components::buttons::makeButtonGroup("COLOUR", {paint, remove_colour, transparency}, this),
         components::buttons::makeButtonGroup("MEASURE", {distance, area, volume}, this),
     });
     row->addStretch(1);
@@ -584,6 +739,23 @@ void MainWindow::setupLoader() {
     connect(session_state_, &bonsaiviewer::SessionState::federationChanged, this,
             [this]() { category_filter_->applyToViewport(); });
 
+    // TI02 display-function services: B05's read path, B04 colour /
+    // opacity, B10 fit view / perpendicular framing, B09 picking and B11
+    // section toggles. All the display mutations below route through them.
+    data_access_ = new bonsaiviewer::services::IfcDataAccess(
+        *session_state_->elementRegistry());
+    appearance_service_ = new bonsaiviewer::services::AppearanceService(
+        *session_state_, *viewport_widget_->viewport(), this);
+    camera_service_ = new bonsaiviewer::services::CameraService(
+        *session_state_, *viewport_widget_->viewport(), this);
+    picking_service_ = new bonsaiviewer::services::PickingService(
+        *viewport_widget_->viewport(), this);
+    section_manager_ = new bonsaiviewer::services::SectionPlaneManager(
+        *viewport_widget_->viewport(), this);
+    // Perpendicular View (right click) and the section gizmo right-click
+    // delete menu are viewport-level interactions owned by the shell.
+    viewport_widget_->viewport()->installEventFilter(this);
+
     viewport_view_ = new modules::viewport::ViewportView(
         session_state_, viewport_widget_->viewport(), this);
 
@@ -654,6 +826,51 @@ void MainWindow::setupLoader() {
             this, [this](uint32_t object_id) {
         selection_service_->onViewportPicked(object_id);
     });
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    const bool is_viewport = watched == viewport_widget_->viewport();
+    if (is_viewport && event->type() == QEvent::MouseButtonPress) {
+        auto* mouse = static_cast<QMouseEvent*>(event);
+        if (mouse->button() == Qt::RightButton && perpendicular_mode_) {
+            // TI02 Perpendicular View: the first right click retrieves
+            // the surface normal, frames the view against it, and the
+            // tool deactivates — cursor restored.
+            const float dpr = viewport_widget_->viewport()->dpr();
+            const int x_px = int(mouse->position().x() * dpr);
+            const int y_px = int(mouse->position().y() * dpr);
+            std::uint32_t object_id = 0;
+            Eigen::Vector3f world_pos, world_normal;
+            if (viewport_widget_->viewport()->pickSurfaceAt(
+                    x_px, y_px, object_id, world_pos, world_normal)) {
+                camera_service_->framePerpendicular(world_normal);
+            }
+            perpendicular_mode_ = false;
+            viewport_widget_->viewport()->unsetCursor();
+            return true;
+        }
+        if (mouse->button() == Qt::RightButton) {
+            // TI02: right-click a plane gizmo → "Delete plane" (B15). Works
+            // with or without the section tool armed — the tool one-shots
+            // off after a plane was created; only a hit on a gizmo claims
+            // the click, orbit elsewhere is untouched.
+            const int hit = viewport_widget_->viewport()->hitTestSectionGizmo(
+                int(mouse->position().x()), int(mouse->position().y()));
+            if (hit >= 0) {
+                bonsaiviewer::services::ContextMenuBuilder menu;
+                menu.addItem({QStringLiteral("delete-plane"),
+                              QStringLiteral("Delete plane"),
+                              {},
+                              {},
+                              [this, hit]() {
+                                  section_manager_->removePlaneAt(hit);
+                              }});
+                menu.exec(mouse->globalPosition().toPoint(), this);
+                return true;
+            }
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::setupMenuBar() {

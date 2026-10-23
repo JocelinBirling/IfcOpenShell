@@ -38,6 +38,7 @@
         <file alias="frame-alt.svg">icons/frame-alt.svg</file>
         <file alias="square3d-from-center.svg">icons/square3d-from-center.svg</file>
         <file alias="filter.svg">icons/filter.svg</file>
+        <file alias="paint-bucket.svg">icons/paint-bucket.svg</file>
         <file alias="cube-dots.svg">icons/cube-dots.svg</file>
         <file alias="cursor-pointer.svg">icons/cursor-pointer.svg</file>
         <file alias="sidebar-expand.svg">icons/sidebar-expand.svg</file>

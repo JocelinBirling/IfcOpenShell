@@ -49,7 +49,9 @@ Control element visibility globally and per IFC category. A disabled category ca
 - **Hide Selection** — hides the selected elements.
 - **Show All** — shows everything, then re-applies the category filters.
 - **Hide All** — hides every element of the active view.
+- **Invert View** — flips the visibility of every element: hidden elements are shown, visible elements are hidden. The category filters are re-applied, so a disabled category cannot come back through this path.
 - **Select Everything in view** - select every displayed element of the actual view
+- **Restore the View** — resets the display state in one click: removes every colour and transparency override and shows every object and every model again.
 - **Categories (menu)** — « Show / Hide » toggles for Walls, Slabs, Roofs, Ceilings, Spaces, Openings
 	- It's useful to quickly filter the view for neophyte user. 
 

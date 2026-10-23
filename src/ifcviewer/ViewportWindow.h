@@ -529,6 +529,10 @@ signals:
     // pickMeshLocalAt(x, y, ...) for hit details. Coordinates are in
     // physical pixels (post-DPR).
     void surfacePickedInTool(int x, int y, int modifiers);
+    // Emitted whenever the section tool arms / disarms (button, K
+    // shortcut, Esc, and the one-shot auto-deactivation after a plane
+    // was added) — the shell syncs its knife cursor with this.
+    void sectionToolChanged(bool active);
     // Emitted whenever the active tool changes (incl. on→off).
     void toolModeChanged(ViewportWindow::ToolMode mode);
     // Backspace/Delete pressed while a tool is active. Length tool's

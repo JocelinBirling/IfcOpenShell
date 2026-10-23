@@ -972,6 +972,7 @@ void ViewportWindow::toggleSectionTool() {
     section_tool_active_ = !section_tool_active_;
     Log::info().noquote() << "[wgpu section] tool"
                       << (section_tool_active_ ? "active" : "off");
+    emit sectionToolChanged(section_tool_active_);
     if (isExposed()) requestUpdate();
 }
 
@@ -1572,11 +1573,13 @@ void ViewportWindow::mousePressEvent(QMouseEvent* event) {
     nav_press_pos_     = nav_last_pos_;
     nav_dragged_       = false;
 
-    // Section tool: claim a plain-LMB press if it lands on one of the
-    // plane gizmos' arrows. Suppresses nav classification so the drag
-    // doesn't also rotate the camera.
-    if (section_tool_active_
-        && event->button() == Qt::LeftButton
+    // Section gizmo drag: claim a plain-LMB press if it lands on one of
+    // the plane gizmos' arrows — with or without the section tool armed
+    // (spec 02: a plane is translated by clicking it and holding the
+    // button; the tool one-shots off after a plane was created).
+    // Suppresses nav classification so the drag doesn't also rotate the
+    // camera.
+    if (event->button() == Qt::LeftButton
         && event->modifiers() == Qt::NoModifier) {
         const Eigen::Vector2i lp = toV2i(event->position().toPoint());
         const int hit = core_.hitTestSectionGizmo(lp.x(), lp.y());
@@ -1689,8 +1692,12 @@ void ViewportWindow::mouseReleaseEvent(QMouseEvent* event) {
                                   &hit_radius)) {
                     // Pad the gizmo a bit beyond the AABB so the cut reads
                     // as a "cap" rather than ending right at the boundary.
-                    addSectionPlaneAtSurface(hit_pos, hit_normal,
-                                             hit_radius * 1.5f);
+                    if (addSectionPlaneAtSurface(hit_pos, hit_normal,
+                                                 hit_radius * 1.5f)) {
+                        // Spec 02 / TI02: after the creation the tool
+                        // deactivates and the cursor returns to selection.
+                        toggleSectionTool();
+                    }
                 } else {
                     Log::info().noquote() << "[wgpu section] click missed (no surface)";
                 }

@@ -43,9 +43,14 @@ namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
 namespace bonsaiviewer::modules::viewport { class ViewportPanel; }
 namespace bonsaiviewer::services { class ActiveView; }
+namespace bonsaiviewer::services { class AppearanceService; }
+namespace bonsaiviewer::services { class CameraService; }
 namespace bonsaiviewer::services { class CategoryOverrideFilter; }
+namespace bonsaiviewer::services { class IfcDataAccess; }
 namespace bonsaiviewer::services { class PanelManager; }
+namespace bonsaiviewer::services { class PickingService; }
 namespace bonsaiviewer::services { class PropertyIndex; }
+namespace bonsaiviewer::services { class SectionPlaneManager; }
 namespace bonsaiviewer::services { class SelectionService; }
 namespace bonsaiviewer::modules::menubar { class MenuBar; }
 
@@ -64,6 +69,9 @@ private:
     void setupStatus();
     void setupLoader();
     void setupMenuBar();
+    // TI02: viewport-level interactions the shell owns — the Perpendicular
+    // View right click and the section gizmo right-click delete menu.
+    bool eventFilter(QObject* watched, QEvent* event) override;
     QWidget* buildHomeRibbonPage();
     QWidget* buildNavigateRibbonPage();
     QWidget* buildInspectRibbonPage();
@@ -94,6 +102,16 @@ private:
     bonsaiviewer::services::CategoryOverrideFilter* category_filter_ = nullptr;
     bonsaiviewer::services::ActiveView* active_view_ = nullptr;
     bonsaiviewer::services::PropertyIndex* property_index_ = nullptr;
+    // TI02: the display-function services (B04 colour, B10 fit view and
+    // perpendicular framing, B09 picking, B11 section toggles).
+    bonsaiviewer::services::IfcDataAccess* data_access_ = nullptr;
+    bonsaiviewer::services::AppearanceService* appearance_service_ = nullptr;
+    bonsaiviewer::services::CameraService* camera_service_ = nullptr;
+    bonsaiviewer::services::PickingService* picking_service_ = nullptr;
+    bonsaiviewer::services::SectionPlaneManager* section_manager_ = nullptr;
+    // TI02 Perpendicular View: armed on the button, consumed by the
+    // first right click in the viewport.
+    bool perpendicular_mode_ = false;
     // TI01: B13 owns the Window menu; the menu bar (TI01) feeds it the
     // hand-rolled docks and rebuilds on registration.
     bonsaiviewer::services::PanelManager* panel_manager_ = nullptr;
