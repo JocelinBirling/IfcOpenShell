@@ -22,8 +22,10 @@
 
 #include "../../SessionState.h"
 #include "../../../ifcviewer/ViewportWindow.h"
+#include "../models/Commands.h"
 #include "../project/Commands.h"
 #include "../settings/Dialog.h"
+#include "../viewport/Commands.h"
 #include "../../services/CategoryOverrideFilter.h"
 #include "../../services/PanelManager.h"
 #include "../../services/PopupService.h"
@@ -70,11 +72,16 @@ MenuBar::MenuBar(QMainWindow* window,
       panel_manager_(panel_manager) {
     buildFileMenu(window->menuBar()->addMenu(QStringLiteral("File")));
     buildDisplayMenu(window->menuBar()->addMenu(QStringLiteral("Display")));
+    buildViewMenu(window->menuBar()->addMenu(QStringLiteral("View")));
     window_menu_ = window->menuBar()->addMenu(QStringLiteral("Window"));
     buildWindowMenu();
     // Help always sits at the far right: it is added last (menu bars lay
     // menus out left to right, Help is the final entry).
     buildHelpMenu(window->menuBar()->addMenu(QStringLiteral("Help")));
+}
+
+void MenuBar::setOpenRecentPopulator(std::function<void(QMenu*)> populator) {
+    recent_populator_ = std::move(populator);
 }
 
 void MenuBar::buildFileMenu(QMenu* menu) {
@@ -84,6 +91,22 @@ void MenuBar::buildFileMenu(QMenu* menu) {
     connect(menu->addAction(QStringLiteral("Open")), &QAction::triggered, this, [this]() {
         modules::project::commands::openProject(*session_state_, *window_, *viewport_);
     });
+    connect(menu->addAction(QStringLiteral("Open Cloud")), &QAction::triggered, this, [this]() {
+        modules::project::commands::openCloudProject(*session_state_, *window_, *viewport_);
+    });
+    QMenu* recent = menu->addMenu(QStringLiteral("Open Recent"));
+    recent->setToolTipsVisible(true);
+    connect(recent, &QMenu::aboutToShow, this, [this, recent]() {
+        if (recent_populator_) recent_populator_(recent);
+    });
+    menu->addSeparator();
+    connect(menu->addAction(QStringLiteral("Add Model")), &QAction::triggered, this, [this]() {
+        modules::models::commands::addModel(*session_state_, *window_);
+    });
+    connect(menu->addAction(QStringLiteral("Sync From Cloud")), &QAction::triggered, this, [this]() {
+        modules::project::commands::syncCloudProject(*session_state_, *window_, *viewport_);
+    });
+    menu->addSeparator();
     connect(menu->addAction(QStringLiteral("Save")), &QAction::triggered, this, [this]() {
         modules::project::commands::saveProject(*session_state_, *window_);
     });
@@ -120,6 +143,14 @@ void MenuBar::buildDisplayMenu(QMenu* menu) {
                     });
         }
     }
+}
+
+void MenuBar::buildViewMenu(QMenu* menu) {
+    connect(menu->addAction(QStringLiteral("Fly")), &QAction::triggered, this, [this]() {
+        if (viewport_) {
+            modules::viewport::commands::fly(*session_state_, *viewport_);
+        }
+    });
 }
 
 void MenuBar::buildWindowMenu() {

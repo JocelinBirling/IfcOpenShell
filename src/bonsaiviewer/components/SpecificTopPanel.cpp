@@ -33,6 +33,9 @@ SpecificTopPanel::SpecificTopPanel(QWidget* parent)
     layout->setContentsMargins(2, 2, 2, 2);
     stack_ = new QStackedWidget(this);
     layout->addWidget(stack_);
+    // Every page starts empty — the panel gives the room back to the 3D
+    // view until a feature registers its content.
+    hide();
 }
 
 int SpecificTopPanel::addTab(const QString& title) {
@@ -60,7 +63,11 @@ void SpecificTopPanel::setContent(int index, QWidget* widget) {
     }
     widget->setParent(page);
     layout->addWidget(widget);
-    stack_->adjustSize();
+    // Registering content on the current page must reveal the panel
+    // right away, not wait for the next tab switch.
+    if (index == stack_->currentIndex()) {
+        setVisible(true);
+    }
 }
 
 void SpecificTopPanel::setCurrentIndex(int index) {

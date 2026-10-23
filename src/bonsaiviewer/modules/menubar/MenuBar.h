@@ -23,6 +23,8 @@
 
 #include <QObject>
 
+#include <functional>
+
 class QMainWindow;
 class QMenu;
 class ViewportWindow;
@@ -56,9 +58,14 @@ public:
                      bonsaiviewer::services::PanelManager* panel_manager,
                      QObject* parent = nullptr);
 
+    // Fills the File > Open Recent submenu (repulated on each show).
+    // The shell owns the recent-projects logic.
+    void setOpenRecentPopulator(std::function<void(QMenu*)> populator);
+
 private:
     void buildFileMenu(QMenu* menu);
     void buildDisplayMenu(QMenu* menu);
+    void buildViewMenu(QMenu* menu);
     void buildWindowMenu();
     void buildHelpMenu(QMenu* menu);
 
@@ -68,6 +75,7 @@ private:
     bonsaiviewer::services::CategoryOverrideFilter* category_filter_ = nullptr;
     bonsaiviewer::services::PanelManager* panel_manager_ = nullptr;
     QMenu* window_menu_ = nullptr;
+    std::function<void(QMenu*)> recent_populator_;
 };
 
 } // namespace bonsaiviewer::modules::menubar

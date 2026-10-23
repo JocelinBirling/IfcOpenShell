@@ -207,61 +207,13 @@ void MainWindow::populateRecentMenu(QMenu* menu) {
 }
 
 QWidget* MainWindow::buildHomeRibbonPage() {
+    // TI01: the project / models / settings actions moved to the menu
+    // bar's File menu — the Home page stays empty for future content.
     auto* page = new QFrame(this);
     page->setObjectName("ribbonPage");
     auto* row = new QHBoxLayout(page);
     row->setContentsMargins(6, 4, 6, 4);
     row->setSpacing(0);
-
-    auto* new_project = components::buttons::makeButton("New Project", ":/icons/plus-square.svg", this);
-    connect(new_project, &QToolButton::clicked, this, [this]() {
-        modules::project::commands::newProject(
-            *session_state_, *this, *viewport_widget_->viewport());
-    });
-    auto* open_project = components::buttons::makeButton("Open Project", ":/icons/download-square.svg", this);
-    connect(open_project, &QToolButton::clicked, this, [this]() {
-        modules::project::commands::openProject(
-            *session_state_, *this, *viewport_widget_->viewport());
-    });
-    auto* open_cloud = components::buttons::makeButton("Open Cloud", ":/icons/cloud-square.svg", this);
-    connect(open_cloud, &QToolButton::clicked, this, [this]() {
-        modules::project::commands::openCloudProject(
-            *session_state_, *this, *viewport_widget_->viewport());
-    });
-    auto* open_recent = components::buttons::makeButton("Open Recent", ":/icons/clock-rotate-right.svg", this);
-    auto* recent_menu = new QMenu(open_recent);
-    recent_menu->setToolTipsVisible(true);
-    open_recent->setMenu(recent_menu);
-    open_recent->setPopupMode(QToolButton::InstantPopup);
-    connect(recent_menu, &QMenu::aboutToShow, this, [this, recent_menu]() {
-        populateRecentMenu(recent_menu);
-    });
-    auto* save_project = components::buttons::makeButton("Save Project", ":/icons/floppy-disk.svg", this);
-    connect(save_project, &QToolButton::clicked, this, [this]() {
-        modules::project::commands::saveProjectDialog(*session_state_, *this);
-    });
-
-    auto* add_model = components::buttons::makeButton("Add Model", ":/icons/cube.svg", this);
-    connect(add_model, &QToolButton::clicked, this, [this]() {
-        modules::models::commands::addModel(*session_state_, *this);
-    });
-    auto* sync_from_cloud = components::buttons::makeButton("Sync From Cloud", ":/icons/refresh-double.svg", this);
-    connect(sync_from_cloud, &QToolButton::clicked, this, [this]() {
-        modules::project::commands::syncCloudProject(
-            *session_state_, *this, *viewport_widget_->viewport());
-    });
-
-    auto* settings_button = components::buttons::makeButton("Settings", ":/icons/settings.svg", this);
-    connect(settings_button, &QToolButton::clicked, this, [this]() {
-        modules::settings::SettingsDialog dialog(session_state_, this);
-        dialog.exec();
-    });
-
-    components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("PROJECT", {new_project, open_project, open_cloud, open_recent, save_project}, this),
-        components::buttons::makeButtonGroup("MODELS", {add_model, sync_from_cloud}, this),
-        components::buttons::makeButtonGroup("SETTINGS", {settings_button}, this),
-    });
     row->addStretch(1);
     return page;
 }
@@ -1024,6 +976,8 @@ void MainWindow::setupMenuBar() {
     menu_bar_ = new modules::menubar::MenuBar(
         this, session_state_, viewport_widget_->viewport(),
         category_filter_, panel_manager_, this);
+    menu_bar_->setOpenRecentPopulator(
+        [this](QMenu* menu) { populateRecentMenu(menu); });
 }
 
 void MainWindow::updateWindowTitle() {

@@ -93,6 +93,11 @@ QString buildAppStyleSheet() {
         QFrame#ribbonBand {
             background: ${ribbon_background};
             border-top: 1px solid ${border};
+            font-size: 7pt;
+        }
+        QFrame#ribbonBand QToolButton,
+        QFrame#ribbonBand QLabel {
+            font-size: 7pt;
         }
         QTabWidget#appTabWidget::pane {
             border: none;
