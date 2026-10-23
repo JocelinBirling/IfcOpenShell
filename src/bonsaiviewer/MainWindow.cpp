@@ -189,8 +189,14 @@ void MainWindow::populateRecentMenu(QMenu* menu) {
         QAction* action = menu->addAction(QFileInfo(path).fileName());
         action->setToolTip(path);
         connect(action, &QAction::triggered, this, [this, path]() {
-            const bool opened = modules::project::commands::openProjectPath(
-                *session_state_, *this, *viewport_widget_->viewport(), path);
+            // A plain .ifc is a model: use the Add Model flow. Anything
+            // else (project files) keeps the project-open path.
+            const bool is_ifc = QFileInfo(path).suffix().compare(
+                                    QStringLiteral("ifc"), Qt::CaseInsensitive) == 0;
+            const bool opened = is_ifc
+                ? modules::models::commands::addModelFromPath(*session_state_, path)
+                : modules::project::commands::openProjectPath(
+                      *session_state_, *this, *viewport_widget_->viewport(), path);
             // A recent entry that no longer loads is dropped so it stops
             // cluttering the menu (e.g. moved/deleted file).
             if (!opened && !QFileInfo::exists(path)) {

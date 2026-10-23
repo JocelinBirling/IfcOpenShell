@@ -28,6 +28,7 @@
 #include "../connectors/PickerDialog.h"
 #include "../connectors/Process.h"
 #include "../connectors/Registry.h"
+#include "../project/RecentProjects.h"
 #include "../../../ifcviewer/Federation.h"
 #include "../../../ifcviewer/SceneLoader.h"
 #include "../../../ifcviewer/IfcViewBuilder.h"
@@ -417,7 +418,26 @@ void addModel(SessionState& session, QWidget& host) {
         accepted_model_ids << model_id;
     }
     detail::loadModels(session, accepted_paths, accepted_model_ids);
+    // Feed the Open Recent menu: the last opened models are what the
+    // user wants back (RecentProjects de-duplicates and caps itself).
+    for (const QString& path : accepted_paths) {
+        modules::project::RecentProjects::add(path);
+    }
     session.notifyModelsChanged();
+}
+
+bool addModelFromPath(SessionState& session, const QString& path) {
+    if (path.isEmpty()) return false;
+    if (session.sessionModelIds().isEmpty()) {
+        armFederatedFalseOriginGuess();
+    }
+    const QString model_id =
+        session.federation()->addModel(path, QFileInfo(path).fileName());
+    if (model_id.isEmpty()) return false;
+    detail::loadModels(session, {path}, {model_id});
+    modules::project::RecentProjects::add(path);
+    session.notifyModelsChanged();
+    return true;
 }
 
 void addModelFromCloud(SessionState& session, QWidget& host) {

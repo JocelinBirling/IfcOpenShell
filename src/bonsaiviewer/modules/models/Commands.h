@@ -72,6 +72,11 @@ void loadModel(SessionState& session, ViewportWindow& viewport, const QString& m
 // nothing; if none of them do, the camera is left where it is.
 void viewModels(SessionState& session, ViewportWindow& viewport, const QStringList& model_ids);
 void addModel(SessionState& session, QWidget& host);
+// Add one model from an explicit path — the Add Model flow without the
+// dialog. Feeds the recent list. Used by Open Recent for plain .ifc
+// files (they are models, not projects). False when the path did not
+// resolve to a model.
+bool addModelFromPath(SessionState& session, const QString& path);
 // Connector picker → pull_models_interactive → addCloudModel + load.
 // Reachable from AddModelDialog's CloudModel button; the underlying call
 // is async, so addModelFromCloud returns immediately after kicking it off.
