@@ -39,9 +39,11 @@
 #include "modules/settings/Dialog.h"
 #include "modules/spatial_hierarchy/View.h"
 #include "modules/spatial_hierarchy/Panel.h"
+#include "modules/menubar/MenuBar.h"
 #include "services/ActiveView.h"
 #include "services/CategoryOverrideFilter.h"
 #include "services/IfcDataAccess.h"
+#include "services/PanelManager.h"
 #include "services/SelectionService.h"
 #include "modules/viewport/Commands.h"
 #include "modules/viewport/Panel.h"
@@ -54,6 +56,7 @@
 #include <QIcon>
 #include <QLabel>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QShortcut>
 #include <QSignalBlocker>
@@ -94,6 +97,7 @@ MainWindow::MainWindow(QWidget* parent)
     setupPanels();
     setupStatus();
     setupLoader();
+    setupMenuBar();
     setupRibbon();
     resize(1720, 980);
 }
@@ -412,6 +416,10 @@ void MainWindow::setupRibbon() {
     ribbon_pages_->addWidget(buildPanelsRibbonPage());
 
     band_layout->addWidget(ribbon_pages_);
+    // TI01: the menu bar sits above the tabs ribbon (spec 05). The shell
+    // replaces the QMainWindow's own menu area, so the QMenuBar holding
+    // the File / Display / Window / Help menus becomes its first row.
+    shell_layout->addWidget(menuBar());
     shell_layout->addWidget(ribbon_tabs_);
     shell_layout->addWidget(ribbon_band);
 
@@ -646,6 +654,38 @@ void MainWindow::setupLoader() {
             this, [this](uint32_t object_id) {
         selection_service_->onViewportPicked(object_id);
     });
+}
+
+void MainWindow::setupMenuBar() {
+    // TI01: the docks are already created by setupPanels; B13 adopts them
+    // so the Window menu toggles the same widgets the Panels ribbon
+    // toggles. The menu bar itself needs category_filter_ from
+    // setupLoader, hence this runs after it.
+    panel_manager_ = new bonsaiviewer::services::PanelManager(this, this);
+    panel_manager_->adoptPanel(QStringLiteral("models"),
+                               QStringLiteral("Models"), models_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("spatial"),
+                               QStringLiteral("Spatial"), spatial_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("layers"),
+                               QStringLiteral("Layers"), layers_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("properties"),
+                               QStringLiteral("Properties"), properties_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("views"),
+                               QStringLiteral("Views"), stored_views_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("search"),
+                               QStringLiteral("Search"), search_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("sheets"),
+                               QStringLiteral("Sheets"), spreadsheet_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("audit"),
+                               QStringLiteral("Audit"), audit_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("clash"),
+                               QStringLiteral("Clash"), clash_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("issues"),
+                               QStringLiteral("Issues"), issues_panel_);
+
+    menu_bar_ = new modules::menubar::MenuBar(
+        this, session_state_, viewport_widget_->viewport(),
+        category_filter_, panel_manager_, this);
 }
 
 void MainWindow::updateWindowTitle() {

@@ -44,8 +44,10 @@ namespace bonsaiviewer::modules::viewport { class ViewportView; }
 namespace bonsaiviewer::modules::viewport { class ViewportPanel; }
 namespace bonsaiviewer::services { class ActiveView; }
 namespace bonsaiviewer::services { class CategoryOverrideFilter; }
+namespace bonsaiviewer::services { class PanelManager; }
 namespace bonsaiviewer::services { class PropertyIndex; }
 namespace bonsaiviewer::services { class SelectionService; }
+namespace bonsaiviewer::modules::menubar { class MenuBar; }
 
 namespace bonsaiviewer::shell {
 
@@ -61,6 +63,7 @@ private:
     void setupPanels();
     void setupStatus();
     void setupLoader();
+    void setupMenuBar();
     QWidget* buildHomeRibbonPage();
     QWidget* buildNavigateRibbonPage();
     QWidget* buildInspectRibbonPage();
@@ -91,6 +94,10 @@ private:
     bonsaiviewer::services::CategoryOverrideFilter* category_filter_ = nullptr;
     bonsaiviewer::services::ActiveView* active_view_ = nullptr;
     bonsaiviewer::services::PropertyIndex* property_index_ = nullptr;
+    // TI01: B13 owns the Window menu; the menu bar (TI01) feeds it the
+    // hand-rolled docks and rebuilds on registration.
+    bonsaiviewer::services::PanelManager* panel_manager_ = nullptr;
+    bonsaiviewer::modules::menubar::MenuBar* menu_bar_ = nullptr;
     bonsaiviewer::modules::models::ModelsPanel* models_panel_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanel* spatial_panel_ = nullptr;
     QDockWidget* layers_panel_ = nullptr;

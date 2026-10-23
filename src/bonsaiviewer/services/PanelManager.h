@@ -57,6 +57,10 @@ public:
     void registerPanel(const QString& id, const QString& title,
                        PanelFactory factory,
                        Qt::DockWidgetArea area = Qt::RightDockWidgetArea);
+    // Register a dock widget the shell already created (the hand-rolled
+    // panels of MainWindow): same Window menu / visibility treatment,
+    // no lazy factory.
+    void adoptPanel(const QString& id, const QString& title, QDockWidget* dock);
     QStringList registeredPanels() const;
     QString panelTitle(const QString& id) const;
 

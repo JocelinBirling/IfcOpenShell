@@ -97,6 +97,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/project/SaveProjectDialog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/settings/Dialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/settings/Dialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/menubar/MenuBar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/menubar/MenuBar.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Types.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.h
@@ -181,6 +183,12 @@ target_link_libraries(BonsaiViewer PRIVATE
 )
 # Match the plugin library's boost::dll path type (plugin.h includes boost/dll).
 target_compile_definitions(BonsaiViewer PRIVATE BOOST_DLL_USE_STD_FS)
+
+# TI01 About popup: the version of the repo's VERSION file, so releases
+# (the publish workflow reads the same file) and the menu agree.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../../VERSION" BONSAIVIEWER_VERSION_FILE)
+string(STRIP "${BONSAIVIEWER_VERSION_FILE}" BONSAIVIEWER_VERSION_FILE)
+target_compile_definitions(BonsaiViewer PRIVATE BONSAIVIEWER_VERSION="${BONSAIVIEWER_VERSION_FILE}")
 
 # BUNDLE DESTINATION must be "." (install-prefix root) on macOS — Qt's
 # deploy generator emits `macdeployqt BonsaiViewer.app` (no path

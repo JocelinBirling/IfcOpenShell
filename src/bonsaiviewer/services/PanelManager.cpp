@@ -42,6 +42,16 @@ void PanelManager::registerPanel(const QString& id, const QString& title,
     emit panelRegistered(id);
 }
 
+void PanelManager::adoptPanel(const QString& id, const QString& title, QDockWidget* dock) {
+    if (!dock) return;
+    Panel panel;
+    panel.id = id;
+    panel.title = title;
+    panel.dock = dock;
+    panels_[id] = std::move(panel);
+    emit panelRegistered(id);
+}
+
 QStringList PanelManager::registeredPanels() const {
     QStringList ids;
     for (const auto& [id, panel] : panels_) {

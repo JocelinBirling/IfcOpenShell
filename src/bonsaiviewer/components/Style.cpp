@@ -348,6 +348,20 @@ QString buildAppStyleSheet() {
         QPushButton:pressed {
             background: ${ribbon_button_pressed};
         }
+        QMenuBar {
+            background: ${control_background};
+            color: ${primary_text};
+            border-bottom: 1px solid ${border};
+        }
+        QMenuBar::item {
+            background: transparent;
+            color: ${primary_text};
+            padding: 6px 10px;
+        }
+        QMenuBar::item:selected {
+            background: ${selection_background};
+            color: ${selection_text};
+        }
         QMenu {
             background: ${panel_background};
             color: ${primary_text};
