@@ -3,8 +3,9 @@
 ## Introduction
 The goal is to centralise functions used a few times per session: file opening, saving, and settings. It is the classic ribbon found in all standard software.
 
-- **File**: New, Open, Save, Save As, Settings.
+- **File**: New, Open, Open Cloud, Open Recent, Add Model, Sync From Cloud, Save, Save As, Settings.
 - **Display**: Show/Hide Spaces, Show/Hide Openings.
+- **View**: Fly.
 - **Window**: enables/disables the viewer panels. One item per panel, with a checkbox.
 - **Help**: Documentation, About. Always positioned at the far right.
 
@@ -13,9 +14,16 @@ The goal is to centralise functions used a few times per session: file opening, 
 ### File
 - **New** — File > New: resets the viewer (closes the file, clears the view).
 - **Open** — File > Open: opens an IFC file.
+- **Open Cloud** — File > Open Cloud: opens a project from the cloud.
+- **Open Recent** — File > Open Recent: submenu of the recent projects.
+- **Add Model** — File > Add Model: adds a model to the federation.
+- **Sync From Cloud** — File > Sync From Cloud: syncs the cloud project.
 - **Save** — File > Save: saves the current file.
 - **Save As** — File > Save As: saves under a new name or format.
 - **Settings** — File > Settings: application settings.
+
+### View
+- **Fly** — View > Fly: toggles the free-fly camera (WASD/QE, Shift+F to exit).
 
 ### Display
 Show or hide objects; some objects get in the way of visualisation. For example, IfcSpaces take up all the space and mask objects from clicks. The goal is to disable these objects temporarily. They will never be shown while the buttons are active.
