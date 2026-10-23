@@ -55,8 +55,36 @@ When we click on « Add a filter », a temporary window opens. The window holds:
 
 Each layer is split into two parts, and the actions run from top to bottom.
 
-- **The selection part** — reuses the IDS bricks. It holds a specification; a specification can contain several IDS facets and must select all the wanted elements. Selections can be combined with a **union** (the elements matching one or the other). Instead of a specification, a layer can hold an **AND** that reuses the selection of the layer above, to apply several actions to the same selection.
+- **The selection part** — reuses the IDS bricks. It holds a specification; a specification can contain several IDS facets and must select all the wanted elements. The first version supports the **entity facet** (IfcClass + PredefinedType) and the **property facet** (Psets and quantities, with comparison). The other facets (attribute, classification, material) are out of the first version; the data model follows IDS so they can be added later.
 - **The action part** — the place where the user picks one or more actions, from the list described in the Actions section.
+
+### Layer semantics
+
+The layers run from top to bottom, with a pending set of elements:
+
+- A layer with a **specification** and no action **adds** its elements to the pending set (union).
+- A layer marked **AND** adds nothing: it reuses the selection of the layer above.
+- The **actions of a layer** apply to the pending set: the union of the selections accumulated since the last action, plus the layer's own specification if it has one. After the actions run, the pending set is emptied and a new group starts.
+- An **AND** layer placed right after an action layer applies its actions to the same elements as the layer above: several actions on the same selection, without duplicating the specification.
+
+Example:
+
+| # | Selection | Actions | Effect |
+|---|-----------|---------|--------|
+| 1 | specification: IfcWall | — | pending = all walls |
+| 2 | specification: IfcSlab | — | pending = walls + slabs (union) |
+| 3 | AND | Colour red | walls + slabs are painted red; the group closes |
+| 4 | AND | Isolate in the view | same elements as layer 3 are isolated |
+| 5 | specification: IfcSpace | Hide | a new group starts: the spaces are hidden |
+
+### Filter file format
+
+A filter is one JSON document (the envelope):
+- the name, the description;
+- the list of layers with their actions;
+- each specification inside is stored in the **standard IDS format** (buildingSMART), so specifications are interoperable with other IDS tools.
+
+The envelope itself is a simple proprietary JSON; only the specifications it contains follow the IDS standard.
 
 ### Actions
 An action is a modification of the model:
@@ -69,4 +97,3 @@ An action is a modification of the model:
 - Automatic colour by property — each distinct value of the chosen property gets its own colour.
 
 ## Open Subject
-The AND and Union part of the filter need to be discussed.

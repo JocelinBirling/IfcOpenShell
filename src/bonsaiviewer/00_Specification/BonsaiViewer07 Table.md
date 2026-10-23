@@ -72,6 +72,8 @@ A relation can be added to the table, taking three inputs:
 
 It adds the elements that are related to the reference element. For example, to get a table with the levels and their objects, make a table of IfcBuildingStorey and add a SpatialRelation to add all the objects linked to each IfcBuildingStorey.
 
+The first version supports the **spatial relation** only: IfcRelContainedInSpatialStructure and the spatial aggregations (IfcRelAggregates). Other relation types (component aggregation, group assignment) are not in the first version.
+
 ### Calculated column
 A calculated column can be added, holding a simple function to run operations on the table values. 
 In a table where we already have the following columns:
@@ -81,7 +83,6 @@ we could add a new column called « Volume » with the function « Width x Heigh
 
 The formulas use Excel-style syntax: standard operator precedence, with parentheses; several calculations can of course be chained. The computation stays algebraic: if a value is text, the cell returns "ERROR".
 
-## Open Subject
+The first version is strictly arithmetic: `+ - * /` with parentheses and references to other columns; any text value returns "ERROR". The evolution of the calculated columns (conditional logic, comparisons, IF) is specified on its own: BonsaiViewer23 - Table Calculated Columns.
 
-- Relations are complex: the topic needs further debate.
-- Calculated columns are complex: the topic needs further debate.
+## Open Subject
