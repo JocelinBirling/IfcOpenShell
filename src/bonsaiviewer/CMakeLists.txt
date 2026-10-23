@@ -112,12 +112,16 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveView.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/AppearanceService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/AppearanceService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/ActionPipeline.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/ActionPipeline.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CameraService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CameraService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CategoryOverrideFilter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CategoryOverrideFilter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ContextMenuBuilder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ContextMenuBuilder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/EntitySetStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/EntitySetStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PersistenceService.cpp
@@ -126,8 +130,16 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PickingService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PopupService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PopupService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/QueryEngine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/QueryEngine.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/SectionPlaneManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/SectionPlaneManager.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/SelectionService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/SelectionService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/StepTextService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/StepTextService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/TreePanelFramework.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/TreePanelFramework.h
     ${CMAKE_CURRENT_SOURCE_DIR}/bonsaiviewer_resources.qrc
 )
 

@@ -381,6 +381,16 @@ public:
     //   Esc         deactivate tool
     bool  sectionToolActive() const { return section_tool_active_; }
     void  toggleSectionTool();
+    // Global section toggles for the shell's SectionPlaneManager (B11):
+    // suspended keeps the planes but stops clipping, hidden keeps the cuts
+    // but stops drawing the gizmos.
+    bool  sectionsSuspended() const { return core_.sectionsSuspended(); }
+    void  setSectionsSuspended(bool suspended) { core_.setSectionsSuspended(suspended); }
+    bool  sectionGizmosHidden() const { return core_.sectionGizmosHidden(); }
+    void  setSectionGizmosHidden(bool hidden) { core_.setSectionGizmosHidden(hidden); }
+    // Plane gizmo under (x, y) logical pixels, -1 for none — the shell's
+    // right-click "Delete plane" menu targets this index.
+    int   hitTestSectionGizmo(int x, int y) { return core_.hitTestSectionGizmo(x, y); }
     bool  addSectionPlaneAtSurface(const Eigen::Vector3f& point,
                                    const Eigen::Vector3f& normal,
                                    float visual_radius = 0.0f);

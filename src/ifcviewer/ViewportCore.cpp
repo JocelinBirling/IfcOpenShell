@@ -1515,8 +1515,10 @@ void ViewportCore::updateFrameUniforms() {
 
     // Pack active section planes. `is_section_clipped` (WGSL) reads
     // u.clip_count and u.clip_planes[0..clip_count) and discards
-    // fragments on the positive side.
-    const int n = std::min<int>(int(section_planes_.size()), kMaxSectionPlanes);
+    // fragments on the positive side. A suspended section (B11) keeps
+    // the plane list but packs count 0 so nothing is clipped.
+    const int n = sections_suspended_ ? 0
+        : std::min<int>(int(section_planes_.size()), kMaxSectionPlanes);
     u.clip_count = n;
     for (int i = 0; i < n; ++i) {
         const SectionPlane& p = section_planes_[i];
@@ -8109,8 +8111,11 @@ void ViewportCore::render() {
 
     // Section-plane gizmo — shared renderer, drawn for desktop + web from here.
     // (The desktop's OverlayRenderer no longer draws it, to avoid doubling.)
-    section_gizmo_.encode(pass, vp_this_frame, section_planes_,
-                          viewport_w_px, viewport_h_px, dpr_int, section_selected_index_);
+    // A hidden gizmo (B11) keeps the cuts but stops drawing the overlay.
+    if (!section_gizmos_hidden_) {
+        section_gizmo_.encode(pass, vp_this_frame, section_planes_,
+                              viewport_w_px, viewport_h_px, dpr_int, section_selected_index_);
+    }
 
     // Orbit pivot indicator — same shared-renderer story. Drawn while the host
     // has it gated on (drag) or an afterglow is still running; in the latter
@@ -8485,6 +8490,18 @@ void ViewportCore::clearSectionPlanes() {
     section_planes_.clear();
     section_selected_index_ = -1;
     Log::info() << "[wgpu section] cleared all planes";
+    host_->requestFrame();
+}
+
+void ViewportCore::setSectionsSuspended(bool suspended) {
+    if (sections_suspended_ == suspended) return;
+    sections_suspended_ = suspended;
+    host_->requestFrame();
+}
+
+void ViewportCore::setSectionGizmosHidden(bool hidden) {
+    if (section_gizmos_hidden_ == hidden) return;
+    section_gizmos_hidden_ = hidden;
     host_->requestFrame();
 }
 

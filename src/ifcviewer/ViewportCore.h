@@ -689,6 +689,14 @@ public:
     void setSelectedSectionPlane(int index);
     int  selectedSectionPlane() const { return section_selected_index_; }
 
+    // Global section toggles for the shell's SectionPlaneManager (B11).
+    // Suspended keeps the plane list but stops the clipping (clip_count
+    // packs as 0); hidden keeps the cuts but stops drawing the gizmos.
+    void setSectionsSuspended(bool suspended);
+    bool sectionsSuspended() const { return sections_suspended_; }
+    void setSectionGizmosHidden(bool hidden);
+    bool sectionGizmosHidden() const { return section_gizmos_hidden_; }
+
     // ---- Section gizmo interaction (shared desktop + web) -------------------
     //
     // All coords are LOGICAL (CSS) pixels; the core derives the logical viewport
@@ -1437,6 +1445,8 @@ private:
     bool            section_drag_active_       = false;
     int             section_drag_index_        = -1;
     int             section_selected_index_    = -1;
+    bool            sections_suspended_        = false;
+    bool            section_gizmos_hidden_    = false;
     Eigen::Vector3f section_drag_start_origin_ = Eigen::Vector3f::Zero();
     int             section_drag_start_mx_     = 0;
     int             section_drag_start_my_     = 0;
