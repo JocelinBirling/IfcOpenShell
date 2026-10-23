@@ -1,0 +1,1 @@
+On pourrait ajouter des clash temporelle.
