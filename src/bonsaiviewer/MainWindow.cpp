@@ -465,6 +465,76 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     }
     categories->setMenu(categories_menu);
 
+    // Spec 04 Box (TI04): a temporary set of objects with session
+    // lifetime, driven through B07. Isolate goes through B08, Hide
+    // through B02.
+    const auto report_box = [this]() {
+        session_state_->setStatusMessage(
+            "Box", QStringLiteral("Box: %1 objects")
+                       .arg(entity_set_store_->current().size()));
+    };
+    auto* selection_to_box = components::buttons::makeButton("Selection to Box", ":/icons/box-3d-center.svg", this);
+    connect(selection_to_box, &QToolButton::clicked, this, [this, report_box]() {
+        entity_set_store_->replaceCurrent(selection_service_->selectionIdsAsVector());
+        report_box();
+    });
+    auto* add_to_box = components::buttons::makeButton("Add to Box", ":/icons/box-3d-three-points.svg", this);
+    connect(add_to_box, &QToolButton::clicked, this, [this, report_box]() {
+        entity_set_store_->addToCurrent(selection_service_->selectionIdsAsVector());
+        report_box();
+    });
+    auto* remove_from_box = components::buttons::makeButton("Remove from Box", ":/icons/folder-minus.svg", this);
+    connect(remove_from_box, &QToolButton::clicked, this, [this, report_box]() {
+        entity_set_store_->removeFromCurrent(selection_service_->selectionIdsAsVector());
+        report_box();
+    });
+    auto* isolate_box = components::buttons::makeButton("Isolate Box", ":/icons/eye-solid.svg", this);
+    connect(isolate_box, &QToolButton::clicked, this, [this]() {
+        const auto& current = entity_set_store_->current();
+        if (current.empty()) {
+            session_state_->setStatusMessage("Box", "The box is empty");
+            return;
+        }
+        action_pipeline_->run(current, bonsaiviewer::services::ActionPipeline::Action::Isolate);
+    });
+    auto* hide_box = components::buttons::makeButton("Hide Box", ":/icons/eye-closed.svg", this);
+    connect(hide_box, &QToolButton::clicked, this, [this]() {
+        const auto& current = entity_set_store_->current();
+        if (current.empty()) {
+            session_state_->setStatusMessage("Box", "The box is empty");
+            return;
+        }
+        action_pipeline_->run(current, bonsaiviewer::services::ActionPipeline::Action::RemoveFromView);
+    });
+    // Box Storage: save the current box to a slot, or isolate the view
+    // on a saved slot without touching the current box.
+    auto* box_storage = components::buttons::makeButton("Box Storage", ":/icons/floppy-disk.svg", this);
+    box_storage->setPopupMode(QToolButton::InstantPopup);
+    auto* box_storage_menu = new QMenu(box_storage);
+    for (int slot = 1; slot <= bonsaiviewer::services::EntitySetStore::kSlotCount; ++slot) {
+        box_storage_menu->addAction(
+            QStringLiteral("Save to Slot %1").arg(slot), this, [this, slot, report_box]() {
+                entity_set_store_->saveSlot(slot);
+                report_box();
+            });
+    }
+    box_storage_menu->addSeparator();
+    for (int slot = 1; slot <= bonsaiviewer::services::EntitySetStore::kSlotCount; ++slot) {
+        box_storage_menu->addAction(
+            QStringLiteral("Isolate Slot %1").arg(slot), this, [this, slot]() {
+                const auto& slot_ids = entity_set_store_->slot(slot);
+                if (slot_ids.empty()) {
+                    session_state_->setStatusMessage(
+                        "Box", QStringLiteral("Slot %1 is empty").arg(slot));
+                    return;
+                }
+                action_pipeline_->run(slot_ids,
+                                      bonsaiviewer::services::ActionPipeline::Action::Isolate);
+            });
+    }
+    box_storage->setMenu(box_storage_menu);
+
+
     // TI02 Colour group (B04): paint, restore the baked colour (opacity
     // kept), and the transparency presets.
     auto* paint = components::buttons::makeButton("Paint", ":/icons/paint-bucket.svg", this);
@@ -512,6 +582,7 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     components::buttons::addButtonGroups(row, {
         components::buttons::makeButtonGroup("SELECTION", {hide_selected, isolate_selected, show_selected, hide_all, show_all, invert_selection, select_in_view, restore_view}, this),
         components::buttons::makeButtonGroup("CATEGORIES", {categories}, this),
+        components::buttons::makeButtonGroup("BOX", {selection_to_box, add_to_box, remove_from_box, isolate_box, hide_box, box_storage}, this),
         components::buttons::makeButtonGroup("COLOUR", {paint, remove_colour, transparency}, this),
         components::buttons::makeButtonGroup("MEASURE", {distance, area, volume}, this),
     });
