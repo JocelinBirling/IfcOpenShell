@@ -272,6 +272,37 @@ std::vector<express::base> get_spatial_children(const express::base& element) {
     unsupported_schema(name);
 }
 
+// The elements directly contained in a spatial structure element: its
+// IfcRelContainedInSpatialStructure → RelatedElements.
+template <typename Schema>
+std::vector<express::base> get_contained_elements_s(const express::base& element) {
+    std::vector<express::base> elements;
+    const auto structure = element.template as<typename Schema::IfcSpatialStructureElement>();
+    if (!structure) {
+        return elements;
+    }
+    for (const auto& relationship : structure.ContainsElements()) {
+        for (const auto& related : relationship.RelatedElements()) {
+            elements.push_back(related);
+        }
+    }
+    return elements;
+}
+
+std::vector<express::base> get_contained_elements(const express::base& element) {
+    if (!element) {
+        return {};
+    }
+    const std::string name = schema_name(element);
+#define IFCOPENSHELL_DISPATCH(Schema, Identifier)        \
+    if (name == Identifier) {                           \
+        return get_contained_elements_s<Schema>(element); \
+    }
+    IFCOPENSHELL_HELPER_FOR_EACH_SCHEMA(IFCOPENSHELL_DISPATCH)
+#undef IFCOPENSHELL_DISPATCH
+    unsupported_schema(name);
+}
+
 // getattr(element, name) for a string- or enum-valued attribute. Reads by name,
 // so it works uniformly across the various subtypes that carry a given
 // attribute (PredefinedType, Name, ...).
