@@ -38,6 +38,7 @@ struct TreeNode {
     QString name;
     QString detail;  // secondary column: LongName, or the elevation for storeys
     ItemKind kind = ItemKind::Space;
+    int ifc_id = 0;  // EXPRESS entity id — resolves the node back to the live IFC file
     bool visible = true;
     QList<TreeNode> children;
 };

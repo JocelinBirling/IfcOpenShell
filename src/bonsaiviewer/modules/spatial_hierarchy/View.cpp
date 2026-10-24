@@ -22,15 +22,18 @@
 
 #include "Panel.h"
 
+#include "../../ElementRegistry.h"
 #include "../../SessionState.h"
 #include "../../../ifcviewer/SceneLoader.h"
+#include "../../../ifcviewer/ViewportWindow.h"
 #include "../../../ifcparse/file.h"
 #include "../../../ifcparse/schema.h"
 
-#include "element.h"    // helpers: get_spatial_children, get_string_attribute
+#include "element.h"    // helpers: get_spatial_children, get_contained_elements, get_string_attribute
 #include "placement.h"  // helpers: get_storey_elevation
 
 #include <QCollator>
+#include <QHash>
 
 #include <algorithm>
 
@@ -69,8 +72,13 @@ ItemKind kindOf(const express::base& element) {
 }
 
 QString displayName(const express::base& element) {
+    // Name first; many files leave the spatial levels' Name empty and
+    // only fill LongName — show that rather than the class name.
     if (auto name = get_string_attribute(element, "Name"); name && !name->empty()) {
         return QString::fromStdString(*name);
+    }
+    if (auto long_name = get_string_attribute(element, "LongName"); long_name && !long_name->empty()) {
+        return QString::fromStdString(*long_name);
     }
     return QString::fromStdString(element.declaration().name());
 }
@@ -79,6 +87,7 @@ TreeNode buildNode(const express::base& element) {
     TreeNode node;
     node.name = displayName(element);
     node.kind = kindOf(element);
+    node.ifc_id = static_cast<int>(element.id());
     node.visible = true;
     // Secondary column: the storey elevation, else the LongName when filled.
     if (node.kind == ItemKind::Storey) {
@@ -94,16 +103,31 @@ TreeNode buildNode(const express::base& element) {
     return node;
 }
 
+// Every EXPRESS id in a spatial subtree: the element itself, its spatial
+// children, and the elements each level contains (walls, doors, …).
+void collectSubtreeIfcIds(const express::base& element, std::vector<int>& ids) {
+    if (!element) return;
+    ids.push_back(static_cast<int>(element.id()));
+    for (const auto& contained : get_contained_elements(element)) {
+        collectSubtreeIfcIds(contained, ids);
+    }
+    for (const auto& child : get_spatial_children(element)) {
+        collectSubtreeIfcIds(child, ids);
+    }
+}
+
 } // namespace
 
 SpatialHierarchyPanelView::SpatialHierarchyPanelView(SpatialHierarchyPanel* widget,
                                                      bonsaiviewer::SessionState* session_state,
+                                                     ViewportWindow* viewport,
                                                      QObject* parent)
-    : QObject(parent), widget_(widget), session_state_(session_state)
+    : QObject(parent), widget_(widget), session_state_(session_state), viewport_(viewport)
 {
     connect(widget_, &SpatialHierarchyPanel::visibilityToggleRequested, this, [this](const NodePath& path) {
         if (auto* node = findNode(path)) {
             node->visible = !node->visible;
+            applyVisibility(*node);
             reload();
             session_state_->setStatusMessage("Spatial", node->visible ? "Item shown" : "Item hidden");
         }
@@ -155,6 +179,34 @@ void SpatialHierarchyPanelView::reload() {
 TreeNode* SpatialHierarchyPanelView::findNode(const NodePath& path) {
     if (path.isEmpty()) return nullptr;
     return findNodeRecursive(nodes_, path, 0);
+}
+
+void SpatialHierarchyPanelView::applyVisibility(const TreeNode& node) {
+    if (!viewport_ || node.ifc_id == 0) return;
+    auto* loader = session_state_->loader();
+    const QString active_model_id = session_state_->activeModelId();
+    if (loader == nullptr || active_model_id.isEmpty()) return;
+    const uint32_t session_model_id = session_state_->sessionModelIdForModelId(active_model_id);
+    ifcopenshell::file* file = session_model_id != 0 ? loader->ifcFile(session_model_id) : nullptr;
+    if (file == nullptr) return;
+
+    // The subtree's EXPRESS ids (contained elements included), resolved to
+    // the session's object ids through the element registry.
+    std::vector<int> ifc_ids;
+    collectSubtreeIfcIds(file->instance_by_id(node.ifc_id), ifc_ids);
+    QHash<int, uint32_t> object_id_by_ifc_id;
+    for (const auto& info : session_state_->elementRegistry()->basicElementInfoForModel(session_model_id)) {
+        object_id_by_ifc_id.insert(info.ifc_id, info.object_id);
+    }
+    std::vector<uint32_t> object_ids;
+    object_ids.reserve(ifc_ids.size());
+    for (int id : ifc_ids) {
+        const auto found = object_id_by_ifc_id.find(id);
+        if (found != object_id_by_ifc_id.end()) object_ids.push_back(found.value());
+    }
+    if (!object_ids.empty()) {
+        viewport_->setObjectsVisible(object_ids, node.visible);
+    }
 }
 
 } // namespace bonsaiviewer::modules::spatial_hierarchy

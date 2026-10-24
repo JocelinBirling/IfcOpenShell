@@ -667,7 +667,8 @@ void MainWindow::setupPanels() {
 
     models_view_ = new modules::models::ModelsPanelView(
         models_panel_, session_state_, viewport_widget_->viewport(), this);
-    spatial_view_ = new modules::spatial_hierarchy::SpatialHierarchyPanelView(spatial_panel_, session_state_, this);
+    spatial_view_ = new modules::spatial_hierarchy::SpatialHierarchyPanelView(
+        spatial_panel_, session_state_, viewport_widget_->viewport(), this);
     properties_view_ = new modules::properties::PropertiesPanelView(properties_panel_, session_state_, this);
 
     layers_panel_ = new components::Panel("Layers", new modules::todo::TodoPanel("Layers", this), this);

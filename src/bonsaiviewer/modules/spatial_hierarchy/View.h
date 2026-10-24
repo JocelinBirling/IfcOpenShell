@@ -26,6 +26,8 @@
 #include <QObject>
 
 namespace bonsaiviewer { class SessionState; }
+class ViewportWindow;
+
 namespace bonsaiviewer::modules::spatial_hierarchy {
 
 class SpatialHierarchyPanel;
@@ -35,15 +37,21 @@ class SpatialHierarchyPanelView : public QObject {
 public:
     explicit SpatialHierarchyPanelView(SpatialHierarchyPanel* widget,
                                        bonsaiviewer::SessionState* session_state,
+                                       ViewportWindow* viewport,
                                        QObject* parent = nullptr);
 
 private:
     void rebuild();  // re-derive nodes_ from the loaded models' IFC spatial structure
-    void reload();
+    void reload();   // push nodes_ into the tree widget
     TreeNode* findNode(const NodePath& path);
+    // Push one node's visibility to the viewport: every element of the
+    // node's spatial subtree (contained elements included) is shown or
+    // hidden. No-op without a viewport or a live IFC source.
+    void applyVisibility(const TreeNode& node);
 
     SpatialHierarchyPanel* widget_ = nullptr;
     bonsaiviewer::SessionState* session_state_ = nullptr;
+    ViewportWindow* viewport_ = nullptr;
     QList<TreeNode> nodes_;
 };
 
