@@ -30,6 +30,8 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 
+#include <algorithm>
+
 namespace bonsaiviewer::modules::spatial_hierarchy {
 
 namespace {
@@ -91,13 +93,21 @@ SpatialHierarchyPanel::SpatialHierarchyPanel(QWidget* parent)
 
 void SpatialHierarchyPanel::showEvent(QShowEvent* event) {
     components::Panel::showEvent(event);
-    // Default the Name column to 20% of the width once the panel has a real
-    // layout size; Long Name (stretch) takes the rest. Left interactive after,
-    // so the user's own drag persists.
+    // Default the Name column once the panel has a real layout size; Long
+    // Name (stretch) takes the rest. Left interactive after, so the user's
+    // own drag persists.
     if (!column_widths_initialized_) {
         const int available = tree_->viewport()->width();
         if (available > 100) {
-            tree_->header()->resizeSection(0, available / 5);
+            // The branch arrows and item icons consume ~45px of the Name
+            // column, and indented levels consume more; when the column is
+            // narrower than an item's indent Qt is left with an empty text
+            // rect and the name silently stops rendering. Keep a floor of
+            // 130px so Site/Building/Storey names stay visible, but leave
+            // at least 100px for the Long Name / elevation column.
+            const int wanted = std::max(available / 5, 130);
+            const int upper = std::max(130, available - 100);
+            tree_->header()->resizeSection(0, std::min(wanted, upper));
             column_widths_initialized_ = true;
         }
     }
