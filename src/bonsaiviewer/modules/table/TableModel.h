@@ -16,6 +16,7 @@
 #include "Table.h"
 
 #include <QAbstractTableModel>
+#include <QColor>
 
 #include <cstdint>
 #include <functional>
@@ -40,6 +41,8 @@ public:
 
     void setColumns(const std::vector<TableColumn>& columns);
     void setRows(const std::vector<std::uint32_t>& object_ids);
+    // One colour per row, for the Color column (empty = no colours).
+    void setRowColours(const std::vector<QColor>& colours);
     const std::vector<std::uint32_t>& rows() const { return rows_; }
     std::uint32_t objectId(int row) const { return rows_.at(static_cast<size_t>(row)); }
 
@@ -62,6 +65,7 @@ private:
     ModelNameProvider model_name_;
     std::vector<TableColumn> columns_;
     std::vector<std::uint32_t> rows_;
+    std::vector<QColor> row_colours_;
     mutable std::vector<std::vector<QVariant>> cache_; // empty = not read yet
 };
 

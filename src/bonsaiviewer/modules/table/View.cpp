@@ -21,6 +21,8 @@
 #include "../../ElementRegistry.h"
 #include "../../SessionState.h"
 #include "../../services/ActionPipeline.h"
+#include "../../services/AppearanceService.h"
+#include "../../services/EntitySetStore.h"
 #include "../../services/PopupService.h"
 #include "../../services/SelectionService.h"
 #include "../../../ifcviewer/SceneLoader.h"
@@ -35,6 +37,7 @@
 #include <QLocale>
 #include <QMenu>
 #include <QPointer>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QSignalBlocker>
@@ -43,6 +46,7 @@
 
 #include <algorithm>
 #include <set>
+#include <unordered_set>
 
 namespace bonsaiviewer::modules::table {
 
@@ -54,6 +58,11 @@ std::vector<TableColumn> defaultColumns() {
     TableColumn ifc_class;
     ifc_class.kind = TableColumn::Kind::Class;
     return {name, ifc_class};
+}
+
+// A pleasant, not too dark random colour for a Color column row.
+QColor randomColour() {
+    return QColor::fromHsv(QRandomGenerator::global()->bounded(360), 170, 235);
 }
 
 QString csvField(const QVariant& value, QChar separator, QChar decimal_point) {
@@ -79,6 +88,8 @@ TablePanelView::TablePanelView(TablePanel* panel,
                                services::SelectionService& selection,
                                services::ActionPipeline& actions,
                                TableStore& store,
+                               services::AppearanceService& appearance,
+                               services::EntitySetStore& box,
                                QObject* parent)
     : QObject(parent),
       panel_(panel),
@@ -87,7 +98,9 @@ TablePanelView::TablePanelView(TablePanel* panel,
       catalog_(catalog),
       selection_(selection),
       actions_(actions),
-      store_(store)
+      store_(store),
+      appearance_(appearance),
+      box_(box)
 {
     model_ = new TableModel(
         data_access,
@@ -104,6 +117,16 @@ TablePanelView::TablePanelView(TablePanel* panel,
         if (!current_id_.isEmpty() && !store_.table(current_id_)) current_id_.clear();
         updateSummary();
     });
+    // Apply table to box: the toggle is saved with the table; the table
+    // follows the box while it is on.
+    connect(panel_, &TablePanel::boxRequested, this, [this](bool on_box) {
+        if (!table_) return;
+        table_->on_box = on_box;
+        evaluate();
+    });
+    connect(&box_, &services::EntitySetStore::currentChanged, this, [this] {
+        if (table_ && table_->on_box) evaluate();
+    });
     connect(panel_, &TablePanel::addColumnRequested, this,
             [this] { addColumn(table_ ? static_cast<int>(table_->columns.size()) : 0); });
     connect(panel_, &TablePanel::refreshRequested, this, &TablePanelView::evaluate);
@@ -114,7 +137,15 @@ TablePanelView::TablePanelView(TablePanel* panel,
         QTimer::singleShot(0, this, [this, old_visual, new_visual] { moveColumn(old_visual, new_visual); });
     });
     connect(view->selectionModel(), &QItemSelectionModel::selectionChanged, this, &TablePanelView::selectRows);
-    connect(view, &QTableView::doubleClicked, this, [this](const QModelIndex& index) { isolateRow(index.row()); });
+    view->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(view, &QTableView::doubleClicked, this,
+            [this](const QModelIndex& index) { isolateRows(rowsForAction(index.row())); });
+    connect(view, &QWidget::customContextMenuRequested, this, [this, view](const QPoint& pos) {
+        const int row = view->indexAt(pos).row();
+        QMenu menu(panel_);
+        menu.addAction("Isolate", this, [this, row] { isolateRows(rowsForAction(row)); });
+        menu.exec(view->viewport()->mapToGlobal(pos));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +162,7 @@ void TablePanelView::newTable(const QString& folder_id) {
     applyColumns();
     // Created from the Tables panel: stored at once, so it appears in the tree.
     saveTable();
+    panel_->setBoxChecked(table_->on_box);
     panel_->setTableActionsEnabled(true);
     evaluate();
 }
@@ -157,6 +189,7 @@ void TablePanelView::openTable(const QString& table_id) {
     pending_folder_ = document->folder_id;
     model_->setRows({});
     applyColumns();
+    panel_->setBoxChecked(table_->on_box);
     panel_->setTableActionsEnabled(true);
     evaluate();
 }
@@ -231,7 +264,26 @@ void TablePanelView::moveColumn(int from, int to) {
 
 void TablePanelView::applyColumns() {
     model_->setColumns(table_ ? table_->columns : std::vector<TableColumn>{});
+    applyRowColours();
     updateSummary();
+}
+
+void TablePanelView::applyRowColours() {
+    appearance_.clearLayer(services::AppearanceService::Layer::TableColour);
+    const bool has_colour = table_ && std::any_of(table_->columns.begin(), table_->columns.end(),
+                                                  [](const TableColumn& column) {
+                                                      return column.kind == TableColumn::Kind::Color;
+                                                  });
+    std::vector<QColor> colours;
+    if (has_colour) {
+        colours.reserve(model_->rows().size());
+        for (std::uint32_t object_id : model_->rows()) {
+            const QColor colour = randomColour();
+            colours.push_back(colour);
+            appearance_.setLayerColour({object_id}, colour, services::AppearanceService::Layer::TableColour);
+        }
+    }
+    model_->setRowColours(colours);
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +329,15 @@ void TablePanelView::evaluateNext() {
 
 void TablePanelView::finishEvaluation() {
     evaluating_ = false;
+    if (table_ && table_->on_box) {
+        const auto& box = box_.current();
+        const std::unordered_set<std::uint32_t> in_box(box.begin(), box.end());
+        found_.erase(std::remove_if(found_.begin(), found_.end(),
+                                    [&in_box](std::uint32_t id) { return in_box.count(id) == 0; }),
+                     found_.end());
+    }
     model_->setRows(found_);
+    applyRowColours();
     updateSummary();
     if (!errors_.isEmpty()) {
         services::popup::information(panel_, "The table could not be evaluated on every model:\n"
@@ -292,6 +352,7 @@ void TablePanelView::updateSummary() {
     }
     QString text = QString("<b>%1</b>").arg(table_->name.toHtmlEscaped());
     if (current_id_.isEmpty()) text += " <i>(not saved)</i>";
+    if (table_->on_box) text += " <i>(on the box)</i>";
     if (evaluating_) {
         text += QString(" — evaluating %1 model(s)…").arg(sources_.size());
     } else {
@@ -315,9 +376,21 @@ void TablePanelView::selectRows() {
     selection_.setSelection(ids, services::SelectionSource::Table);
 }
 
-void TablePanelView::isolateRow(int row) {
-    if (row < 0 || row >= model_->rowCount()) return;
-    actions_.run({model_->objectId(row)}, services::ActionPipeline::Action::Isolate);
+std::vector<int> TablePanelView::rowsForAction(int clicked_row) const {
+    std::set<int> rows;
+    for (const QModelIndex& index : panel_->tableView()->selectionModel()->selectedIndexes()) {
+        rows.insert(index.row());
+    }
+    if (clicked_row >= 0 && rows.count(clicked_row) == 0) return {clicked_row};
+    return {rows.begin(), rows.end()};
+}
+
+void TablePanelView::isolateRows(const std::vector<int>& rows) {
+    std::vector<std::uint32_t> ids;
+    for (int row : rows) {
+        if (row >= 0 && row < model_->rowCount()) ids.push_back(model_->objectId(row));
+    }
+    if (!ids.empty()) actions_.run(ids, services::ActionPipeline::Action::Isolate);
 }
 
 void TablePanelView::isolateExpressIds(std::uint32_t session_model_id, const std::vector<int>& express_ids) {

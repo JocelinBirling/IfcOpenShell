@@ -15,6 +15,8 @@
 #include "../../ElementRegistry.h"
 #include "../../services/IfcDataAccess.h"
 
+#include <QBrush>
+
 #include <sstream>
 
 namespace bonsaiviewer::modules::table {
@@ -64,8 +66,16 @@ void TableModel::setColumns(const std::vector<TableColumn>& columns) {
 void TableModel::setRows(const std::vector<std::uint32_t>& object_ids) {
     beginResetModel();
     rows_ = object_ids;
+    row_colours_.clear();
     cache_.assign(rows_.size(), {});
     endResetModel();
+}
+
+void TableModel::setRowColours(const std::vector<QColor>& colours) {
+    row_colours_ = colours;
+    if (!colours.empty() && !columns_.empty()) {
+        emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1), {Qt::BackgroundRole});
+    }
 }
 
 QVariant TableModel::autoNumeric(const QString& text) {
@@ -100,6 +110,12 @@ const std::vector<QVariant>& TableModel::rowValues(int row) const {
         case TableColumn::Kind::Model:
             values.emplace_back(info && model_name_ ? model_name_(info->session_model_id) : QString());
             break;
+        case TableColumn::Kind::Count:
+            values.emplace_back(qlonglong(1)); // one element per row until grouping
+            break;
+        case TableColumn::Kind::Color:
+            values.emplace_back(QString()); // the colour is the cell background
+            break;
         case TableColumn::Kind::Property: {
             if (!sets_read) {
                 psets = data_access_.propertySets(object_id);
@@ -132,6 +148,10 @@ int TableModel::columnCount(const QModelIndex& parent) const {
 QVariant TableModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid()) return {};
     if (role == Qt::DisplayRole || role == Qt::EditRole) return value(index.row(), index.column());
+    if (role == Qt::BackgroundRole && columns_[static_cast<size_t>(index.column())].kind == TableColumn::Kind::Color
+        && static_cast<size_t>(index.row()) < row_colours_.size()) {
+        return QBrush(row_colours_[static_cast<size_t>(index.row())]);
+    }
     if (role == Qt::TextAlignmentRole) {
         const bool number = isNumber(value(index.row(), index.column()));
         return QVariant::fromValue((number ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter);

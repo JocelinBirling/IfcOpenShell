@@ -25,6 +25,8 @@
 namespace bonsaiviewer { class SessionState; }
 namespace bonsaiviewer::services {
 class ActionPipeline;
+class AppearanceService;
+class EntitySetStore;
 class IfcDataAccess;
 class PropertyCatalog;
 class SelectionService;
@@ -53,6 +55,8 @@ public:
                    bonsaiviewer::services::SelectionService& selection,
                    bonsaiviewer::services::ActionPipeline& actions,
                    TableStore& store,
+                   bonsaiviewer::services::AppearanceService& appearance,
+                   bonsaiviewer::services::EntitySetStore& box,
                    QObject* parent = nullptr);
 
     // A new unsaved table; `folder_id` is where it is saved (empty = root).
@@ -76,6 +80,9 @@ private:
     void showHeaderMenu(int section);
     void moveColumn(int from, int to);
     void applyColumns();
+    // The Color column: one random colour per row, in the cells and in the
+    // viewer (AppearanceService table layer).
+    void applyRowColours();
 
     void evaluate();
     void evaluateNext();
@@ -83,7 +90,10 @@ private:
     void updateSummary();
 
     void selectRows();
-    void isolateRow(int row);
+    // The rows an action applies to: the selected rows, or the clicked row
+    // when it is not selected.
+    std::vector<int> rowsForAction(int clicked_row) const;
+    void isolateRows(const std::vector<int>& rows);
     void isolateExpressIds(std::uint32_t session_model_id, const std::vector<int>& express_ids);
     void exportCsv();
 
@@ -98,6 +108,8 @@ private:
     bonsaiviewer::services::SelectionService& selection_;
     bonsaiviewer::services::ActionPipeline& actions_;
     TableStore& store_;
+    bonsaiviewer::services::AppearanceService& appearance_;
+    bonsaiviewer::services::EntitySetStore& box_;
     TableModel* model_ = nullptr;
 
     std::optional<TableDefinition> table_;

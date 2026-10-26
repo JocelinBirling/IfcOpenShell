@@ -35,10 +35,13 @@ public:
     // The table actions need a loaded table (tables are created and loaded in
     // the Tables panel).
     void setTableActionsEnabled(bool enabled);
+    // The Box toggle shows whether the loaded table is applied to the box.
+    void setBoxChecked(bool checked);
 
 signals:
     void modifyTableRequested();
     void saveRequested();
+    void boxRequested(bool on_box);
     void addColumnRequested();
     void refreshRequested();
     void exportRequested();
@@ -48,6 +51,7 @@ private:
     QTableView* table_view_ = nullptr;
     QToolButton* modify_button_ = nullptr;
     QToolButton* save_button_ = nullptr;
+    QToolButton* box_button_ = nullptr;
     QToolButton* column_button_ = nullptr;
     QToolButton* refresh_button_ = nullptr;
     QToolButton* export_button_ = nullptr;

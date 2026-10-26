@@ -72,8 +72,33 @@ Spec source: `../00_Specification/BonsaiViewer07 Table.md`,
   signals, adopts the Tables panel in PanelManager, adds the toggle to the
   QUERY ribbon group.
 
-Not done yet: apply table to box, Count and Color columns, grouping,
-relations, calculated columns (spec 23).
+## Phase 2, part B (implemented, to build and test)
+
+- `Table.h`: `TableColumn::Kind` gets `Count` and `Color`; `TableDefinition`
+  gets `on_box` (saved as `on_box` in `tables.json`).
+- `TableModel`: `Count` is `qlonglong(1)`; `Color` is an empty value, the
+  cell background comes from `row_colours_` (`setRowColours`, role
+  `BackgroundRole`).
+- `View` (TablePanelView):
+  - `finishEvaluation`: when `on_box`, keeps the ids present in
+    `EntitySetStore::current()` (B07), then `setRows` and `applyRowColours`.
+  - `applyRowColours`: clears `AppearanceService::Layer::TableColour`, then
+    for a `Color` column generates one `QColor` per row (`randomColour`, hsv)
+    and calls `setLayerColour({object_id}, colour, TableColour)` (B04).
+    Called by `applyColumns` and `finishEvaluation`.
+  - `boxRequested(bool)` sets `table_->on_box` and evaluates;
+    `EntitySetStore::currentChanged` re-evaluates while `on_box`.
+  - `openTable` / `newTable` update the Box toggle with `setBoxChecked`.
+- `Panel`: Box toggle (checkable `box_button_`, signal `boxRequested`).
+- `ColumnDialog`: Count and Color in the Data list.
+- `MainWindow`: passes `*appearance_service_` and `*entity_set_store_` to
+  `TablePanelView`.
+
+Known limit: `applyRowColours` calls `setLayerColour` once per row, so each
+call refreshes the viewport. Large tables may be slow; a batched call in
+AppearanceService would fix it.
+
+Not done yet: grouped table (part C), relations, calculated columns (spec 23).
 
 ## Building blocks used
 

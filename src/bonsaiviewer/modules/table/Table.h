@@ -29,6 +29,8 @@ struct TableColumn {
         Class,
         GlobalId,
         Model,
+        Count, // number of elements of the row (1 until grouping)
+        Color, // a random colour per row, shown in the cell and in the viewer
     };
 
     Kind kind = Kind::Property;
@@ -50,6 +52,8 @@ struct TableDefinition {
     QString description;
     bonsaiviewer::services::IdsBridge::SelectionFields selection;
     std::vector<TableColumn> columns;
+    // Apply table to box: only the elements of the current box are listed.
+    bool on_box = false;
 };
 
 inline QString TableColumn::kindLabel(Kind kind) {
@@ -59,6 +63,8 @@ inline QString TableColumn::kindLabel(Kind kind) {
     case Kind::Class: return "Class";
     case Kind::GlobalId: return "GlobalId";
     case Kind::Model: return "Model";
+    case Kind::Count: return "Count";
+    case Kind::Color: return "Color";
     }
     return {};
 }

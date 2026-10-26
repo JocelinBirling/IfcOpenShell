@@ -16,9 +16,19 @@ rows, and the CSV export.
 
 **Phase 2, part A (implemented, to build and test)**: the Tables panel
 (folders, tables, drag and drop, run, import and export of one table),
-Save of the current table, and Load (run) of a saved table. Apply table to
-box, the Count and Color columns and the grouped table come next (see Open
-Subject).
+Save of the current table, and Load (run) of a saved table.
+
+**Phase 2, part B (implemented, to build and test)**:
+- **Apply table to box**: the Box toggle of the Table panel lists only the
+  elements of the current box. The toggle is saved with the table, and the
+  table updates when the box changes.
+- **Count** column: the number of elements of the row. It is 1 per row until
+  the grouped table (part C).
+- **Color** column: a random colour per row, shown in the cell and applied to
+  the objects of the row in the viewer. Colours are regenerated when the table
+  is evaluated or its columns change.
+
+The grouped table comes next (see Open Subject).
 
 
 

@@ -36,6 +36,8 @@ QString kindToString(TableColumn::Kind kind) {
     case TableColumn::Kind::Class: return "class";
     case TableColumn::Kind::GlobalId: return "globalid";
     case TableColumn::Kind::Model: return "model";
+    case TableColumn::Kind::Count: return "count";
+    case TableColumn::Kind::Color: return "color";
     }
     return "property";
 }
@@ -45,6 +47,8 @@ TableColumn::Kind kindFromString(const QString& value) {
     if (value == "class") return TableColumn::Kind::Class;
     if (value == "globalid") return TableColumn::Kind::GlobalId;
     if (value == "model") return TableColumn::Kind::Model;
+    if (value == "count") return TableColumn::Kind::Count;
+    if (value == "color") return TableColumn::Kind::Color;
     return TableColumn::Kind::Property;
 }
 
@@ -246,6 +250,7 @@ QJsonObject TableStore::tableToJson(const TableDocument& document) {
     json["folder"] = document.folder_id;
     json["name"] = document.definition.name;
     json["description"] = document.definition.description;
+    json["on_box"] = document.definition.on_box;
     QJsonArray facets;
     for (const auto& facet : document.definition.selection.facets) {
         facets.append(facet.toJson());
@@ -265,6 +270,7 @@ TableDocument TableStore::tableFromJson(const QJsonObject& json) {
     document.folder_id = json["folder"].toString();
     document.definition.name = json["name"].toString();
     document.definition.description = json["description"].toString();
+    document.definition.on_box = json["on_box"].toBool(false);
     for (const auto& value : json["facets"].toArray()) {
         document.definition.selection.facets.push_back(
             bonsaiviewer::services::IdsFacet::fromJson(value.toObject()));

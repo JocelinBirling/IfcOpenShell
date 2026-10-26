@@ -866,7 +866,7 @@ void MainWindow::setupLoader() {
     table_store_ = new modules::table::TableStore(this);
     table_view_ = new modules::table::TablePanelView(
         table_panel_, *session_state_, *ids_bridge_, *data_access_, *property_catalog_,
-        *selection_service_, *action_pipeline_, *table_store_, this);
+        *selection_service_, *action_pipeline_, *table_store_, *appearance_service_, *entity_set_store_, this);
     tables_view_ = new modules::table::TablesView(tables_panel_, *table_store_, this);
     connect(tables_view_, &modules::table::TablesView::openRequested,
             table_view_, &modules::table::TablePanelView::openTable);

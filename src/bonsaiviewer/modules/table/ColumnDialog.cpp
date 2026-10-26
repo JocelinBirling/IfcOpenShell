@@ -28,6 +28,7 @@ namespace {
 const TableColumn::Kind kKinds[] = {
     TableColumn::Kind::Property, TableColumn::Kind::Name, TableColumn::Kind::Class,
     TableColumn::Kind::GlobalId, TableColumn::Kind::Model,
+    TableColumn::Kind::Count, TableColumn::Kind::Color,
 };
 
 } // namespace
