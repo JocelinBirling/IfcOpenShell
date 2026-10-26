@@ -49,6 +49,9 @@ namespace bonsaiviewer::services { class AppearanceService; }
 namespace bonsaiviewer::services { class CameraService; }
 namespace bonsaiviewer::services { class CategoryOverrideFilter; }
 namespace bonsaiviewer::services { class EntitySetStore; }
+namespace bonsaiviewer::services { class FilterRunner; }
+namespace bonsaiviewer::services { class FilterStore; }
+namespace bonsaiviewer::services { class IdsBridge; }
 namespace bonsaiviewer::services { class IfcDataAccess; }
 namespace bonsaiviewer::services { class PanelManager; }
 namespace bonsaiviewer::services { class PickingService; }
@@ -56,6 +59,8 @@ namespace bonsaiviewer::services { class PropertyIndex; }
 namespace bonsaiviewer::services { class QueryEngine; }
 namespace bonsaiviewer::services { class SectionPlaneManager; }
 namespace bonsaiviewer::services { class SelectionService; }
+namespace bonsaiviewer::modules::filters { class FiltersPanel; }
+namespace bonsaiviewer::modules::filters { class FiltersPanelView; }
 namespace bonsaiviewer::modules::menubar { class MenuBar; }
 
 namespace bonsaiviewer::shell {
@@ -121,6 +126,11 @@ private:
     bonsaiviewer::services::QueryEngine* query_engine_ = nullptr;
     bonsaiviewer::services::EntitySetStore* entity_set_store_ = nullptr;
     bonsaiviewer::services::ActionPipeline* action_pipeline_ = nullptr;
+    // TI06 filter rules: the IDS engine bridge (IfcTester worker), the
+    // persisted filter tree, and the layer-semantics executor.
+    bonsaiviewer::services::IdsBridge* ids_bridge_ = nullptr;
+    bonsaiviewer::services::FilterStore* filter_store_ = nullptr;
+    bonsaiviewer::services::FilterRunner* filter_runner_ = nullptr;
     // TI02 Perpendicular View: armed on the button, consumed by the
     // first right click in the viewport.
     bool perpendicular_mode_ = false;
@@ -134,6 +144,7 @@ private:
     bonsaiviewer::modules::properties::PropertiesPanel* properties_panel_ = nullptr;
     QDockWidget* stored_views_panel_ = nullptr;
     QDockWidget* search_panel_ = nullptr;
+    bonsaiviewer::modules::filters::FiltersPanel* filters_panel_ = nullptr;
     QDockWidget* spreadsheet_panel_ = nullptr;
     QDockWidget* audit_panel_ = nullptr;
     QDockWidget* clash_panel_ = nullptr;
@@ -141,6 +152,7 @@ private:
     bonsaiviewer::modules::models::ModelsPanelView* models_view_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanelView* spatial_view_ = nullptr;
     bonsaiviewer::modules::properties::PropertiesPanelView* properties_view_ = nullptr;
+    bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
 };
 
 } // namespace bonsaiviewer::shell

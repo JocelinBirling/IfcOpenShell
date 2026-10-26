@@ -105,6 +105,18 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/menubar/MenuBar.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/searchbar/SearchBar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/searchbar/SearchBar.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/View.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/CreationDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/CreationDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetPages.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetPages.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/PropertyPicker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/PropertyPicker.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/ValueEditor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/ValueEditor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Types.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.h
@@ -130,6 +142,12 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ContextMenuBuilder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/EntitySetStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/EntitySetStore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterRunner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterRunner.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterStore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PersistenceService.cpp
