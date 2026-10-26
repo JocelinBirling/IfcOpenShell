@@ -198,6 +198,29 @@ void SettingsDialog::setupUi() {
             "for Web; click + box-select use whichever the preset assigns.");
         form->addRow("Preset", nav_preset_combo_);
 
+        zoom_preset_combo_ = new QComboBox(body);
+        zoom_preset_combo_->addItem("Zoom in Center",
+            static_cast<int>(bonsaiviewer::ViewerSettings::ZoomPreset::CenterView));
+        zoom_preset_combo_->addItem("Zoom in Cursor",
+            static_cast<int>(bonsaiviewer::ViewerSettings::ZoomPreset::Cursor));
+        zoom_preset_combo_->addItem("Zoom on Selection",
+            static_cast<int>(bonsaiviewer::ViewerSettings::ZoomPreset::Selection));
+        zoom_preset_combo_->setToolTip(
+            "Where the mouse wheel zooms. Cursor ignores hidden objects and falls back to the "
+            "centre of view when nothing visible is under the mouse. Selection frames the "
+            "selected objects, hidden ones included.");
+        form->addRow("Zoom", zoom_preset_combo_);
+
+        orbit_preset_combo_ = new QComboBox(body);
+        orbit_preset_combo_->addItem("Orbit the Center of View",
+            static_cast<int>(bonsaiviewer::ViewerSettings::OrbitPreset::CenterView));
+        orbit_preset_combo_->addItem("Orbit in the Cursor",
+            static_cast<int>(bonsaiviewer::ViewerSettings::OrbitPreset::Cursor));
+        orbit_preset_combo_->setToolTip(
+            "Orbit centre. Cursor picks the surface under the mouse when the drag starts and "
+            "keeps it fixed for the whole drag.");
+        form->addRow("Orbit", orbit_preset_combo_);
+
         section->addBodyWidget(body);
         layout->addWidget(section);
 
@@ -385,6 +408,11 @@ void SettingsDialog::syncFromSettings() {
     hiz_enabled_check_->setChecked(AppSettings::instance().hizEnabled());
     hiz_resolution_spin_->setValue(AppSettings::instance().hizResolution());
     nav_preset_combo_->setCurrentIndex(static_cast<int>(AppSettings::instance().navPreset()));
+    const auto& viewer_settings = bonsaiviewer::ViewerSettings::instance();
+    zoom_preset_combo_->setCurrentIndex(
+        zoom_preset_combo_->findData(static_cast<int>(viewer_settings.zoomPreset())));
+    orbit_preset_combo_->setCurrentIndex(
+        orbit_preset_combo_->findData(static_cast<int>(viewer_settings.orbitPreset())));
     syncThemeSettings();
     QSettings settings;
     ids_interpreter_edit_->setText(settings.value("filters/interpreter").toString());
@@ -436,6 +464,10 @@ void SettingsDialog::onAccepted() {
     AppSettings::instance().setNavPreset(
         static_cast<AppSettings::NavPreset>(nav_preset_combo_->currentIndex()));
     auto& interface_settings = bonsaiviewer::ViewerSettings::instance();
+    interface_settings.setZoomPreset(
+        static_cast<bonsaiviewer::ViewerSettings::ZoomPreset>(zoom_preset_combo_->currentData().toInt()));
+    interface_settings.setOrbitPreset(
+        static_cast<bonsaiviewer::ViewerSettings::OrbitPreset>(orbit_preset_combo_->currentData().toInt()));
     interface_settings.setThemeMode(
         static_cast<bonsaiviewer::ViewerSettings::ThemeMode>(theme_mode_combo_->currentData().toInt()));
     for (const auto& editor : theme_color_editors_) {

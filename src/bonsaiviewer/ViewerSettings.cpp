@@ -29,6 +29,8 @@ namespace {
 
 constexpr const char* kThemeModeKey = "interface/theme/mode";
 constexpr const char* kThemeColorPrefix = "interface/theme/colors/";
+constexpr const char* kZoomPresetKey = "interface/navigation/zoom_preset";
+constexpr const char* kOrbitPresetKey = "interface/navigation/orbit_preset";
 
 using Spec = bonsaiviewer::ViewerSettings::ThemeColorSpec;
 
@@ -160,6 +162,28 @@ void ViewerSettings::setCustomColor(const QString& key, const QString& value) {
     }
 }
 
+ViewerSettings::ZoomPreset ViewerSettings::zoomPreset() const {
+    return zoom_preset_;
+}
+
+void ViewerSettings::setZoomPreset(ZoomPreset preset) {
+    if (zoom_preset_ == preset) return;
+    zoom_preset_ = preset;
+    persist();
+    emit navigationPresetsChanged();
+}
+
+ViewerSettings::OrbitPreset ViewerSettings::orbitPreset() const {
+    return orbit_preset_;
+}
+
+void ViewerSettings::setOrbitPreset(OrbitPreset preset) {
+    if (orbit_preset_ == preset) return;
+    orbit_preset_ = preset;
+    persist();
+    emit navigationPresetsChanged();
+}
+
 void ViewerSettings::load() {
     QSettings settings;
     int raw_mode = settings.value(kThemeModeKey, static_cast<int>(ThemeMode::Dark)).toInt();
@@ -167,6 +191,11 @@ void ViewerSettings::load() {
         raw_mode = static_cast<int>(ThemeMode::Dark);
     }
     theme_mode_ = static_cast<ThemeMode>(raw_mode);
+
+    const int raw_zoom = settings.value(kZoomPresetKey, 0).toInt();
+    zoom_preset_ = (raw_zoom >= 0 && raw_zoom <= 2) ? static_cast<ZoomPreset>(raw_zoom) : ZoomPreset::CenterView;
+    const int raw_orbit = settings.value(kOrbitPresetKey, 0).toInt();
+    orbit_preset_ = (raw_orbit >= 0 && raw_orbit <= 1) ? static_cast<OrbitPreset>(raw_orbit) : OrbitPreset::CenterView;
 
     for (size_t i = 0; i < kThemeColorSpecs.size(); ++i) {
         const auto& spec = kThemeColorSpecs[i];
@@ -180,6 +209,8 @@ void ViewerSettings::load() {
 void ViewerSettings::persist() const {
     QSettings settings;
     settings.setValue(kThemeModeKey, static_cast<int>(theme_mode_));
+    settings.setValue(kZoomPresetKey, static_cast<int>(zoom_preset_));
+    settings.setValue(kOrbitPresetKey, static_cast<int>(orbit_preset_));
     for (size_t i = 0; i < kThemeColorSpecs.size(); ++i) {
         settings.setValue(QString::fromUtf8(kThemeColorPrefix) + QString::fromUtf8(kThemeColorSpecs[i].key),
                           custom_colors_[i]);

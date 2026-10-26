@@ -126,6 +126,33 @@ ViewportView::ViewportView(bonsaiviewer::SessionState* session_state,
         updateVolumeReadout();
     });
 
+    // Navigation presets (spec BonsaiViewer08) are stored in ViewerSettings.
+    // Push them into the viewport now and again whenever they change.
+    auto applyNavigationPresets = [this]() {
+        const auto& s = bonsaiviewer::ViewerSettings::instance();
+        switch (s.zoomPreset()) {
+        case bonsaiviewer::ViewerSettings::ZoomPreset::CenterView:
+            viewport_->setZoomPreset(ViewportWindow::ZoomPreset::CenterView);
+            break;
+        case bonsaiviewer::ViewerSettings::ZoomPreset::Cursor:
+            viewport_->setZoomPreset(ViewportWindow::ZoomPreset::Cursor);
+            break;
+        case bonsaiviewer::ViewerSettings::ZoomPreset::Selection:
+            viewport_->setZoomPreset(ViewportWindow::ZoomPreset::Selection);
+            break;
+        }
+        switch (s.orbitPreset()) {
+        case bonsaiviewer::ViewerSettings::OrbitPreset::CenterView:
+            viewport_->setOrbitPreset(ViewportWindow::OrbitPreset::CenterView);
+            break;
+        case bonsaiviewer::ViewerSettings::OrbitPreset::Cursor:
+            viewport_->setOrbitPreset(ViewportWindow::OrbitPreset::Cursor);
+            break;
+        }
+    };
+    connect(&settings, &bonsaiviewer::ViewerSettings::navigationPresetsChanged, this, applyNavigationPresets);
+    applyNavigationPresets();
+
     refresh();
 }
 

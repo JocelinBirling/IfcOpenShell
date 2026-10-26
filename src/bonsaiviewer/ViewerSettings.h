@@ -37,6 +37,17 @@ public:
     };
     Q_ENUM(ThemeMode)
 
+    // Navigation presets (spec BonsaiViewer08). Values are persisted: keep order.
+    enum class ZoomPreset {
+        CenterView = 0,  // zoom toward the camera target
+        Cursor = 1,      // zoom toward the first visible surface under the mouse
+        Selection = 2,   // zoom toward the bounding-box centre of the selection
+    };
+    enum class OrbitPreset {
+        CenterView = 0,  // orbit around the current centre of view
+        Cursor = 1,      // orbit around the first visible surface under the mouse, fixed per drag
+    };
+
     struct ThemeColorSpec {
         const char* key;
         const char* label;
@@ -54,9 +65,15 @@ public:
     QString customColor(const QString& key) const;
     void setCustomColor(const QString& key, const QString& value);
 
+    ZoomPreset zoomPreset() const;
+    void setZoomPreset(ZoomPreset preset);
+    OrbitPreset orbitPreset() const;
+    void setOrbitPreset(OrbitPreset preset);
+
 signals:
     void themeModeChanged(ThemeMode mode);
     void themeChanged();
+    void navigationPresetsChanged();
 
 private:
     ViewerSettings();
@@ -65,6 +82,8 @@ private:
 
     ThemeMode theme_mode_ = ThemeMode::Dark;
     std::vector<QString> custom_colors_;
+    ZoomPreset zoom_preset_ = ZoomPreset::CenterView;
+    OrbitPreset orbit_preset_ = OrbitPreset::CenterView;
 };
 
 } // namespace bonsaiviewer

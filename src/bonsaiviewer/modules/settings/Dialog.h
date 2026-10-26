@@ -76,6 +76,8 @@ private:
     QCheckBox* hiz_enabled_check_ = nullptr;
     QSpinBox* hiz_resolution_spin_ = nullptr;
     QComboBox* nav_preset_combo_ = nullptr;
+    QComboBox* zoom_preset_combo_ = nullptr;
+    QComboBox* orbit_preset_combo_ = nullptr;
     QComboBox* theme_mode_combo_ = nullptr;
     QWidget* theme_custom_body_ = nullptr;
     std::vector<ThemeColorEditor> theme_color_editors_;

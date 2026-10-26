@@ -119,6 +119,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/ValueEditor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/property_selection/PropertyPicker.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/property_selection/PropertyPicker.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/property_selection/PropertyField.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/property_selection/PropertyField.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Types.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/spatial_hierarchy/Panel.h
@@ -170,6 +172,19 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/StepTextService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/TreePanelFramework.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/TreePanelFramework.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PropertyCatalog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/PropertyCatalog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/ColumnDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/ColumnDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/CreationDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/CreationDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/Table.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableModel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableModel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/bonsaiviewer_resources.qrc
 )
 

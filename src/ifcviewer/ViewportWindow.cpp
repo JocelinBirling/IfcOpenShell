@@ -116,15 +116,6 @@ static inline Eigen::Vector2i toV2i(const QPoint& p) {
 // Small helpers
 // -----------------------------------------------------------------------------
 
-static QString sv(WGPUStringView s) {
-    if (!s.data) return QString();
-    // WGPU_STRLEN sentinel == SIZE_MAX -> nul-terminated.
-    const int len = (s.length == WGPU_STRLEN)
-                        ? int(std::strlen(s.data))
-                        : int(s.length);
-    return QString::fromUtf8(s.data, len);
-}
-
 // createBufferWithData moved to ViewportCore (anon namespace) (#84-q).
 
 // releaseWgpuModelGpuData moved to ViewportCore.cpp (IfcViewerCore now needs it).
@@ -148,13 +139,6 @@ static QString sv(WGPUStringView s) {
 // MAIN_WGSL moved to ViewportCore.cpp (#84-k).
 
 // Helper: build a WGPUStringView from a null-terminated C string literal.
-static WGPUStringView svFromCStr(const char* s) {
-    WGPUStringView v{};
-    v.data   = s;
-    v.length = std::strlen(s);
-    return v;
-}
-
 // -----------------------------------------------------------------------------
 // Construction / destruction
 // -----------------------------------------------------------------------------
@@ -162,6 +146,9 @@ static WGPUStringView svFromCStr(const char* s) {
 ViewportWindow::ViewportWindow(QWindow* parent)
     : QWindow(parent),
       core_(this),
+      wgpu_initialized_(core_.wgpu_initialized_),
+      configured_w_   (core_.configured_w_),
+      configured_h_   (core_.configured_h_),
       // Bind reference aliases to ViewportCore's storage so the
       // existing `device_` / `queue_` / … sites in this TU keep
       // working unchanged. Each reference goes away as its owning
@@ -179,6 +166,13 @@ ViewportWindow::ViewportWindow(QWindow* parent)
       pipeline_layout_          (core_.pipeline_layout_),
       main_pipeline_            (core_.main_pipeline_),
       main_pipeline_transparent_(core_.main_pipeline_transparent_),
+      frame_uniform_buffer_(core_.frame_uniform_buffer_),
+      frame_bind_group_    (core_.frame_bind_group_),
+      selection_flags_buffer_  (core_.selection_flags_buffer_),
+      selection_flags_capacity_(core_.selection_flags_capacity_),
+      selection_flags_scratch_ (core_.selection_flags_scratch_),
+      selection_  (core_.selection_),
+      visibility_ (core_.visibility_),
       depth_texture_      (core_.depth_texture_),
       depth_view_         (core_.depth_view_),
       depth_w_            (core_.depth_w_),
@@ -198,6 +192,15 @@ ViewportWindow::ViewportWindow(QWindow* parent)
       hiz_resolve_w_       (core_.hiz_resolve_w_),
       hiz_resolve_h_       (core_.hiz_resolve_h_),
       hiz_padded_bpr_      (core_.hiz_padded_bpr_),
+      edge_shader_module_   (core_.edge_shader_module_),
+      edge_bgl_             (core_.edge_bgl_),
+      edge_pipeline_layout_ (core_.edge_pipeline_layout_),
+      edge_pipeline_        (core_.edge_pipeline_),
+      edge_bind_group_      (core_.edge_bind_group_),
+      edges_enabled_        (core_.edges_enabled_),
+      pick_pipeline_(core_.pick_pipeline_),
+      section_planes_  (core_.section_planes_),
+      xray_alpha_cap_  (core_.xray_alpha_cap_),
       hiz_pyramid_         (core_.hiz_pyramid_),
       hiz_mip_offset_      (core_.hiz_mip_offset_),
       hiz_mip_w_           (core_.hiz_mip_w_),
@@ -206,45 +209,25 @@ ViewportWindow::ViewportWindow(QWindow* parent)
       hiz_valid_           (core_.hiz_valid_),
       hiz_reject_count_    (core_.hiz_reject_count_),
       hiz_trace_budget_    (core_.hiz_trace_budget_),
-      hiz_enabled_         (core_.hiz_enabled_),
-      edge_shader_module_   (core_.edge_shader_module_),
-      edge_bgl_             (core_.edge_bgl_),
-      edge_pipeline_layout_ (core_.edge_pipeline_layout_),
-      edge_pipeline_        (core_.edge_pipeline_),
-      edge_bind_group_      (core_.edge_bind_group_),
-      edges_enabled_        (core_.edges_enabled_),
-      pick_pipeline_(core_.pick_pipeline_),
-      pool_           (core_.pool_),
-      streaming_thread_(core_.streaming_thread_),
-      streaming_frame_idx_(core_.streaming_frame_idx_),
-      models_gpu_     (core_.models_gpu_),
-      next_session_model_id_  (core_.next_session_model_id_),
-      next_object_id_ (core_.next_object_id_),
-      federated_false_origin_meters_(core_.federated_false_origin_meters_),
-      wgpu_initialized_(core_.wgpu_initialized_),
-      configured_w_   (core_.configured_w_),
-      configured_h_   (core_.configured_h_),
       camera_target_  (core_.camera_target_),
       camera_distance_(core_.camera_distance_),
       projection_ortho_(core_.projection_ortho_),
+      tracked_object_id_    (core_.tracked_object_id_),
+      tracked_chunk_mid_    (core_.tracked_chunk_mid_),
+      tracked_chunk_idx_    (core_.tracked_chunk_idx_),
+      tracked_was_resident_ (core_.tracked_was_resident_),
       camera_yaw_deg_ (core_.camera_yaw_deg_),
       camera_pitch_deg_(core_.camera_pitch_deg_),
       camera_fov_y_deg_(core_.camera_fov_y_deg_),
       camera_near_    (core_.camera_near_),
       camera_far_     (core_.camera_far_),
-      frame_uniform_buffer_(core_.frame_uniform_buffer_),
-      frame_bind_group_    (core_.frame_bind_group_),
-      selection_flags_buffer_  (core_.selection_flags_buffer_),
-      selection_flags_capacity_(core_.selection_flags_capacity_),
-      selection_flags_scratch_ (core_.selection_flags_scratch_),
-      section_planes_  (core_.section_planes_),
-      xray_alpha_cap_  (core_.xray_alpha_cap_),
-      selection_  (core_.selection_),
-      visibility_ (core_.visibility_),
-      tracked_object_id_    (core_.tracked_object_id_),
-      tracked_chunk_mid_    (core_.tracked_chunk_mid_),
-      tracked_chunk_idx_    (core_.tracked_chunk_idx_),
-      tracked_was_resident_ (core_.tracked_was_resident_),
+      min_pixel_radius_        (core_.min_pixel_radius_),
+      motion_min_pixel_radius_ (core_.motion_min_pixel_radius_),
+      cull_threads_enabled_    (core_.cull_threads_enabled_),
+      hiz_enabled_         (core_.hiz_enabled_),
+      streaming_frame_idx_(core_.streaming_frame_idx_),
+      pool_           (core_.pool_),
+      streaming_thread_(core_.streaming_thread_),
       streaming_loads_this_frame_      (core_.streaming_loads_this_frame_),
       streaming_more_pending_          (core_.streaming_more_pending_),
       streaming_candidates_this_frame_ (core_.streaming_candidates_this_frame_),
@@ -253,26 +236,22 @@ ViewportWindow::ViewportWindow(QWindow* parent)
       streaming_drained_this_frame_    (core_.streaming_drained_this_frame_),
       streaming_blocked_oom_this_frame_(core_.streaming_blocked_oom_this_frame_),
       streaming_debug_                 (core_.streaming_debug_),
-      pending_screenshot_path_(core_.pending_screenshot_path_),
-      pending_screenshot_quit_(core_.pending_screenshot_quit_),
-      lod1_dbg_count_         (core_.lod1_dbg_count_),
-      lod0_dbg_eligible_count_(core_.lod0_dbg_eligible_count_),
-      lod0_dbg_no_lod1_count_ (core_.lod0_dbg_no_lod1_count_),
-      lod1_dbg_tris_saved_    (core_.lod1_dbg_tris_saved_),
-      initial_view_applied_   (core_.initial_view_applied_),
-      min_pixel_radius_        (core_.min_pixel_radius_),
-      motion_min_pixel_radius_ (core_.motion_min_pixel_radius_),
+      bench_warm_streak_       (core_.bench_warm_streak_),
+      bench_warm_frames_total_ (core_.bench_warm_frames_total_),
+      bench_warm_done_         (core_.bench_warm_done_),
       lod1_pixel_threshold_    (core_.lod1_pixel_threshold_),
-      cull_threads_enabled_    (core_.cull_threads_enabled_),
+      models_gpu_     (core_.models_gpu_),
+      next_session_model_id_  (core_.next_session_model_id_),
+      next_object_id_ (core_.next_object_id_),
+      initial_view_applied_   (core_.initial_view_applied_),
       prev_camera_target_      (core_.prev_camera_target_),
       prev_camera_distance_    (core_.prev_camera_distance_),
       prev_camera_yaw_deg_     (core_.prev_camera_yaw_deg_),
       prev_camera_pitch_deg_   (core_.prev_camera_pitch_deg_),
       has_prev_camera_         (core_.has_prev_camera_),
       last_cull_was_motion_    (core_.last_cull_was_motion_),
-      bench_warm_streak_       (core_.bench_warm_streak_),
-      bench_warm_frames_total_ (core_.bench_warm_frames_total_),
-      bench_warm_done_         (core_.bench_warm_done_),
+      pending_screenshot_path_(core_.pending_screenshot_path_),
+      pending_screenshot_quit_(core_.pending_screenshot_quit_),
       bench_total_             (core_.bench_total_),
       bench_count_             (core_.bench_count_),
       bench_warmup_            (core_.bench_warmup_),
@@ -289,7 +268,12 @@ ViewportWindow::ViewportWindow(QWindow* parent)
       last_cull_compute_ms_    (core_.last_cull_compute_ms_),
       last_cull_upload_ms_     (core_.last_cull_upload_ms_),
       last_stream_ms_          (core_.last_stream_ms_),
-      interactive_frame_count_ (core_.interactive_frame_count_) {
+      interactive_frame_count_ (core_.interactive_frame_count_),
+      federated_false_origin_meters_(core_.federated_false_origin_meters_),
+      lod1_dbg_count_         (core_.lod1_dbg_count_),
+      lod0_dbg_eligible_count_(core_.lod0_dbg_eligible_count_),
+      lod0_dbg_no_lod1_count_ (core_.lod0_dbg_no_lod1_count_),
+      lod1_dbg_tris_saved_    (core_.lod1_dbg_tris_saved_) {
     // wgpu doesn't need a GL context; we just need a real native window
     // whose backing layer matches the GPU API wgpu will drive.
     //
@@ -1106,15 +1090,6 @@ void ViewportWindow::updateAreaHud() {
 // |det(upper-left 3×3)| of a column-major 4×4 placement. Picks up
 // mapped-item scale / mirror so a uniformly-scaled clone of a 1 m³ mesh
 // reports its actual volume.
-static double det3OfPlacement(const double M[16]) {
-    const double m00 = M[0],  m10 = M[1],  m20 = M[2];
-    const double m01 = M[4],  m11 = M[5],  m21 = M[6];
-    const double m02 = M[8],  m12 = M[9],  m22 = M[10];
-    return m00 * (m11 * m22 - m12 * m21)
-         - m01 * (m10 * m22 - m12 * m20)
-         + m02 * (m10 * m21 - m11 * m20);
-}
-
 // computeMeshLocalVolumeQuantised moved to ViewportCore.cpp anon namespace (#84-n).
 
 void ViewportWindow::toggleAreaTool() {
@@ -1525,6 +1500,107 @@ void ViewportWindow::setBackfaceCulling(bool enabled) {
 }
 
 // -----------------------------------------------------------------------------
+// Navigation presets (spec BonsaiViewer08)
+// -----------------------------------------------------------------------------
+
+bool ViewportWindow::pickVisibleSurfaceAt(int x_pixels, int y_pixels, Eigen::Vector3f& world_pos_out) {
+    // Arguments are logical (widget) pixels; the pick pass works in physical pixels.
+    const float dpr = float(devicePixelRatio());
+    uint32_t object_id = 0;
+    Eigen::Vector3f normal;
+    if (!pickSurfaceAt(int(x_pixels * dpr), int(y_pixels * dpr), object_id, world_pos_out, normal)) {
+        return false;
+    }
+    // Hidden objects are invisible, so they must not anchor zoom or orbit.
+    return !core_.isObjectHidden(object_id);
+}
+
+bool ViewportWindow::selectionCenter(Eigen::Vector3f& center_out) {
+    const float inf = std::numeric_limits<float>::infinity();
+    Eigen::Vector3f lo = Eigen::Vector3f::Constant(inf);
+    Eigen::Vector3f hi = Eigen::Vector3f::Constant(-inf);
+    bool any = false;
+    for (uint32_t id : selection_.selectionIds()) {
+        Eigen::Vector3f mn, mx;
+        // Covers hidden objects; skips selected objects that are not loaded.
+        if (!computeObjectAabb(id, mn, mx)) continue;
+        lo = lo.cwiseMin(mn);
+        hi = hi.cwiseMax(mx);
+        any = true;
+    }
+    if (!any) return false;
+    center_out = (lo + hi) * 0.5f;
+    return true;
+}
+
+void ViewportWindow::dollyToward(float notches, const Eigen::Vector3f& anchor) {
+    const float before = camera_distance_;
+    core_.dollyBy(notches);
+    // Fraction of the target-to-anchor distance covered by this step.
+    const float travel = 1.0f - camera_distance_ / before;
+    const Eigen::Vector3f target(camera_target_[0], camera_target_[1], camera_target_[2]);
+    const Eigen::Vector3f next = target + (anchor - target) * travel;
+    camera_target_[0] = next.x();
+    camera_target_[1] = next.y();
+    camera_target_[2] = next.z();
+}
+
+// Camera basis for the orbit angles, same convention as orbitEye() and the pan code.
+static void orbitBasis(float yaw_deg, float pitch_deg,
+                       Eigen::Vector3f& right, Eigen::Vector3f& up, Eigen::Vector3f& fwd) {
+    constexpr float kDeg2Rad = 3.14159265358979f / 180.0f;
+    const float yaw = yaw_deg * kDeg2Rad;
+    const float pit = pitch_deg * kDeg2Rad;
+    const Eigen::Vector3f dir(std::cos(pit) * std::cos(yaw), std::cos(pit) * std::sin(yaw), std::sin(pit));
+    fwd   = -dir;
+    right = fwd.cross(Eigen::Vector3f::UnitZ()).normalized();
+    up    = right.cross(fwd).normalized();
+}
+
+void ViewportWindow::startPivotOrbit(const Eigen::Vector3f& pivot) {
+    // Orbit preset Cursor: remember where the pivot sits in camera space. The
+    // drag keeps it at that spot, so the point under the cursor stays under it.
+    Eigen::Vector3f right, up, fwd;
+    orbitBasis(camera_yaw_deg_, camera_pitch_deg_, right, up, fwd);
+    const Eigen::Vector3f target(camera_target_[0], camera_target_[1], camera_target_[2]);
+    const Eigen::Vector3f eye = target - camera_distance_ * fwd;
+    const Eigen::Vector3f v = pivot - eye;
+    orbit_pivot_camera_ = Eigen::Vector3f(v.dot(right), v.dot(up), v.dot(fwd));
+    orbit_pivot_        = pivot;
+    orbit_pivot_active_ = true;
+    // Screen-space ball marking the rotation centre (world point, fixed size).
+    setOverlayPoints({pivot.x(), pivot.y(), pivot.z()}, 1.0f, 0.62f, 0.10f, 0.95f, 12.0f, 0.0f, 0.0f, 0.0f, 0.85f, 1.5f);
+}
+
+void ViewportWindow::orbitAroundPivot(float dx_px, float dy_px) {
+    // Same deltas as ViewportCore::orbitBy (0.4 deg/px, yaw -= dx, pitch += dy).
+    camera_yaw_deg_   -= dx_px * 0.4f;
+    camera_pitch_deg_  = std::clamp(camera_pitch_deg_ + dy_px * 0.4f, -89.9f, 89.9f);
+
+    Eigen::Vector3f right, up, fwd;
+    orbitBasis(camera_yaw_deg_, camera_pitch_deg_, right, up, fwd);
+    // Put the eye back so the pivot keeps its camera-space position.
+    const Eigen::Vector3f eye = orbit_pivot_
+        - (orbit_pivot_camera_.x() * right + orbit_pivot_camera_.y() * up + orbit_pivot_camera_.z() * fwd);
+    const Eigen::Vector3f target = eye + camera_distance_ * fwd;
+    camera_target_[0] = target.x();
+    camera_target_[1] = target.y();
+    camera_target_[2] = target.z();
+    requestFrame();
+}
+
+void ViewportWindow::focusOutEvent(QFocusEvent* event) {
+    // Spec 08: losing focus mid-drag cancels the drag and drops captured input.
+    nav_drag_kind_     = NavDrag::Inactive;
+    nav_active_button_ = Qt::NoButton;
+    orbit_pivot_active_ = false;
+    setOverlayPoints({}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    box_select_armed_  = false;
+    box_select_active_ = false;
+    QWindow::focusOutEvent(event);
+}
+
+// -----------------------------------------------------------------------------
 // One-shot framebuffer capture → PNG
 // -----------------------------------------------------------------------------
 //
@@ -1602,6 +1678,15 @@ void ViewportWindow::mousePressEvent(QMouseEvent* event) {
         && (mods & Qt::KeyboardModifierMask) == orbit_mods_) {
         nav_drag_kind_ = NavDrag::Orbit;
         core_.setPivotIndicatorVisible(true);  // hidden again on release
+        // Orbit preset Cursor (spec 08): the pivot is the surface under the
+        // press, fixed for the whole drag. A miss keeps the centre of view.
+        orbit_pivot_active_ = false;
+        if (orbit_preset_ == OrbitPreset::Cursor) {
+            Eigen::Vector3f pivot;
+            if (pickVisibleSurfaceAt(nav_press_pos_.x(), nav_press_pos_.y(), pivot)) {
+                startPivotOrbit(pivot);
+            }
+        }
     } else if (event->button() == pan_button_
             && (mods & Qt::KeyboardModifierMask) == pan_mods_) {
         nav_drag_kind_ = NavDrag::Pan;
@@ -1819,8 +1904,10 @@ void ViewportWindow::mouseReleaseEvent(QMouseEvent* event) {
         }
         nav_active_button_ = Qt::NoButton;
         nav_drag_kind_     = NavDrag::Inactive;
-        // Drag is over — hide the pivot indicator without afterglow.
+        // Drag is over — hide the pivot indicator without afterglow, and drop the pivot marker.
         core_.setPivotIndicatorVisible(false);
+        orbit_pivot_active_ = false;
+        setOverlayPoints({}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 }
 
@@ -1896,7 +1983,11 @@ void ViewportWindow::mouseMoveEvent(QMouseEvent* event) {
 
     if (nav_drag_kind_ == NavDrag::Orbit) {
         // Orbit math lives in ViewportCore so desktop + web can't drift.
-        core_.orbitBy(float(dx), float(dy));
+        if (orbit_pivot_active_) {
+            orbitAroundPivot(float(dx), float(dy));
+        } else {
+            core_.orbitBy(float(dx), float(dy));
+        }
     } else if (nav_drag_kind_ == NavDrag::Pan) {
         // Pan needs the viewport height to size world-units-per-pixel.
         core_.panBy(float(dx), float(dy), height());
@@ -2066,8 +2157,33 @@ void ViewportWindow::wheelEvent(QWheelEvent* event) {
             << "[wgpu] fly speed: " << QString::number(core_.flySpeed(), 'f', 2) << " m/s";
         return;
     }
-    // Orbit mode: zoom in/out around the pivot (math in ViewportCore).
-    core_.dollyBy(notches);
+    // Orbit mode: zoom in/out (math in ViewportCore). Zoom preset (spec 08)
+    // chooses the anchor; CenterView is the plain dolly.
+    switch (zoom_preset_) {
+    case ZoomPreset::CenterView:
+        core_.dollyBy(notches);
+        break;
+    case ZoomPreset::Cursor: {
+        Eigen::Vector3f anchor;
+        const QPointF p = event->position();
+        if (pickVisibleSurfaceAt(int(p.x()), int(p.y()), anchor)) {
+            dollyToward(notches, anchor);
+        } else {
+            core_.dollyBy(notches);
+        }
+        break;
+    }
+    case ZoomPreset::Selection: {
+        Eigen::Vector3f center;
+        if (selectionCenter(center)) {
+            camera_target_[0] = center.x();
+            camera_target_[1] = center.y();
+            camera_target_[2] = center.z();
+        }
+        core_.dollyBy(notches);
+        break;
+    }
+    }
     // Pivot afterglow on wheel — visible for 600 ms so the user can see
     // what they're zooming around without holding a drag.
     core_.setPivotIndicatorVisible(true, 600);

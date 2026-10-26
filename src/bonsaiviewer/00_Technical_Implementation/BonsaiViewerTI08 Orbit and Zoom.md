@@ -2,44 +2,61 @@
 
 # BonsaiViewerTI08 - Orbit and Zoom
 
-Spec source: `../00_Specification/BonsaiViewer08 Orbit and Zoom.md`
+Spec (human summary): `../00_Specification/BonsaiViewer08 Orbit and Zoom.md`
 
-## What exists today
+## Settings
 
-Zoom orbits on the center of the model / center of the view (current preset).
-Navigation presets (Blender / Rhino / Revit / Web) already exist in settings.
+- `src/bonsaiviewer/ViewerSettings.h/.cpp`
+  - Enums `ZoomPreset`, `OrbitPreset`, with getters and setters.
+  - QSettings keys `interface/navigation/zoom_preset` and `interface/navigation/orbit_preset`, default 0.
+  - Signal `navigationPresetsChanged`.
+- `src/bonsaiviewer/modules/settings/Dialog.h/.cpp`: combos `zoom_preset_combo_` and `orbit_preset_combo_` ("Zoom" / "Orbit") in the existing Navigation section, read on sync and saved in `onAccepted`.
+- `src/bonsaiviewer/modules/viewport/View.cpp`: lambda `applyNavigationPresets`, called at construction and on `navigationPresetsChanged`. Maps the ViewerSettings enums to the ViewportWindow enums.
 
-## Building blocks used
+## Viewport
 
-- B09 PickingService — position and object under the mouse.
-- B10 CameraService — preset behaviour and fallbacks.
-- Settings dialog (`modules/settings`) — two new dropdowns under Navigation.
+`src/ifcviewer/ViewportWindow.h/.cpp`
 
-## New code
+- Enums: `ViewportWindow::ZoomPreset { CenterView, Cursor, Selection }`, `OrbitPreset { CenterView, Cursor }`, with setters (`zoom_preset_`, `orbit_preset_`).
+- `pickVisibleSurfaceAt(...)`: ray cast from the mouse position. Physical pixels = logical position x devicePixelRatio. Skips hidden objects (`ViewportCore::isObjectHidden`).
+- `selectionCenter()`: centre of the bounding box of the selection, from `computeObjectAabb` (loaded instances, hidden included). Returns nothing if no valid bounds.
 
-- `services/CameraService` zoom presets:
-  - *Zoom in Center* — current behaviour, unchanged.
-  - *Zoom in Cursor* — at each wheel step, B09 raycast under the cursor; zoom
-    toward the first hit position; fall back to center when nothing is hit.
-  - *Zoom on Selection* — zoom toward the center of B01's selection (single
-    object center; several objects = center of the selection bounding box);
-    fall back to center when the selection is empty.
-- `services/CameraService` orbit presets:
-  - *Orbit the Center of View* — current behaviour.
-  - *Orbit in the Cursor* — at drag start, B09 raycast fixes the orbit pivot
-    on the first hit; the pivot stays fixed during the drag; fall back to
-    view center on no hit.
+### Zoom (`wheelEvent`)
 
-Settings: two enums (ZoomPreset, OrbitPreset) persisted in ViewerSettings,
-combo boxes generated in the settings dialog.
+- CenterView: `dollyBy`.
+- Cursor: `pickVisibleSurfaceAt`, then `dollyToward(hit)`. No hit: `dollyBy`.
+- Selection: `selectionCenter()`, then `dollyBy`. No valid selection: `dollyBy`.
+- `dollyBy` multiplies the distance by 0.9 per notch, minimum 0.01 m, no maximum. The Cursor zoom is exact only when the hit lies on the view axis.
 
-## Key flows
+### Orbit: Cursor (fixed pivot)
 
-Wheel / drag events in the viewport delegate to B10 with the active preset;
-B09 results are cached per event to avoid double raycasts.
+Angle conventions (`ViewportCore::orbitBy` and `orbitAroundPivot`): 0.4 deg per pixel, yaw -= dx, pitch += dy, pitch clamped to +/-89.9 deg.
 
-## Technical questions
+- `orbitBasis(yaw, pitch, right, up, fwd)`: `fwd = -dir`, `right = fwd x UnitZ`, `up = right x fwd`, normalised.
+- Press (Orbit branch): `orbit_pivot_active_ = false`. If `orbit_preset_ == Cursor`, `pickVisibleSurfaceAt(press position)`, then `startPivotOrbit(pivot)`.
+- `startPivotOrbit(pivot)`:
+  - `eye = target - camera_distance_ * fwd`;
+  - `v = pivot - eye`;
+  - `orbit_pivot_camera_ = (v.right, v.up, v.fwd)`;
+  - sets `orbit_pivot_`, `orbit_pivot_active_ = true`;
+  - draws the screen ball (below).
+- Move: if `orbit_pivot_active_`, `orbitAroundPivot(dx, dy)`, else `core_.orbitBy`.
+- `orbitAroundPivot(dx, dy)`:
+  - updates yaw and pitch;
+  - recomputes the basis;
+  - `eye = orbit_pivot_ - (c.x*right + c.y*up + c.z*fwd)`;
+  - `target = eye + camera_distance_ * fwd`;
+  - writes `camera_target_`, requests a frame.
+- Release: `orbit_pivot_active_ = false`, clears the ball.
+- `focusOutEvent`: resets the drag state, `orbit_pivot_active_`, the overlay points, and the box-select flags, then calls `QWindow::focusOutEvent`.
+- No hit on press: orbit around the view centre (`core_.orbitBy`).
 
-- Raycast cost during wheel zoom on heavy scenes: consider throttling or
-  using the depth buffer value under the cursor instead of a geometry
-  raycast (cheaper, same UX).
+### Screen ball
+
+`setOverlayPoints({pivot}, fill, pixel_size, stroke, stroke_extra)`. Current values, untuned: pixel size 12, fill (1.0, 0.62, 0.10, 0.95), stroke (0.0, 0.0, 0.0, 0.85), stroke extra 1.5. Cleared on release and focus loss.
+
+## Checks to do on screen
+
+- The pivot stays under the cursor during the drag, with no jump at the click.
+- Horizontal and vertical turn directions are correct (basis `right = fwd x Z` matches the renderer's view convention).
+- Ball size and colour are readable.

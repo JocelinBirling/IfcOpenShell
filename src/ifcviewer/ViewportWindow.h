@@ -303,8 +303,35 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void keyReleaseEvent(QKeyEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
+
+public:
+    // Navigation presets (spec BonsaiViewer08). Set from ViewerSettings by the
+    // viewport module. Values mirror ViewerSettings::ZoomPreset / OrbitPreset.
+    enum class ZoomPreset : uint8_t { CenterView, Cursor, Selection };
+    enum class OrbitPreset : uint8_t { CenterView, Cursor };
+    void setZoomPreset(ZoomPreset preset) { zoom_preset_ = preset; }
+    void setOrbitPreset(OrbitPreset preset) { orbit_preset_ = preset; }
+    // Ray-cast under (x, y) ignoring hidden objects. False on a miss.
+    bool pickVisibleSurfaceAt(int x_pixels, int y_pixels, Eigen::Vector3f& world_pos_out);
 
 private:
+    ZoomPreset zoom_preset_ = ZoomPreset::CenterView;
+    OrbitPreset orbit_preset_ = OrbitPreset::CenterView;
+    // Zoom toward the centre of the bounding box of the selection, hidden
+    // objects included. False when no selected object has a loaded box.
+    bool selectionCenter(Eigen::Vector3f& center_out);
+    // Dolly by `notches` and move the camera target so that `anchor`
+    // is pulled toward the cursor (zoom toward a point).
+    void dollyToward(float notches, const Eigen::Vector3f& anchor);
+    // Orbit preset Cursor: the pivot keeps its spot on screen while the drag
+    // rotates the camera around it.
+    void startPivotOrbit(const Eigen::Vector3f& pivot);
+    void orbitAroundPivot(float dx_px, float dy_px);
+    bool orbit_pivot_active_ = false;
+    Eigen::Vector3f orbit_pivot_ = Eigen::Vector3f::Zero();
+    Eigen::Vector3f orbit_pivot_camera_ = Eigen::Vector3f::Zero();
+
     bool initWgpu();
     bool createSurface();
     // configureSurface moved to ViewportCore (#84-u).
