@@ -24,6 +24,7 @@
 #include "AppearanceService.h"
 #include "IfcDataAccess.h"
 
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 
@@ -55,7 +56,7 @@ void ActionPipeline::colour(const std::vector<std::uint32_t>& ids, const QColor&
 }
 
 void ActionPipeline::transparency(const std::vector<std::uint32_t>& ids, int percent) {
-    appearance_.setOpacity(ids, percent);
+    appearance_.setOpacity(ids, 100 - std::clamp(percent, 0, 100));
 }
 
 QColor ActionPipeline::generatedColour(int index) {

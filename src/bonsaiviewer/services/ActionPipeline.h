@@ -62,6 +62,8 @@ public:
     // Colour / transparency in the user paint layer (B04); filters that
     // need the FilterAction layer call AppearanceService directly.
     void colour(const std::vector<std::uint32_t>& ids, const QColor& colour);
+    // `percent` is a transparency: 0 = opaque, 100 = invisible. (B04 works
+    // with an opacity, so the value is inverted here.)
     void transparency(const std::vector<std::uint32_t>& ids, int percent);
 
     // One generated colour per distinct value of pset.property; groups
