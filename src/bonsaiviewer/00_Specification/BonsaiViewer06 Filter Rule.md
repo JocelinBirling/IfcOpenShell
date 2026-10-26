@@ -5,99 +5,158 @@
 A filter is a set of rules used to get a precise list of elements and apply a list of actions to it.
 Example of a basic function: show the IfcWalls and paint the IfcSlabs red.
 These filters are saved between sessions and can be used to easily filter the model for an analysis.
-A new panel will be created: « Filters ».
+The selections follow the IDS standard (buildingSMART) and are evaluated by IfcTester.
 
 ## Specification
 
-### Filter Panel
-The panel holds a tree of filters:
-- Filter folders
-- Folders of folders
-- Add a folder
-- Add a filter
+### Filters Panel
 
-### Function of Filter Panel
-Save the filters:
+The panel « Filters » is opened with the **Filters** button of the QUERY group of the ribbon; it is tabbed next to « Search ».
 
-- The filters are saved as a JSON file, so rules can be shared between people.
-- The filters are stored in the application cache, so they survive closing the session.
+It holds a **toolbar** and a **tree**:
 
-Load the filters:
-- Filters from someone else can be loaded.
+- Toolbar: **Filter** (add a filter), **Folder** (add a folder), **Run**, **Run on the Box**, **Import**, **Export**. New filters and folders go into the selected folder (or the folder of the selected filter). Run and Run on the Box need a selected filter.
+- Tree: folders, folders of folders, filters. While the tree is empty, a hint explains how to create or import a filter.
+- Drag and drop moves filters and folders in the tree.
+- Double-clicking a filter runs it on the whole model.
 
-Add a filter:
-- It opens the Filter Creation Window.
+Context menus (right click):
 
-### Filter Function
-With a left click on a filter, you can access the following functions:
+| On | Items |
+|----|-------|
+| Empty space | Add Folder, Add Filter, Import Filters…, Export All Filters… |
+| A folder | Add Folder, Add Filter, Rename…, Delete (with confirmation), Import Filters Here… |
+| A filter | Run, Run on the Box, Modify…, Export…, Delete (with confirmation) |
 
-- **Run a filter** - runs the filter on the whole model.
-- **Run on the box** -runs the filter with the active box as input list, instead of the whole model.
-- **Modify a filter** - It opens the Filter Creation Windows
-- **Delete a filter** - asks for confirmation.
+### Save and share
 
-By left drag, you can move the filter in the tree.
+- The whole tree is stored in the application cache (`filters.json`), so it survives closing the session.
+- **Export…** writes one filter, **Export All Filters…** writes the whole library (folders included). Both are plain `.json` files, so rules can be shared between people.
+- **Import** reads either file; the application recognises a single filter or a library from its content. Imported filters land in the selected folder and get new ids, so nothing clashes with the existing tree.
 
-### Function of folders
+### IDS engine
 
-With a left click on a folder, you can access the following functions:
+The selections are evaluated by **IfcTester**, run in a Python process. The Python interpreter and the worker script (`src/ifctester/ifctester_ipc.py`) are set in **Settings > Filters**. When they are not set, the panel stays editable and running a filter shows a message saying what to configure.
 
-- Rename folders
-- Delete folders
+### Run a filter
 
-By left drag, you can move the folder in the tree.
+- **Run** evaluates the filter on the **active model**.
+- **Run on the Box** restricts the candidates to the elements of the current box. An empty box is refused with a message.
+- A filter always starts from an **empty view**: everything is hidden right before its first action, then its actions build the view. A filter that only adds the walls to the view shows the walls only. If a selection fails, the view is left untouched.
+- The status bar shows the progress and a summary (layers run, elements affected); an error opens a message.
 
 ### Filter Creation Window
-When we click on « Add a filter », a temporary window opens. The window holds:
-- a name
-- a description
-- one or more layers
 
-Each layer is split into two parts, and the actions run from top to bottom.
+**Add Filter** and **Modify…** open the creation window. It holds:
 
-- **The selection part** — reuses the IDS bricks. It holds a specification; a specification can contain several IDS facets and must select all the wanted elements. The first version supports the **entity facet** (one or several IfcClasses, optionally with their subtypes, + PredefinedType) and the **property facet** (Psets and quantities, with comparison). The other facets (attribute, classification, material) are out of the first version; the data model follows IDS so they can be added later.
-- **The action part** — the place where the user picks one or more actions, from the list described in the Actions section.
+- a **name** (required) and a **description**;
+- on the left, the **layers** (run from top to bottom), with Add, Remove, Up and Down;
+- on the right, the **selected layer**: its **Selection** above, its **Actions** below (the separator can be moved).
+
+The window adapts to the screen size.
+
+#### Selection of a layer
+
+The **Type** of the selection is either:
+
+- **IDS specification** — the layer selects its own elements, or
+- **AND — same elements as the layer above** — the layer has no selection of its own. Not available on the first layer.
+
+An IDS specification is a list of **facets**; an element is selected when it passes **all** of them. « + Add » adds a facet, « Remove » removes the selected one. Selecting a facet shows its configuration page.
+
+- **Entity facet** (exactly one per specification):
+  - the **IFC class**: one class, a list of classes or a pattern on the class name;
+  - **Include the subtypes** (checked by default): IDS matches the class exactly, so without it IfcWall does not select IfcWallStandardCase;
+  - the page shows the classes covered and how many elements of the active model they hold;
+  - the **PredefinedType**, proposed from the schema for the chosen classes;
+  - a class unknown to the schema, or a pattern matching no class, only shows a warning.
+- **Property facet** (any number):
+  - the **property set** and the **property** (Psets and quantity sets), proposed from the elements of the entity in the active model;
+  - **Browse properties…** opens a picker laid out like the Properties panel (one group per property set, element counts, a few values, a search field); double-clicking a property fills both fields;
+  - the **cardinality**: required (must exist and match), optional (must match when present), prohibited (must not exist);
+  - the **value**, with the values found in the model and their element counts.
+- Attribute, classification, material and part-of facets are listed but not available yet; the data model follows IDS so they can be added later.
+
+#### Methods of an IDS field
+
+Every IDS field uses the same editor. A row of buttons switches the method; what was typed is carried over to the new method.
+
+| Method | Meaning | IDS |
+|--------|---------|-----|
+| Value (default) | one exact value; empty = no constraint | simple value |
+| List | one of several values: checkable values from the model (with element counts) or the schema, free additions, paste of a list (lines, `;` or `,`), All / None | xs:enumeration |
+| Pattern | « starts with », « contains », « ends with », or a free regular expression; the generated pattern and a test field are shown | xs:pattern |
+| Range | a minimum and/or a maximum, each included or not; decimal or integer | xs:min/maxInclusive, xs:min/maxExclusive |
+| Length | a number of characters: minimum and/or maximum (equal = exact) | xs:length, xs:minLength, xs:maxLength |
+
+Methods offered per field:
+
+| Field | Value | List | Pattern | Range | Length |
+|-------|:-----:|:----:|:-------:|:-----:|:------:|
+| IFC class | ✓ | ✓ | ✓ | | |
+| PredefinedType | ✓ | ✓ | ✓ | | ✓ |
+| Property set, Property | ✓ | ✓ | ✓ | | ✓ |
+| Property value | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+#### Preview
+
+Below the selection, the preview counts the elements the layer selects in the active model; it updates while editing (**Test** forces it). **Isolate in the view** isolates these elements in the viewer.
+
+#### Actions of a layer
+
+A layer has zero, one or several actions, applied in order. Selecting an action shows its parameters (colour, transparency, property).
+
+#### Saving
+
+The filter is checked before it is saved:
+
+- blocking: no name, no layer, a first layer of type AND, no entity class, an incomplete field (empty list, pattern, range or length), a property facet without property set or property, an automatic colour without property, no action in the whole filter;
+- warning only: layers whose selection no later action uses (they do nothing).
 
 ### Layer semantics
-
-A filter always starts from an **empty view**: when it runs, everything is hidden, then its actions build the view. A filter that only adds the walls to the view shows the walls only.
 
 The layers run from top to bottom, with a pending set of elements:
 
 - A layer with a **specification** and no action **adds** its elements to the pending set (union).
-- A layer marked **AND** adds nothing: it reuses the selection of the layer above.
+- A layer of type **AND** adds nothing: it reuses the selection of the layer above.
 - The **actions of a layer** apply to the pending set: the union of the selections accumulated since the last action, plus the layer's own specification if it has one. After the actions run, the pending set is emptied and a new group starts.
 - An **AND** layer placed right after an action layer applies its actions to the same elements as the layer above: several actions on the same selection, without duplicating the specification.
-- The selection of a layer is **either** an IDS specification **or** AND (chosen in the Selection part of the layer). The first layer cannot be AND.
-- Selection layers that no later action uses do nothing: saving the filter shows a warning (not blocking).
+- A group whose specifications match nothing stays empty: its actions do not fall back on the previous group.
 
-Example:
+Example (the view starts empty):
 
 | # | Selection | Actions | Effect |
 |---|-----------|---------|--------|
 | 1 | specification: IfcWall | — | pending = all walls |
 | 2 | specification: IfcSlab | — | pending = walls + slabs (union) |
-| 3 | AND | Colour red | walls + slabs are painted red; the group closes |
-| 4 | AND | Isolate in the view | same elements as layer 3 are isolated |
-| 5 | specification: IfcSpace | Hide | a new group starts: the spaces are hidden |
+| 3 | AND | Add to the view and colour red | walls + slabs are shown and painted red; the group closes |
+| 4 | AND | Change the transparency 50 % | same elements as layer 3 become half transparent |
+| 5 | specification: IfcSpace | Add to the view | a new group starts: the spaces are shown too |
+
+### Actions
+
+- **Isolate in the view** — replaces what is visible: with several Isolate layers, the last one wins.
+- **Add to the view**
+- **Remove from the view**
+- **Add to the view and colour** — adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
+- **Change the transparency** — a percentage of transparency: 0 % = opaque, 100 % = invisible (30 % leaves the elements 70 % opaque).
+- **Add to the view and automatic colour by property** — adds the elements to the view, then each distinct value of the chosen property gets its own colour (elements without the property are grey). The property can be chosen with **Browse properties…**, on all the products of the active model.
 
 ### Filter file format
 
 A filter is one JSON document (the envelope):
-- the name, the description;
-- the list of layers with their actions;
-- each specification inside is stored in the **standard IDS format** (buildingSMART), so specifications are interoperable with other IDS tools.
+
+- `format` (`bonsaiviewer-filter`), `version`, `name`, `description`;
+- `layers`: for each layer, `and` (AND type), `ids` (the selection) and `actions` (`type` and its parameter: `color`, `percent`, or `pset` + `property`);
+- each selection is stored as a **standard IDS document** (buildingSMART), built by IfcTester, so specifications are interoperable with other IDS tools.
+
+A library (Export All Filters) is one JSON document with `format` (`bonsaiviewer-filter-library`), `version`, `folders` and `filters`.
 
 The envelope itself is a simple proprietary JSON; only the specifications it contains follow the IDS standard.
 
-### Actions
-An action is a modification of the model:
-
-- Isolate in the view — replaces what is visible: with several Isolate layers, the last one wins.
-- Add to the view
-- Remove from the view
-- Add to the view and colour — adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
-- Change the transparency
-- Add to the view and automatic colour by property — adds the elements to the view, then each distinct value of the chosen property gets its own colour.
-
 ## Open Subject
+
+- Attribute, classification, material and part-of facets.
+- Property set / property completion on all the loaded models (BonsaiViewer26 Property Selection).
+- Reusable named lists of values.
+- Importing third-party IDS files as filter layers (BonsaiViewer24 IDS).
