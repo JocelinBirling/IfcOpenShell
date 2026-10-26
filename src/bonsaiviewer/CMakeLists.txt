@@ -193,6 +193,10 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/class_tree/ClassTreeDataSource.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/class_tree/ClassTreeDataSource.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/bonsaiviewer_resources.qrc
 )
 

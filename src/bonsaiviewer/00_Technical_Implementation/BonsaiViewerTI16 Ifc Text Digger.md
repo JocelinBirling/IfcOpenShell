@@ -4,44 +4,54 @@
 
 Spec source: `../00_Specification/BonsaiViewer16 Ifc Text Digger.md`
 
-## What exists today
+## Where it lives
 
-`ElementRegistry` resolves `object_id` to `express::base` entities, but the
-raw STEP line (with its `#id` hashtag syntax) is not surfaced anywhere. The
-IFC file path is known per model through SessionState.
+- `modules/text_digger/Panel.h/.cpp`: `TextDiggerPanel`, a `components::Panel`
+  (bottom dock, tabified with the Table panel, hidden at start-up). Toolbar
+  (Reset, Inspect), a status line, a `QTextBrowser` with links opened by the
+  view (`setOpenLinks(false)`).
+- `modules/text_digger/View.h/.cpp`: `TextDiggerView`, built in `setupLoader`
+  after the selection service.
+- `MainWindow`: panel created in `setupPanels`, toggle in the Panels ribbon,
+  menu entry `text_digger`.
 
 ## Building blocks used
 
-- B16 StepTextService — this fiche builds the brick.
-- B01 SelectionService — Inspect starts from the selected elements.
-- B13 PanelManager — the bottom text panel, in its own tab.
+- `SelectionService::selectionIdsAsVector()` — the selected elements.
+- `ElementRegistry::findBasicElementInfo()` — `ifc_id` (the STEP number) and
+  `session_model_id` of each element.
+- `SceneLoader::filePath(session_model_id)` — the IFC text file of the model.
 
-## New code
+## Reading the file
 
-- `services/StepTextService` (B16):
-  - Per model: access to the original STEP text. Two options: keep the
-    parsed file open (memory cost) or re-read lines on demand from the
-    source file by entity id (ifcparse provides the line lookup). Decide by
-    memory profiling; on-demand reading is the safe default.
-  - `lineFor(entity_id)` → `#0223=IFCWALL(#2,#3,Text)` as text.
-  - `usagesOf(entity_id)` → lines referencing `#id`, via a per-model
-    reference scan cached at first use (or built from the parsed entity
-    attributes directly, which is cheaper than a text scan).
-- `modules/text_digger/` panel:
-  - Inspect: for each selected element, display its line.
-  - Hashtags as clickable anchors (QTextBrowser with HTML links).
-    Click on a reference hashtag shows the defining line; click on a
-    declaration hashtag shows the lines where it is referenced. Lines
-    always sorted in ascending id order; navigation history (Back).
-  - Reset button top-left: clears the view.
+`forEachRecord(path, visit)` streams the file line by line. A record starts at a
+line beginning with `#` and ends at the first text ending with `;` (records
+spanning several lines are joined with a space). Header and footer lines are
+skipped. The visitor returns `false` to stop early.
 
-## Key flows
+- Inspect: one pass per file, collecting the wanted declaration ids; the pass
+  stops once all of them are found.
+- Click on a reference `#N`: pass until the record whose declaration is `#N`.
+- Click on a declaration `#N`: full pass, keeping the records other than its own
+  declaration that contain the token `#N` (`#N(?!\d)`, so `#12` does not match `#123`).
 
-Selection → Inspect → line list; hashtag clicks push lines into the view
-(sorted); Reset clears.
+## Display
 
-## Technical questions
+`linkify(text, file)` escapes the record and turns every `#N` into a link:
+`ifcdecl:<file>:<N>` when it is the declaration at the start of the line,
+`ifcref:<file>:<N>` otherwise. `TextDiggerView::follow` reads the link back.
 
-- Federation: the panel must prefix lines with the model name when several
-  models are open (ids collide across files).
-- Very large files: cache usages maps per model, build lazily.
+The shown lines are kept in `std::map<(file index, line number), text>`, which
+gives the ascending order.
+
+## Known limits
+
+- Each reference click reads the whole file (on demand, as chosen). On files of
+  several hundred MB this takes a while; an index is the next step if needed.
+- The search matches the token in the whole record text, so a `#N` inside a
+  string literal would also match.
+- Lines of a closed project are dropped (`projectReset`, `projectOpened`).
+
+## Not yet verified
+
+- Nothing has been compiled or run on the device for this change.

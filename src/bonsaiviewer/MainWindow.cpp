@@ -51,6 +51,8 @@
 #include "modules/table/TablesPanel.h"
 #include "modules/table/TablesView.h"
 #include "modules/table/View.h"
+#include "modules/text_digger/Panel.h"
+#include "modules/text_digger/View.h"
 #include "services/ActionPipeline.h"
 #include "services/AppearanceService.h"
 #include "services/ActiveView.h"
@@ -566,6 +568,7 @@ QWidget* MainWindow::buildPanelsRibbonPage() {
             makePanelToggle("Search", search_panel_),
             makePanelToggle("Filters", filters_panel_),
             makePanelToggle("Table", table_panel_),
+            makePanelToggle("Text Digger", text_digger_panel_),
             makePanelToggle("Tables", tables_panel_),
             makePanelToggle("Audit", audit_panel_)
         }, this),
@@ -669,6 +672,7 @@ void MainWindow::setupPanels() {
         "Search and Query", new modules::todo::TodoPanel("Search and Query", this), this);
     filters_panel_ = new modules::filters::FiltersPanel(this);
     table_panel_ = new modules::table::TablePanel(this);
+    text_digger_panel_ = new modules::text_digger::TextDiggerPanel(this);
     tables_panel_ = new modules::table::TablesPanel(this);
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
@@ -692,6 +696,9 @@ void MainWindow::setupPanels() {
     addDockWidget(Qt::RightDockWidgetArea, clash_panel_);
     addDockWidget(Qt::RightDockWidgetArea, issues_panel_);
     addDockWidget(Qt::BottomDockWidgetArea, table_panel_);
+    // BonsaiViewer16: the Ifc Text Digger, in the bottom tabs with the Table.
+    addDockWidget(Qt::BottomDockWidgetArea, text_digger_panel_);
+    tabifyDockWidget(table_panel_, text_digger_panel_);
     // Tables: on the left, tabbed with Models, and shown at start-up.
     addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
     tabifyDockWidget(models_panel_, tables_panel_);
@@ -710,6 +717,7 @@ void MainWindow::setupPanels() {
     search_panel_->hide();
     filters_panel_->hide();
     table_panel_->hide();
+    text_digger_panel_->hide();
     tables_panel_->raise();
     audit_panel_->hide();
     clash_panel_->hide();
@@ -859,6 +867,9 @@ void MainWindow::setupLoader() {
         properties_panel_, session_state_, *data_access_, *action_pipeline_, *selection_service_,
         *entity_set_store_, this);
     properties_view_->setTableView(table_view_);
+    // BonsaiViewer16: the Ifc Text Digger reads the selection and the IFC text files.
+    text_digger_view_ = new modules::text_digger::TextDiggerView(
+        text_digger_panel_, *session_state_, *selection_service_, this);
     // TI12: the Ifc Class Tree (B12 tree over the open models' IFC classes).
     auto* class_tree_data = new modules::class_tree::ClassTreeDataSource(
         *session_state_, *selection_service_, *action_pipeline_, this);
@@ -1022,6 +1033,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Filters"), filters_panel_);
     panel_manager_->adoptPanel(QStringLiteral("sheets"),
                                QStringLiteral("Table"), table_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("text_digger"),
+                               QStringLiteral("Ifc Text Digger"), text_digger_panel_);
     panel_manager_->adoptPanel(QStringLiteral("tables"),
                                QStringLiteral("Tables"), tables_panel_);
     panel_manager_->adoptPanel(QStringLiteral("audit"),

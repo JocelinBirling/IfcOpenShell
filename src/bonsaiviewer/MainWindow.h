@@ -41,6 +41,8 @@ namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanel
 namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanelView; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
+namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
+namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
 namespace bonsaiviewer::modules::viewport { class ViewportPanel; }
 namespace bonsaiviewer::services { class ActiveView; }
@@ -162,6 +164,8 @@ private:
     bonsaiviewer::modules::models::ModelsPanelView* models_view_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanelView* spatial_view_ = nullptr;
     bonsaiviewer::modules::properties::PropertiesPanelView* properties_view_ = nullptr;
+    bonsaiviewer::modules::text_digger::TextDiggerPanel* text_digger_panel_ = nullptr;
+    bonsaiviewer::modules::text_digger::TextDiggerView* text_digger_view_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
     bonsaiviewer::services::PropertyCatalog* property_catalog_ = nullptr;
     bonsaiviewer::modules::table::TablePanelView* table_view_ = nullptr;

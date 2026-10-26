@@ -20,4 +20,12 @@ The lines are always sorted in ascending order.
 ### Reset
 At the top left of the panel, a function resets the view and removes all the displayed lines.
 
+## Decisions
+
+- **Several elements**: one line per selected element.
+- **Sorting**: by line number in the IFC text file, ascending (by file first when several files are shown).
+- **No text file available** (the file is missing, or the model was loaded from a .ifcview only): the panel shows a message, nothing is read.
+- **Search of references**: on demand. Each click reads the IFC text file again; no index is kept in memory.
+- **Placement**: bottom dock, in the same tab group as the Table panel.
+
 ## Open Subject
