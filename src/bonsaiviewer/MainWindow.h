@@ -68,6 +68,8 @@ namespace bonsaiviewer::modules::table { class TablePanelView; }
 namespace bonsaiviewer::modules::table { class TableStore; }
 namespace bonsaiviewer::modules::table { class TablesPanel; }
 namespace bonsaiviewer::modules::table { class TablesView; }
+namespace bonsaiviewer::components { class Panel; }
+class QTreeWidget;
 
 namespace bonsaiviewer::shell {
 
@@ -151,6 +153,9 @@ private:
     bonsaiviewer::modules::filters::FiltersPanel* filters_panel_ = nullptr;
     bonsaiviewer::modules::table::TablePanel* table_panel_ = nullptr;
     bonsaiviewer::modules::table::TablesPanel* tables_panel_ = nullptr;
+    // TI12: the Ifc Class Tree, tabbed with the Spatial Hierarchy.
+    bonsaiviewer::components::Panel* class_tree_panel_ = nullptr;
+    QTreeWidget* class_tree_widget_ = nullptr;
     QDockWidget* audit_panel_ = nullptr;
     QDockWidget* clash_panel_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;

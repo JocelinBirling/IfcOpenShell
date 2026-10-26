@@ -60,6 +60,9 @@
 #include "services/EntitySetStore.h"
 #include "services/FilterRunner.h"
 #include "services/FilterStore.h"
+#include "services/TreePanelFramework.h"
+#include "modules/class_tree/ClassTreeDataSource.h"
+#include <QTreeWidget>
 #include "services/IdsBridge.h"
 #include "services/PropertyCatalog.h"
 #include "services/IfcDataAccess.h"
@@ -554,6 +557,7 @@ QWidget* MainWindow::buildPanelsRibbonPage() {
         components::buttons::makeButtonGroup("DATA", {
             makePanelToggle("Models", models_panel_),
             makePanelToggle("Spatial", spatial_panel_),
+            makePanelToggle("Class Tree", class_tree_panel_),
             makePanelToggle("Layers", layers_panel_),
             makePanelToggle("Properties", properties_panel_)
         }, this),
@@ -670,10 +674,16 @@ void MainWindow::setupPanels() {
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
     issues_panel_ = new components::Panel("Issues", new modules::todo::TodoPanel("Issues", this), this);
+    class_tree_widget_ = new QTreeWidget(this);
+    class_tree_panel_ = new components::Panel("Ifc Class Tree", class_tree_widget_, this);
 
     addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
     addDockWidget(Qt::LeftDockWidgetArea, spatial_panel_);
     splitDockWidget(models_panel_, spatial_panel_, Qt::Vertical);
+    // TI12: the Ifc Class Tree is tabbed with the Spatial Hierarchy, shown at start-up.
+    addDockWidget(Qt::LeftDockWidgetArea, class_tree_panel_);
+    tabifyDockWidget(spatial_panel_, class_tree_panel_);
+    spatial_panel_->raise();
 
     addDockWidget(Qt::RightDockWidgetArea, properties_panel_);
     addDockWidget(Qt::RightDockWidgetArea, layers_panel_);
@@ -844,6 +854,20 @@ void MainWindow::setupLoader() {
         table_panel_, *session_state_, *ids_bridge_, *data_access_, *property_catalog_,
         *selection_service_, *action_pipeline_, *table_store_, *appearance_service_, *entity_set_store_, this);
     tables_view_ = new modules::table::TablesView(tables_panel_, *table_store_, this);
+    // TI12: the Ifc Class Tree (B12 tree over the open models' IFC classes).
+    auto* class_tree_data = new modules::class_tree::ClassTreeDataSource(
+        *session_state_, *selection_service_, *action_pipeline_, this);
+    auto* class_tree = new bonsaiviewer::services::tree::TreePanelWidget(class_tree_widget_, class_tree_data, this);
+    class_tree->refresh();
+    // Several nodes at once (Ctrl / Shift); the viewport selection follows the tree selection.
+    class_tree_widget_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    connect(class_tree_widget_, &QTreeWidget::itemSelectionChanged, class_tree_data, [this, class_tree_data]() {
+        QStringList keys;
+        for (QTreeWidgetItem* item : class_tree_widget_->selectedItems()) {
+            keys << item->data(0, Qt::UserRole).toString();
+        }
+        class_tree_data->onSelectionChanged(keys);
+    });
     connect(tables_view_, &modules::table::TablesView::openRequested,
             table_view_, &modules::table::TablePanelView::openTable);
     connect(tables_view_, &modules::table::TablesView::newTableRequested,
@@ -979,6 +1003,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Models"), models_panel_);
     panel_manager_->adoptPanel(QStringLiteral("spatial"),
                                QStringLiteral("Spatial"), spatial_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("classtree"),
+                               QStringLiteral("Ifc Class Tree"), class_tree_panel_);
     panel_manager_->adoptPanel(QStringLiteral("layers"),
                                QStringLiteral("Layers"), layers_panel_);
     panel_manager_->adoptPanel(QStringLiteral("properties"),
