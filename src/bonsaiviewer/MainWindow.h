@@ -65,6 +65,9 @@ namespace bonsaiviewer::modules::filters { class FiltersPanelView; }
 namespace bonsaiviewer::modules::menubar { class MenuBar; }
 namespace bonsaiviewer::modules::table { class TablePanel; }
 namespace bonsaiviewer::modules::table { class TablePanelView; }
+namespace bonsaiviewer::modules::table { class TableStore; }
+namespace bonsaiviewer::modules::table { class TablesPanel; }
+namespace bonsaiviewer::modules::table { class TablesView; }
 
 namespace bonsaiviewer::shell {
 
@@ -149,6 +152,7 @@ private:
     QDockWidget* search_panel_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanel* filters_panel_ = nullptr;
     bonsaiviewer::modules::table::TablePanel* table_panel_ = nullptr;
+    bonsaiviewer::modules::table::TablesPanel* tables_panel_ = nullptr;
     QDockWidget* audit_panel_ = nullptr;
     QDockWidget* clash_panel_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;
@@ -158,6 +162,9 @@ private:
     bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
     bonsaiviewer::services::PropertyCatalog* property_catalog_ = nullptr;
     bonsaiviewer::modules::table::TablePanelView* table_view_ = nullptr;
+    // TI07 phase 2: the saved tables (folders and configurations) and their tree.
+    bonsaiviewer::modules::table::TableStore* table_store_ = nullptr;
+    bonsaiviewer::modules::table::TablesView* tables_view_ = nullptr;
 };
 
 } // namespace bonsaiviewer::shell

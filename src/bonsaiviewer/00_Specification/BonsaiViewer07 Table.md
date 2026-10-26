@@ -12,8 +12,13 @@ The table is delivered in phases. **Phase 1 (done)**: one table at a time,
 the Table Creation Window (name, description, IDS selection), the columns
 (property, name, class, GlobalId, model) with the Add / Modify Column
 window, the header menu, moving columns by drag, click / double-click on
-rows, and the CSV export. The other functions below come in the next
-phases (see Open Subject).
+rows, and the CSV export.
+
+**Phase 2, part A (implemented, to build and test)**: the Tables panel
+(folders, tables, drag and drop, run, import and export of one table),
+Save of the current table, and Load (run) of a saved table. Apply table to
+box, the Count and Color columns and the grouped table come next (see Open
+Subject).
 
 
 
@@ -31,9 +36,11 @@ By right clicking, you can open some function, add Folder or Table, delete, or r
 
 - The panel « Table » is docked at the **bottom** of the window, opened
   with the **Table** button of the ribbon.
-- Toolbar: **Table** (new table), **Modify** (the creation window of the
-  current table), **Column** (add a column at the right end), **Refresh**
-  (evaluate again, for instance after loading a model), **Export** (CSV).
+- Tables are created and loaded in the **Tables** panel, not here.
+- Toolbar: **Modify** (the creation window of the current table), **Save**
+  (save the table in the Tables panel), **Column** (add a column at the right
+  end), **Refresh** (evaluate again, for instance after loading a model),
+  **Export** (CSV).
 - Next to the toolbar: the table name, its number of elements and of
   models.
 

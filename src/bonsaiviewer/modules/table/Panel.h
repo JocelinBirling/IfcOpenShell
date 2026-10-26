@@ -32,12 +32,13 @@ public:
 
     QTableView* tableView() const { return table_view_; }
     void setSummary(const QString& text);
-    // The table actions need a table; "New table" is always available.
+    // The table actions need a loaded table (tables are created and loaded in
+    // the Tables panel).
     void setTableActionsEnabled(bool enabled);
 
 signals:
-    void newTableRequested();
     void modifyTableRequested();
+    void saveRequested();
     void addColumnRequested();
     void refreshRequested();
     void exportRequested();
@@ -46,6 +47,7 @@ private:
     QLabel* summary_label_ = nullptr;
     QTableView* table_view_ = nullptr;
     QToolButton* modify_button_ = nullptr;
+    QToolButton* save_button_ = nullptr;
     QToolButton* column_button_ = nullptr;
     QToolButton* refresh_button_ = nullptr;
     QToolButton* export_button_ = nullptr;

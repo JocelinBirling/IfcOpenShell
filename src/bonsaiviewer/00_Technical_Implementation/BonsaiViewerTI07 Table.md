@@ -48,8 +48,32 @@ Spec source: `../00_Specification/BonsaiViewer07 Table.md`,
     point from the system locale, UTF-8 with BOM.
 - MainWindow creates the catalog and the table view after the filters.
 
-Not done yet: save / load, several tables, apply to box, Count and Color
-columns, grouping, relations, calculated columns (spec 23).
+## Phase 2, part A (implemented, to build and test)
+
+- `modules/table/TableStore` (B14 PersistenceService, document
+  `tables.json`): folders and tables (`TableDocument` = id, folder,
+  `TableDefinition`). The IDS selection is saved with `IdsFacet::toJson`;
+  columns with their kind, title, pset, property and auto_numeric. Import /
+  export of one table (format key `columns`, version 1).
+  Same model as `services/FilterStore` (TI06).
+- `modules/table/TablesPanel`: the Tables panel (bottom dock, tabbed with the
+  Table panel; key `tables`). Toolbar: Table (create, at the selected folder
+  or at the root), Folder (optional), Run, Import. The Table panel has no
+  creation action any more: it only modifies, saves, and evaluates the
+  loaded table.
+- `modules/table/TablesView`: B12 tree data source. Context menus, rename,
+  delete (with confirmation), drag and drop, double click = load. Emits
+  `openRequested(id)` and `newTableRequested(folder)`.
+- `modules/table/View` (TablePanelView): `saveTable()` (add or update),
+  `openTable(id)` (load, then evaluate), `newTable(folder)`. The table name
+  shows “(not saved)” until saved. A table deleted in the tree becomes
+  unsaved. Save button in the Table panel toolbar.
+- `MainWindow`: creates `table_store_` and `tables_view_`, wires the two
+  signals, adopts the Tables panel in PanelManager, adds the toggle to the
+  QUERY ribbon group.
+
+Not done yet: apply table to box, Count and Color columns, grouping,
+relations, calculated columns (spec 23).
 
 ## Building blocks used
 

@@ -34,11 +34,13 @@ namespace bonsaiviewer::modules::table {
 
 class TableModel;
 class TablePanel;
+class TableStore;
 
 // TI07 — drives the Table panel: creates and modifies the table, evaluates
 // its IDS selection on every loaded model (one IfcTester request per
 // model, in sequence), edits the columns from the header menu, selects /
-// isolates the elements of the clicked rows and exports to CSV.
+// isolates the elements of the clicked rows and exports to CSV. Phase 2:
+// saves the table to the Tables panel and loads a saved table.
 class TablePanelView : public QObject {
     Q_OBJECT
 
@@ -50,7 +52,15 @@ public:
                    bonsaiviewer::services::PropertyCatalog& catalog,
                    bonsaiviewer::services::SelectionService& selection,
                    bonsaiviewer::services::ActionPipeline& actions,
+                   TableStore& store,
                    QObject* parent = nullptr);
+
+    // A new unsaved table; `folder_id` is where it is saved (empty = root).
+    void newTable(const QString& folder_id = {});
+    // Saves the current table in the store (a new one, or the stored one).
+    void saveTable();
+    // Loads a saved table and evaluates it on the loaded models.
+    void openTable(const QString& table_id);
 
 private:
     struct ModelSource {
@@ -58,7 +68,6 @@ private:
         QString ifc_path;
     };
 
-    void newTable();
     void modifyTable();
     bool editTable(TableDefinition& definition);
     void addColumn(int position);
@@ -88,9 +97,14 @@ private:
     bonsaiviewer::services::PropertyCatalog& catalog_;
     bonsaiviewer::services::SelectionService& selection_;
     bonsaiviewer::services::ActionPipeline& actions_;
+    TableStore& store_;
     TableModel* model_ = nullptr;
 
     std::optional<TableDefinition> table_;
+    // The stored table shown, empty while the table is not saved; the
+    // folder a new table is saved into.
+    QString current_id_;
+    QString pending_folder_;
 
     // The evaluation in progress.
     int generation_ = 0;

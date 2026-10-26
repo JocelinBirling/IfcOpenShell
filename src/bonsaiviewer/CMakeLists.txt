@@ -183,6 +183,12 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/Table.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableModel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableModel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableStore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesPanel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesView.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesView.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/View.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/bonsaiviewer_resources.qrc

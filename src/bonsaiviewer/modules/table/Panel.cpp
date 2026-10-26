@@ -49,10 +49,11 @@ TablePanel::TablePanel(QWidget* parent)
     auto* toolbar_layout = new QHBoxLayout(toolbar);
     toolbar_layout->setContentsMargins(0, 0, 0, 0);
     toolbar_layout->setSpacing(2);
-    auto* new_button = makeToolButton("Table", ":/icons/plus-square.svg", "Create a new table", true, toolbar);
     modify_button_ = makeToolButton("Modify", ":/icons/settings.svg",
                                     "Modify the name, the description and the elements of the table",
                                     false, toolbar);
+    save_button_ = makeToolButton("Save", ":/icons/floppy-disk.svg",
+                                  "Save the table configuration in the Tables panel", true, toolbar);
     column_button_ = makeToolButton("Column", ":/icons/plus-square.svg",
                                     "Add a column (right-most). Click a column header for its menu.",
                                     true, toolbar);
@@ -62,8 +63,8 @@ TablePanel::TablePanel(QWidget* parent)
                                     false, toolbar);
     summary_label_ = new QLabel(toolbar);
     summary_label_->setProperty("textRole", "secondary");
-    toolbar_layout->addWidget(new_button);
     toolbar_layout->addWidget(modify_button_);
+    toolbar_layout->addWidget(save_button_);
     toolbar_layout->addWidget(column_button_);
     toolbar_layout->addWidget(refresh_button_);
     toolbar_layout->addSpacing(8);
@@ -86,13 +87,13 @@ TablePanel::TablePanel(QWidget* parent)
     section->addBodyWidget(table_view_);
     addBodyWidget(section);
 
-    connect(new_button, &QToolButton::clicked, this, &TablePanel::newTableRequested);
     connect(modify_button_, &QToolButton::clicked, this, &TablePanel::modifyTableRequested);
+    connect(save_button_, &QToolButton::clicked, this, &TablePanel::saveRequested);
     connect(column_button_, &QToolButton::clicked, this, &TablePanel::addColumnRequested);
     connect(refresh_button_, &QToolButton::clicked, this, &TablePanel::refreshRequested);
     connect(export_button_, &QToolButton::clicked, this, &TablePanel::exportRequested);
 
-    setSummary("No table yet. Click “Table” to create one.");
+    setSummary("No table loaded. Create or run one in the Tables panel.");
     setTableActionsEnabled(false);
 }
 
@@ -101,7 +102,7 @@ void TablePanel::setSummary(const QString& text) {
 }
 
 void TablePanel::setTableActionsEnabled(bool enabled) {
-    for (QToolButton* button : {modify_button_, column_button_, refresh_button_, export_button_}) {
+    for (QToolButton* button : {modify_button_, save_button_, column_button_, refresh_button_, export_button_}) {
         button->setEnabled(enabled);
     }
 }

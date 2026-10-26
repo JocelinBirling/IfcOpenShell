@@ -16,6 +16,7 @@
 #include "CreationDialog.h"
 #include "Panel.h"
 #include "TableModel.h"
+#include "TableStore.h"
 
 #include "../../ElementRegistry.h"
 #include "../../SessionState.h"
@@ -77,6 +78,7 @@ TablePanelView::TablePanelView(TablePanel* panel,
                                services::PropertyCatalog& catalog,
                                services::SelectionService& selection,
                                services::ActionPipeline& actions,
+                               TableStore& store,
                                QObject* parent)
     : QObject(parent),
       panel_(panel),
@@ -84,7 +86,8 @@ TablePanelView::TablePanelView(TablePanel* panel,
       bridge_(bridge),
       catalog_(catalog),
       selection_(selection),
-      actions_(actions)
+      actions_(actions),
+      store_(store)
 {
     model_ = new TableModel(
         data_access,
@@ -94,8 +97,13 @@ TablePanelView::TablePanelView(TablePanel* panel,
     view->setModel(model_);
     QHeaderView* header = view->horizontalHeader();
 
-    connect(panel_, &TablePanel::newTableRequested, this, &TablePanelView::newTable);
+    connect(panel_, &TablePanel::saveRequested, this, &TablePanelView::saveTable);
     connect(panel_, &TablePanel::modifyTableRequested, this, &TablePanelView::modifyTable);
+    // A saved table deleted from the Tables panel becomes an unsaved table.
+    connect(&store_, &TableStore::changed, this, [this] {
+        if (!current_id_.isEmpty() && !store_.table(current_id_)) current_id_.clear();
+        updateSummary();
+    });
     connect(panel_, &TablePanel::addColumnRequested, this,
             [this] { addColumn(table_ ? static_cast<int>(table_->columns.size()) : 0); });
     connect(panel_, &TablePanel::refreshRequested, this, &TablePanelView::evaluate);
@@ -112,11 +120,41 @@ TablePanelView::TablePanelView(TablePanel* panel,
 // ---------------------------------------------------------------------------
 // Table and columns
 
-void TablePanelView::newTable() {
+void TablePanelView::newTable(const QString& folder_id) {
     TableDefinition definition;
     definition.columns = defaultColumns();
     if (!editTable(definition)) return;
     table_ = definition;
+    current_id_.clear();
+    pending_folder_ = folder_id;
+    model_->setRows({});
+    applyColumns();
+    // Created from the Tables panel: stored at once, so it appears in the tree.
+    saveTable();
+    panel_->setTableActionsEnabled(true);
+    evaluate();
+}
+
+void TablePanelView::saveTable() {
+    if (!table_) return;
+    TableDocument document;
+    document.id = current_id_;
+    document.definition = *table_;
+    if (current_id_.isEmpty()) {
+        current_id_ = store_.addTable(document, pending_folder_);
+    } else {
+        store_.updateTable(document);
+    }
+    updateSummary();
+    session_.setStatusMessage("Table", QString("Table “%1” saved").arg(table_->name));
+}
+
+void TablePanelView::openTable(const QString& table_id) {
+    const auto document = store_.table(table_id);
+    if (!document) return;
+    table_ = document->definition;
+    current_id_ = table_id;
+    pending_folder_ = document->folder_id;
     model_->setRows({});
     applyColumns();
     panel_->setTableActionsEnabled(true);
@@ -249,10 +287,11 @@ void TablePanelView::finishEvaluation() {
 
 void TablePanelView::updateSummary() {
     if (!table_) {
-        panel_->setSummary("No table yet. Click “Table” to create one.");
+        panel_->setSummary("No table loaded. Create or run one in the Tables panel.");
         return;
     }
     QString text = QString("<b>%1</b>").arg(table_->name.toHtmlEscaped());
+    if (current_id_.isEmpty()) text += " <i>(not saved)</i>";
     if (evaluating_) {
         text += QString(" — evaluating %1 model(s)…").arg(sources_.size());
     } else {
