@@ -25,6 +25,7 @@
 
 #include "../../components/Panel.h"
 
+#include <QPoint>
 #include <QString>
 
 class QLabel;
@@ -41,7 +42,15 @@ public:
 
     void render(const PropertiesPanelState& state);
 
+signals:
+    // Right click on a property name, or on a property value (TI14).
+    void propertyNameContextRequested(const QString& pset, const QString& property, const QPoint& global_pos);
+    void propertyValueContextRequested(const QString& pset, const QString& property, const QString& value,
+                                       const QPoint& global_pos);
+
 private:
+    PropertyContextHandler contextHandler();
+
     // Rebuild the set widgets inside their container, applying the current
     // (case-insensitive) filter text: a set is shown only if its name or one of
     // its property names/values matches, and — when it's a property/value match

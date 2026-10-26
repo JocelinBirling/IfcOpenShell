@@ -18,8 +18,11 @@
 #include <QObject>
 #include <QStringList>
 
+#include <QColor>
+
 #include <cstdint>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace bonsaiviewer { class SessionState; }
@@ -66,6 +69,12 @@ public:
     // Loads a saved table and evaluates it on the loaded models. With
     // `on_box`, only the elements of the current box are kept (not saved).
     void openTable(const QString& table_id, bool on_box = false);
+    // A temporary table of the given elements: not run on the IDS selection,
+    // not saved. Used by "Colour by property" (TI14). `object_colours` are the
+    // colours the viewer already shows; the Color column displays them.
+    void showTemporaryTable(const QString& name, const std::vector<TableColumn>& columns,
+                            const std::vector<std::uint32_t>& ids,
+                            const std::unordered_map<std::uint32_t, QColor>& object_colours = {});
 
 private:
     struct ModelSource {
@@ -121,6 +130,9 @@ private:
     // Run on Box: the run keeps only the elements of the box. A run option,
     // not saved with the table; it follows the box while it is set.
     bool apply_to_box_ = false;
+    // A temporary table (TI14): its rows are set directly, never evaluated.
+    bool temporary_ = false;
+    std::unordered_map<std::uint32_t, QColor> temporary_colours_;
 
     // The evaluation in progress.
     int generation_ = 0;

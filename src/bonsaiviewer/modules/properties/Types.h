@@ -23,7 +23,10 @@
 
 #include <QList>
 #include <QPair>
+#include <QPoint>
 #include <QString>
+
+#include <functional>
 
 namespace bonsaiviewer::modules::properties {
 
@@ -41,6 +44,11 @@ struct PropertySet {
     QString title;
     QList<KeyValueRow> rows;
 };
+
+// TI14 — right click on a row of a property set: the set (as shown, under the
+// filter), the row index in that set, whether the value (true) or the name
+// (false) was clicked, and the global position.
+using PropertyContextHandler = std::function<void(const PropertySet&, int, bool, const QPoint&)>;
 
 struct EntitySummary {
     QString entity_class;

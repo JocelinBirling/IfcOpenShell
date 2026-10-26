@@ -37,7 +37,9 @@
 
 namespace {
 
-QWidget* makePropertySetPanel(const bonsaiviewer::modules::properties::PropertySet& property_set, QWidget* parent = nullptr) {
+QWidget* makePropertySetPanel(const bonsaiviewer::modules::properties::PropertySet& property_set,
+                              const bonsaiviewer::modules::properties::PropertyContextHandler& on_context,
+                              QWidget* parent = nullptr) {
     auto* group = new QGroupBox(property_set.title, parent);
     group->setObjectName("propertySetBox");
     auto* layout = new QVBoxLayout(group);
@@ -48,7 +50,13 @@ QWidget* makePropertySetPanel(const bonsaiviewer::modules::properties::PropertyS
     for (const auto& row : property_set.rows) {
         rows.append({row.key, row.value, "keyValueValueLabel", "", "", 0});
     }
-    layout->addWidget(new bonsaiviewer::components::KeyValueTable(rows, group));
+    auto* table = new bonsaiviewer::components::KeyValueTable(rows, group);
+    // The rows of the table are the rows of property_set (as filtered).
+    QObject::connect(table, &bonsaiviewer::components::KeyValueTable::contextMenuRequested, table,
+                     [property_set, on_context](int row, bool on_value, const QPoint& pos) {
+                         on_context(property_set, row, on_value, pos);
+                     });
+    layout->addWidget(table);
     return group;
 }
 
@@ -289,7 +297,8 @@ void rebuildSetContainer(QWidget* container,
                          const QList<PropertySet>& sets,
                          const QString& filter_text,
                          const QString& empty_text,
-                         const QString& no_match_text) {
+                         const QString& no_match_text,
+                         const bonsaiviewer::modules::properties::PropertyContextHandler& on_context) {
     if (!container) return;
     auto* layout = qobject_cast<QVBoxLayout*>(container->layout());
     if (!layout) return;
@@ -299,7 +308,7 @@ void rebuildSetContainer(QWidget* container,
     int shown = 0;
     for (const auto& set : sets) {
         if (auto filtered = filterSet(set, text)) {
-            layout->addWidget(makePropertySetPanel(*filtered, container));
+            layout->addWidget(makePropertySetPanel(*filtered, on_context, container));
             ++shown;
         }
     }
@@ -312,12 +321,24 @@ void rebuildSetContainer(QWidget* container,
 
 void PropertiesPanel::rebuildPropertyWidgets() {
     rebuildSetContainer(properties_container_, property_sets_data_, properties_filter_text_,
-                        "No properties", "No matching properties");
+                        "No properties", "No matching properties", contextHandler());
 }
 
 void PropertiesPanel::rebuildQuantityWidgets() {
     rebuildSetContainer(quantities_container_, quantity_sets_data_, quantities_filter_text_,
-                        "No quantities", "No matching quantities");
+                        "No quantities", "No matching quantities", contextHandler());
+}
+
+PropertyContextHandler PropertiesPanel::contextHandler() {
+    return [this](const PropertySet& set, int row, bool on_value, const QPoint& pos) {
+        if (row < 0 || row >= set.rows.size()) return;
+        const KeyValueRow& item = set.rows.at(row);
+        if (on_value) {
+            emit propertyValueContextRequested(set.title, item.key, item.value, pos);
+        } else {
+            emit propertyNameContextRequested(set.title, item.key, pos);
+        }
+    };
 }
 
 } // namespace bonsaiviewer::modules::properties

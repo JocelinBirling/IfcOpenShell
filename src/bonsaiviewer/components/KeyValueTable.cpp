@@ -53,6 +53,15 @@ KeyValueTable::KeyValueTable(const QList<KeyValueTableRow>& rows, QWidget* paren
         value->setWordWrap(true);
         value->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
+        key->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(key, &QWidget::customContextMenuRequested, this, [this, key, row_index](const QPoint& pos) {
+            emit contextMenuRequested(row_index, false, key->mapToGlobal(pos));
+        });
+        value->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(value, &QWidget::customContextMenuRequested, this, [this, value, row_index](const QPoint& pos) {
+            emit contextMenuRequested(row_index, true, value->mapToGlobal(pos));
+        });
+
         layout->addWidget(key, row_index, 0, Qt::AlignLeft | Qt::AlignTop);
         layout->addWidget(value, row_index, 1);
 

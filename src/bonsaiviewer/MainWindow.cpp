@@ -661,7 +661,6 @@ void MainWindow::setupPanels() {
         models_panel_, session_state_, viewport_widget_->viewport(), this);
     spatial_view_ = new modules::spatial_hierarchy::SpatialHierarchyPanelView(
         spatial_panel_, session_state_, viewport_widget_->viewport(), this);
-    properties_view_ = new modules::properties::PropertiesPanelView(properties_panel_, session_state_, this);
 
     layers_panel_ = new components::Panel("Layers", new modules::todo::TodoPanel("Layers", this), this);
     stored_views_panel_ = new components::Panel(
@@ -854,6 +853,12 @@ void MainWindow::setupLoader() {
         table_panel_, *session_state_, *ids_bridge_, *data_access_, *property_catalog_,
         *selection_service_, *action_pipeline_, *table_store_, *appearance_service_, *entity_set_store_, this);
     tables_view_ = new modules::table::TablesView(tables_panel_, *table_store_, this);
+    // TI14: Select By Property, the right-click functions of the Properties panel.
+    // Built here, once the services it uses exist; "Colour by property" shows its table here.
+    properties_view_ = new modules::properties::PropertiesPanelView(
+        properties_panel_, session_state_, *data_access_, *action_pipeline_, *selection_service_,
+        *entity_set_store_, this);
+    properties_view_->setTableView(table_view_);
     // TI12: the Ifc Class Tree (B12 tree over the open models' IFC classes).
     auto* class_tree_data = new modules::class_tree::ClassTreeDataSource(
         *session_state_, *selection_service_, *action_pipeline_, this);

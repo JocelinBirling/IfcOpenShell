@@ -22,6 +22,7 @@
 #define IFCINTERFACE_COMPONENTS_KEYVALUETABLE_H
 
 #include <QList>
+#include <QPoint>
 #include <QString>
 #include <QWidget>
 
@@ -40,6 +41,10 @@ class KeyValueTable : public QWidget {
     Q_OBJECT
 public:
     explicit KeyValueTable(const QList<KeyValueTableRow>& rows, QWidget* parent = nullptr);
+
+signals:
+    // Right click on the key (on_value = false) or the value (true) of a row.
+    void contextMenuRequested(int row, bool on_value, const QPoint& global_pos);
 };
 
 } // namespace bonsaiviewer::components

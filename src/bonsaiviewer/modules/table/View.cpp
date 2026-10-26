@@ -157,6 +157,7 @@ void TablePanelView::newTable(const QString& folder_id) {
     current_id_.clear();
     pending_folder_ = folder_id;
     apply_to_box_ = false;
+    temporary_ = false;
     model_->setRows({});
     applyColumns();
     // Created from the Tables panel: stored at once, so it appears in the tree.
@@ -166,6 +167,10 @@ void TablePanelView::newTable(const QString& folder_id) {
 }
 
 void TablePanelView::saveTable() {
+    if (temporary_) {
+        services::popup::information(panel_, "A temporary table is not saved.");
+        return;
+    }
     if (!table_) return;
     TableDocument document;
     document.id = current_id_;
@@ -186,10 +191,34 @@ void TablePanelView::openTable(const QString& table_id, bool on_box) {
     current_id_ = table_id;
     pending_folder_ = document->folder_id;
     apply_to_box_ = on_box;
+    temporary_ = false;
     model_->setRows({});
     applyColumns();
     panel_->setTableActionsEnabled(true);
     evaluate();
+}
+
+void TablePanelView::showTemporaryTable(const QString& name, const std::vector<TableColumn>& columns,
+                                        const std::vector<std::uint32_t>& ids,
+                                        const std::unordered_map<std::uint32_t, QColor>& object_colours) {
+    // A pending evaluation must not overwrite the temporary rows.
+    ++generation_;
+    evaluating_ = false;
+    TableDefinition definition;
+    definition.name = name;
+    definition.description = "Temporary table: not saved, not run on the IDS selection.";
+    definition.columns = columns;
+    table_ = definition;
+    current_id_.clear();
+    pending_folder_.clear();
+    apply_to_box_ = false;
+    temporary_ = true;
+    temporary_colours_ = object_colours;
+    panel_->setTableActionsEnabled(true);
+    applyColumns();
+    model_->setRows(ids);
+    applyRowColours();
+    updateSummary();
 }
 
 void TablePanelView::modifyTable() {
@@ -271,6 +300,20 @@ void TablePanelView::applyColumns() {
 
 // One colour per row; a row's colour goes to all the elements of the row.
 void TablePanelView::applyRowColours() {
+    if (temporary_) {
+        // The viewer already shows these colours (set by the caller): the
+        // cells only display them, the viewer is not painted again.
+        std::vector<QColor> colours;
+        colours.reserve(static_cast<size_t>(model_->rowCount()));
+        for (int row = 0; row < model_->rowCount(); ++row) {
+            const auto& objects = model_->objects(row);
+            const auto found = objects.empty() ? temporary_colours_.end()
+                                               : temporary_colours_.find(objects.front());
+            colours.push_back(found != temporary_colours_.end() ? found->second : QColor(150, 150, 150));
+        }
+        model_->setRowColours(colours);
+        return;
+    }
     appearance_.clearLayer(services::AppearanceService::Layer::TableColour);
     const bool has_colour = table_ && std::any_of(table_->columns.begin(), table_->columns.end(),
                                                   [](const TableColumn& column) {
@@ -293,7 +336,7 @@ void TablePanelView::applyRowColours() {
 // Evaluation on all the loaded models
 
 void TablePanelView::evaluate() {
-    if (!table_) return;
+    if (!table_ || temporary_) return;
     ++generation_;
     sources_.clear();
     for (std::uint32_t session_model_id : session_.sessionModelIds()) {
@@ -354,9 +397,15 @@ void TablePanelView::updateSummary() {
         return;
     }
     QString text = QString("<b>%1</b>").arg(table_->name.toHtmlEscaped());
-    if (current_id_.isEmpty()) text += " <i>(not saved)</i>";
+    if (temporary_) {
+        text += " <i>(temporary)</i>";
+    } else if (current_id_.isEmpty()) {
+        text += " <i>(not saved)</i>";
+    }
     if (apply_to_box_) text += " <i>(on the box)</i>";
-    if (evaluating_) {
+    if (temporary_) {
+        text += QString(" — %1 row(s)").arg(model_->rowCount());
+    } else if (evaluating_) {
         text += QString(" — evaluating %1 model(s)…").arg(sources_.size());
     } else {
         text += QString(" — %1 row(s) from %2 model(s)").arg(model_->rowCount()).arg(sources_.size());

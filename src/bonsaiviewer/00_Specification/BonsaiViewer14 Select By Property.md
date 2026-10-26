@@ -2,7 +2,7 @@
 
 ## Introduction
 
-In the Properties panel, a right click on a property value or on a property name opens a set of functions to select, isolate or colour the elements that share that value or property. It's a quick way to filter the model, without a big filter rule. 
+In the Properties panel, a right click on a property value or on a property name opens a set of functions to select, isolate or colour the elements that share that value or property. It's a quick way to filter the model, without a big filter rule.
 
 ## Specification
 
@@ -15,7 +15,13 @@ In the Properties panel, a right click on a property value or on a property name
 ### Right click on a property name
 
 - **Isolate the property** — all the objects that have this property are isolated.
-- **Colour by property** — across all the models, the value of this property is read; the elements sharing the same value are grouped, and each group gets its own distinct colour. A small table is needed to visualise the values with their element counts; this will be specified in the Table spec (sheet 07).
+- **Colour by property** — across all the models, the value of this property is read; the elements sharing the same value are grouped, and each group gets its own distinct colour. A temporary table in the Table panel shows the values, their element counts and the colour of each value in the view (see BonsaiViewer07 Table).
 - **Colour the box by property** — same as « Colour by property », but only for the objects in the active box.
 
-## Open Subject
+### Decisions
+
+- **Equality**: the values are compared as text (the value shown in the panel).
+- **Scope**: all the loaded models, for every function, including « Isolate similar » and « Select similar ». « Colour the box by property » is limited to the box.
+- **Objects without the property**: they are hidden in the view. An object that has the property but an empty value is coloured grey.
+- **Temporary table**: « Colour by property » opens a temporary table in the Table panel (value and count). It is not saved and is not run on the IDS selection; it can be modified, exported to CSV, or isolated by row. Saving it is refused.
+- **Quantities**: the right-click functions also apply to the quantity sets (Qto_*), since they are shown in the same way.
