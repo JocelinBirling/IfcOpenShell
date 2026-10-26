@@ -55,10 +55,12 @@ When we click on « Add a filter », a temporary window opens. The window holds:
 
 Each layer is split into two parts, and the actions run from top to bottom.
 
-- **The selection part** — reuses the IDS bricks. It holds a specification; a specification can contain several IDS facets and must select all the wanted elements. The first version supports the **entity facet** (IfcClass + PredefinedType) and the **property facet** (Psets and quantities, with comparison). The other facets (attribute, classification, material) are out of the first version; the data model follows IDS so they can be added later.
+- **The selection part** — reuses the IDS bricks. It holds a specification; a specification can contain several IDS facets and must select all the wanted elements. The first version supports the **entity facet** (one or several IfcClasses, optionally with their subtypes, + PredefinedType) and the **property facet** (Psets and quantities, with comparison). The other facets (attribute, classification, material) are out of the first version; the data model follows IDS so they can be added later.
 - **The action part** — the place where the user picks one or more actions, from the list described in the Actions section.
 
 ### Layer semantics
+
+A filter always starts from an **empty view**: when it runs, everything is hidden, then its actions build the view. A filter that only adds the walls to the view shows the walls only.
 
 The layers run from top to bottom, with a pending set of elements:
 
@@ -66,6 +68,8 @@ The layers run from top to bottom, with a pending set of elements:
 - A layer marked **AND** adds nothing: it reuses the selection of the layer above.
 - The **actions of a layer** apply to the pending set: the union of the selections accumulated since the last action, plus the layer's own specification if it has one. After the actions run, the pending set is emptied and a new group starts.
 - An **AND** layer placed right after an action layer applies its actions to the same elements as the layer above: several actions on the same selection, without duplicating the specification.
+- The selection of a layer is **either** an IDS specification **or** AND (chosen in the Selection part of the layer). The first layer cannot be AND.
+- Selection layers that no later action uses do nothing: saving the filter shows a warning (not blocking).
 
 Example:
 
@@ -89,11 +93,11 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 ### Actions
 An action is a modification of the model:
 
-- Isolate in the view
+- Isolate in the view — replaces what is visible: with several Isolate layers, the last one wins.
 - Add to the view
 - Remove from the view
-- Colour the elements
+- Add to the view and colour — adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
 - Change the transparency
-- Automatic colour by property — each distinct value of the chosen property gets its own colour.
+- Add to the view and automatic colour by property — adds the elements to the view, then each distinct value of the chosen property gets its own colour.
 
 ## Open Subject

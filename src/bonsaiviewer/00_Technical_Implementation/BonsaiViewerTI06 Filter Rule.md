@@ -6,8 +6,60 @@ Spec source: `../00_Specification/BonsaiViewer06 Filter Rule.md` (closed)
 
 ## What exists today
 
-Nothing: no filter panel, no IDS evaluation, no saved rule documents. The
-specification is now closed (layer semantics, IDS facets v1, file format).
+Implemented, IDS evaluation delegated to IfcTester (decision: no C++ IDS
+evaluator — the "IdsSelectionEngine" below is the IdsBridge + worker):
+
+- `src/ifctester/ifctester_ipc.py` — JSON Lines worker 2.0. A selection is
+  a list of facets (`entity`, `property`) whose fields are VALUEs: none,
+  simple, enumeration, pattern (XSD), range (min/max, inclusive or not) or
+  length (characters).
+  Ops: build / parse (facets <-> canonical IDS XML, round-trip exact),
+  select, preview (build + select), and introspection for the editor:
+  classes (schema of the model), classInfo (subtypes, PredefinedType
+  enumeration, element count), properties (psets/properties present on the
+  entity's elements), values (distinct values with counts, guessed base).
+  Entity facet: `name` is a VALUE (simple, enumeration or pattern; the
+  pattern is upper-cased like IDS class names); several classes or
+  "include subtypes" = xs:enumeration of the classes and their subtypes
+  (IDS matches the class exactly). Keeps the last IFC in memory.
+- `services/IdsBridge` — the worker process + the C++ model (`IdsValue`,
+  `IdsFacet`, `SelectionFields{facets}`); settings keys `filters/interpreter`,
+  `filters/script`.
+- `services/FilterStore` — tree in `filters.json` (B14); export / import of
+  one filter or of the whole library, as plain `.json` files (the content
+  tells them apart: a filter has `layers`, a library has `filters`).
+- `services/FilterRunner` — layer semantics; a run starts from an empty view
+  (everything hidden right before the first action, so a failed selection
+  leaves the view untouched); the two colour actions add the elements to
+  the view before colouring them; Run on the box restricts the
+  candidates to the box's EXPRESS ids; `activeIfcPath()` shared with the UI.
+- `modules/filters/`:
+  - Panel + View: toolbar (Filter, Folder, Run, Run on the Box, Import,
+    Export), context menus, drag and drop, double-click = run.
+  - CreationDialog: layers; per layer a facet list ("+ Add facet") and the
+    page of the selected facet; the Selection type is "IDS specification"
+    or "AND — same elements as the layer above" (not offered on the first
+    layer); a non-blocking warning at save lists the selection layers no
+    later action uses; live preview (count in the active model,
+    "Isolate in the view" through B08); actions with their parameters
+    (the automatic colour has a "Browse properties…" picker on all the
+    products of the active model).
+  - FacetPages: every IDS field is a ValueEditor. EntityFacetPage (class:
+    Value / List / Pattern with schema completion, subtypes and the classes
+    they cover, PredefinedType from the schema enumeration, element count);
+    PropertyFacetPage (property set, property, value, cardinality, and a
+    "Browse properties…" button).
+  - ValueEditor: the standard editor of an IDS field. Methods Value
+    (default; empty = no constraint), List, Pattern, Range, Length, switched
+    by a row of buttons; the typed text is carried over to the new method.
+    Each field shows the methods that make sense for it.
+  - PropertyPicker: the property sets of the layer's entity laid out like
+    the Properties panel (element count, a few values), with a search
+    field; double-click fills the property set and the property.
+
+Not done yet: attribute / classification / material / partOf facets (listed
+disabled in "+ Add facet"); reusable named value lists; IDS import of
+third-party files as filter layers (see BonsaiViewer24 IDS).
 
 ## Building blocks used
 
