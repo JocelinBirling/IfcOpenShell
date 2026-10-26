@@ -44,10 +44,13 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
+#include <QSettings>
 #include <QShowEvent>
 #include <QSpinBox>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QFileDialog>
+#include <QHBoxLayout>
 
 namespace bonsaiviewer::modules::settings {
 
@@ -351,6 +354,7 @@ void SettingsDialog::setupUi() {
     addTab("Keybindings", make_placeholder_tab("Keybindings", "Shortcut presets and command bindings will live here."));
     addTab("Graphics", graphics_tab);
     addTab("Connectors", buildConnectorsTab());
+    addTab("Filters", buildFiltersTab());
     addTab("About", make_about_tab());
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -382,6 +386,9 @@ void SettingsDialog::syncFromSettings() {
     hiz_resolution_spin_->setValue(AppSettings::instance().hizResolution());
     nav_preset_combo_->setCurrentIndex(static_cast<int>(AppSettings::instance().navPreset()));
     syncThemeSettings();
+    QSettings settings;
+    ids_interpreter_edit_->setText(settings.value("filters/interpreter").toString());
+    ids_script_edit_->setText(settings.value("filters/script").toString());
 }
 
 void SettingsDialog::syncThemeSettings() {
@@ -434,7 +441,67 @@ void SettingsDialog::onAccepted() {
     for (const auto& editor : theme_color_editors_) {
         interface_settings.setCustomColor(editor.key, editor.edit->text());
     }
+    QSettings settings;
+    settings.setValue("filters/interpreter", ids_interpreter_edit_->text().trimmed());
+    settings.setValue("filters/script", ids_script_edit_->text().trimmed());
     accept();
+}
+
+QWidget* SettingsDialog::buildFiltersTab() {
+    auto* tab = new QWidget(this);
+    auto* layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(components::style::metrics::padding);
+    layout->setAlignment(Qt::AlignTop);
+
+    auto* section = new components::Section(
+        "IDS Engine (Filters)", components::SectionHeaderMode::Visible, tab);
+    auto* body = new QWidget(section);
+    auto* body_layout = new QFormLayout(body);
+    body_layout->setContentsMargins(0, 0, 0, 0);
+    body_layout->setSpacing(8);
+
+    // The filter rules (TI06) evaluate their IDS specifications through
+    // IfcTester, running in a Python worker process. Both paths must be
+    // set for filters to run; without them the Filters panel stays
+    // editable but nothing executes.
+    auto* interpreter_row = new QWidget(body);
+    auto* interpreter_layout = new QHBoxLayout(interpreter_row);
+    interpreter_layout->setContentsMargins(0, 0, 0, 0);
+    interpreter_layout->setSpacing(8);
+    ids_interpreter_edit_ = new QLineEdit(interpreter_row);
+    ids_interpreter_edit_->setPlaceholderText("python3");
+    auto* interpreter_browse = new QPushButton("Browse…", interpreter_row);
+    interpreter_layout->addWidget(ids_interpreter_edit_, 1);
+    interpreter_layout->addWidget(interpreter_browse);
+    body_layout->addRow("Python interpreter", interpreter_row);
+
+    auto* script_row = new QWidget(body);
+    auto* script_layout = new QHBoxLayout(script_row);
+    script_layout->setContentsMargins(0, 0, 0, 0);
+    script_layout->setSpacing(8);
+    ids_script_edit_ = new QLineEdit(script_row);
+    ids_script_edit_->setPlaceholderText("…/src/ifctester/ifctester_ipc.py");
+    auto* script_browse = new QPushButton("Browse…", script_row);
+    script_layout->addWidget(ids_script_edit_, 1);
+    script_layout->addWidget(script_browse);
+    body_layout->addRow("IfcTester worker script", script_row);
+
+    connect(interpreter_browse, &QPushButton::clicked, this, [this]() {
+        const QString path = QFileDialog::getOpenFileName(
+            this, "Pick the Python interpreter", ids_interpreter_edit_->text());
+        if (!path.isEmpty()) ids_interpreter_edit_->setText(path);
+    });
+    connect(script_browse, &QPushButton::clicked, this, [this]() {
+        const QString path = QFileDialog::getOpenFileName(
+            this, "Pick the IfcTester worker script", ids_script_edit_->text(),
+            "Python (*.py);;All files (*)");
+        if (!path.isEmpty()) ids_script_edit_->setText(path);
+    });
+
+    section->addBodyWidget(body);
+    layout->addWidget(section);
+    return tab;
 }
 
 QWidget* SettingsDialog::buildConnectorsTab() {
