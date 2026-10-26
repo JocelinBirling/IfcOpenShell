@@ -45,6 +45,7 @@ namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
 namespace bonsaiviewer::modules::viewport { class ViewportPanel; }
+namespace bonsaiviewer::modules::easy_load { class EasyLoadView; }
 namespace bonsaiviewer::services { class ActiveView; }
 namespace bonsaiviewer::services { class ActionPipeline; }
 namespace bonsaiviewer::services { class AppearanceService; }
@@ -114,6 +115,8 @@ private:
     bonsaiviewer::components::TabBar* ribbon_tabs_ = nullptr;
     QStackedWidget* ribbon_pages_ = nullptr;
     bonsaiviewer::modules::viewport::ViewportPanel* viewport_widget_ = nullptr;
+    // BonsaiViewer22: drag and drop of IFC files onto the viewport panel.
+    bonsaiviewer::modules::easy_load::EasyLoadView* easy_load_view_ = nullptr;
     bonsaiviewer::modules::viewport::ViewportView* viewport_view_ = nullptr;
     bonsaiviewer::SessionState* session_state_ = nullptr;
     // TI00 phase 1 services (B01/B02/B03/B05), created in setupLoader once

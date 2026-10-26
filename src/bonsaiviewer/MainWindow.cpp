@@ -77,6 +77,7 @@
 #include "modules/viewport/Commands.h"
 #include "modules/viewport/Panel.h"
 #include "modules/viewport/View.h"
+#include "modules/easy_load/View.h"
 
 #include <QAction>
 #include <QDockWidget>
@@ -894,6 +895,13 @@ void MainWindow::setupLoader() {
 
     viewport_view_ = new modules::viewport::ViewportView(
         session_state_, viewport_widget_->viewport(), this);
+
+    // BonsaiViewer22: IFC files and folders dropped on the Models panel.
+    easy_load_view_ = new modules::easy_load::EasyLoadView(
+        *session_state_, *viewport_widget_->viewport(), this, this);
+    models_panel_->setFilesDropHandler([this](const QList<QUrl>& urls) {
+        easy_load_view_->handleDrop(urls);
+    });
 
     // Load errors surface through SessionState as a session-level signal; the
     // status text + progress are already cleared there, we only show the modal.

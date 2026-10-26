@@ -25,6 +25,11 @@
 
 #include "../../components/Panel.h"
 
+#include <QList>
+#include <QUrl>
+
+#include <functional>
+
 class QTreeView;
 class ViewportWindow;
 namespace bonsaiviewer { class SessionState; }
@@ -47,6 +52,10 @@ public:
     // Owned externally (the View constructs and owns the model). The panel
     // assigns it to the tree view; same model can outlive setModel calls.
     void setModel(FederationItemModel* model);
+
+    // Receives the files and folders dropped on the tree from outside the panel
+    // (BonsaiViewer22). Internal drags, which move models, are unchanged.
+    void setFilesDropHandler(std::function<void(const QList<QUrl>&)> handler);
 
 private:
     void applyColumnLayout();

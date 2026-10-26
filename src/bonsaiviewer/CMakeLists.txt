@@ -63,6 +63,10 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Section.h
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/FileDialogPaths.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/FileDialogPaths.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/easy_load/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/easy_load/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/connectors/Discovery.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/connectors/Discovery.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/connectors/PickerDialog.cpp

@@ -90,6 +90,9 @@ public:
     explicit ModelsTreeView(bonsaiviewer::SessionState* session_state, QWidget* parent)
         : QTreeView(parent), session_state_(session_state) {}
 
+    // Set by the panel: receives the files dropped from outside (BonsaiViewer22).
+    std::function<void(const QList<QUrl>&)> on_urls_dropped;
+
 protected:
     void startDrag(Qt::DropActions actions) override {
         const QModelIndexList selection = selectionModel()->selectedRows(0);
@@ -121,6 +124,10 @@ protected:
     }
 
     void dragEnterEvent(QDragEnterEvent* event) override {
+        if (on_urls_dropped && event->mimeData()->hasUrls()) {
+            event->acceptProposedAction();
+            return;
+        }
         if (event->mimeData()->hasFormat(QString::fromUtf8(kDragMimeType))) {
             event->acceptProposedAction();
             return;
@@ -129,6 +136,10 @@ protected:
     }
 
     void dragMoveEvent(QDragMoveEvent* event) override {
+        if (on_urls_dropped && event->mimeData()->hasUrls()) {
+            event->acceptProposedAction();
+            return;
+        }
         if (!event->mimeData()->hasFormat(QString::fromUtf8(kDragMimeType))) {
             QTreeView::dragMoveEvent(event);
             return;
@@ -143,6 +154,11 @@ protected:
     }
 
     void dropEvent(QDropEvent* event) override {
+        if (on_urls_dropped && event->mimeData()->hasUrls()) {
+            on_urls_dropped(event->mimeData()->urls());
+            event->acceptProposedAction();
+            return;
+        }
         if (!event->mimeData()->hasFormat(QString::fromUtf8(kDragMimeType))) {
             QTreeView::dropEvent(event);
             return;
@@ -413,6 +429,12 @@ ModelsPanel::ModelsPanel(bonsaiviewer::SessionState* session_state,
     connect(this, &components::Panel::settingsRequested, this, [this]() {
         commands::openSettings(*session_state_, *this);
     });
+}
+
+void ModelsPanel::setFilesDropHandler(std::function<void(const QList<QUrl>&)> handler) {
+    if (auto* view = dynamic_cast<ModelsTreeView*>(tree_)) {
+        view->on_urls_dropped = std::move(handler);
+    }
 }
 
 void ModelsPanel::setModel(FederationItemModel* model) {

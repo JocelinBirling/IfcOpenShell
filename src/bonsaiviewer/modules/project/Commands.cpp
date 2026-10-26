@@ -35,6 +35,8 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileDialog>
+
+#include "../../components/FileDialogPaths.h"
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
@@ -290,6 +292,7 @@ bool openProject(SessionState& session, QWidget& host, ViewportWindow& viewport)
     file_dialog.setFileMode(QFileDialog::ExistingFile);
     file_dialog.setNameFilter("IFC Federation (*.ifcfed);;All Files (*)");
     file_dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    bonsaiviewer::components::acceptPastedPaths(file_dialog);
     if (file_dialog.exec() != QDialog::Accepted) return false;
 
     const QString path = file_dialog.selectedFiles().value(0);
@@ -489,6 +492,7 @@ bool saveProjectAs(SessionState& session, QWidget& host) {
     file_dialog.setFileMode(QFileDialog::AnyFile);
     file_dialog.setNameFilter("IFC Federation (*.ifcfed);;All Files (*)");
     file_dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    bonsaiviewer::components::acceptPastedPaths(file_dialog);
     if (file_dialog.exec() != QDialog::Accepted) return false;
 
     QString path = file_dialog.selectedFiles().value(0);

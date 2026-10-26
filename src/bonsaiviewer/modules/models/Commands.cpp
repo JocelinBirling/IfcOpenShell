@@ -43,6 +43,8 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+
+#include "../../components/FileDialogPaths.h"
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -352,6 +354,7 @@ void addModel(SessionState& session, QWidget& host) {
         file_dialog.setFileMode(QFileDialog::ExistingFiles);
         file_dialog.setNameFilter("IFC Files (*.ifc);;All Files (*)");
         file_dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+        bonsaiviewer::components::acceptPastedPaths(file_dialog);
         if (file_dialog.exec() == QDialog::Accepted) {
             paths = file_dialog.selectedFiles();
         }
