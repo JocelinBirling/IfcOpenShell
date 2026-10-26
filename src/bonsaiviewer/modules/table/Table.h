@@ -33,6 +33,17 @@ struct TableColumn {
         Color, // a random colour per row, shown in the cell and in the viewer
     };
 
+    // How the values of the elements of a group are combined (TI07 part C).
+    enum class Aggregation {
+        Default,     // numbers: sum; texts: concatenation
+        Concatenate, // all the values, as text
+        Sum,
+        Average,
+        Min,
+        Max,
+        Count,       // number of non-empty values
+    };
+
     Kind kind = Kind::Property;
     QString title; // empty = automatic (the property name, or the kind)
     QString pset;
@@ -40,9 +51,14 @@ struct TableColumn {
     // Texts that read as numbers (with "." or "," as decimal separator)
     // become real numbers.
     bool auto_numeric = true;
+    // Grouped table: the elements that share the values of the group-key
+    // columns form one row. A group-key column shows that shared value.
+    bool group_key = false;
+    Aggregation aggregation = Aggregation::Default;
 
     QString displayTitle() const;
     static QString kindLabel(Kind kind);
+    static QString aggregationLabel(Aggregation aggregation);
 };
 
 // TI07 — a table: the elements of an IDS selection, evaluated on all the
@@ -52,8 +68,6 @@ struct TableDefinition {
     QString description;
     bonsaiviewer::services::IdsBridge::SelectionFields selection;
     std::vector<TableColumn> columns;
-    // Apply table to box: only the elements of the current box are listed.
-    bool on_box = false;
 };
 
 inline QString TableColumn::kindLabel(Kind kind) {
@@ -65,6 +79,19 @@ inline QString TableColumn::kindLabel(Kind kind) {
     case Kind::Model: return "Model";
     case Kind::Count: return "Count";
     case Kind::Color: return "Color";
+    }
+    return {};
+}
+
+inline QString TableColumn::aggregationLabel(Aggregation aggregation) {
+    switch (aggregation) {
+    case Aggregation::Default: return "Default";
+    case Aggregation::Concatenate: return "Concatenate";
+    case Aggregation::Sum: return "Sum";
+    case Aggregation::Average: return "Average";
+    case Aggregation::Min: return "Min";
+    case Aggregation::Max: return "Max";
+    case Aggregation::Count: return "Count";
     }
     return {};
 }

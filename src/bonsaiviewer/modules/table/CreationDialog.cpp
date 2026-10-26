@@ -19,7 +19,9 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QGuiApplication>
+#include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QScreen>
 #include <QVBoxLayout>
 
@@ -65,6 +67,25 @@ TableCreationDialog::TableCreationDialog(const TableDefinition& definition,
     layout->addWidget(selection_box, 1);
     connect(selection_editor_, &filters::SelectionEditor::isolateRequested,
             this, &TableCreationDialog::isolateRequested);
+
+    // Grouping: the elements that share the values of the checked columns
+    // form one row. Count and Color columns cannot be keys.
+    auto* grouping_box = new QGroupBox("Grouping", body);
+    auto* grouping_layout = new QVBoxLayout(grouping_box);
+    grouping_layout->addWidget(new QLabel(
+        "Checked columns are the keys: the elements sharing their values form one row. "
+        "The other columns are combined with their aggregation.", grouping_box));
+    grouping_list_ = new QListWidget(grouping_box);
+    for (size_t index = 0; index < definition_.columns.size(); ++index) {
+        const TableColumn& column = definition_.columns[index];
+        if (column.kind == TableColumn::Kind::Count || column.kind == TableColumn::Kind::Color) continue;
+        auto* item = new QListWidgetItem(column.displayTitle(), grouping_list_);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(column.group_key ? Qt::Checked : Qt::Unchecked);
+        item->setData(Qt::UserRole, static_cast<qulonglong>(index));
+    }
+    grouping_layout->addWidget(grouping_list_);
+    layout->addWidget(grouping_box);
     addBodyWidget(body);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -85,6 +106,11 @@ void TableCreationDialog::accept() {
     if (!error.isEmpty()) {
         services::popup::information(this, error);
         return;
+    }
+    for (int row = 0; row < grouping_list_->count(); ++row) {
+        const QListWidgetItem* item = grouping_list_->item(row);
+        definition_.columns[item->data(Qt::UserRole).toULongLong()].group_key =
+            item->checkState() == Qt::Checked;
     }
     definition_.name = definition_.name.trimmed();
     QDialog::accept();

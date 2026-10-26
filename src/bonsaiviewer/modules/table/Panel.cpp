@@ -55,10 +55,6 @@ TablePanel::TablePanel(QWidget* parent)
                                     false, toolbar);
     save_button_ = makeToolButton("Save", ":/icons/floppy-disk.svg",
                                   "Save the table configuration in the Tables panel", true, toolbar);
-    box_button_ = makeToolButton("Box", ":/icons/filter.svg",
-                                 "Apply the table to the current box: only its elements are listed",
-                                 true, toolbar);
-    box_button_->setCheckable(true);
     column_button_ = makeToolButton("Column", ":/icons/plus-square.svg",
                                     "Add a column (right-most). Click a column header for its menu.",
                                     true, toolbar);
@@ -70,7 +66,6 @@ TablePanel::TablePanel(QWidget* parent)
     summary_label_->setProperty("textRole", "secondary");
     toolbar_layout->addWidget(modify_button_);
     toolbar_layout->addWidget(save_button_);
-    toolbar_layout->addWidget(box_button_);
     toolbar_layout->addWidget(column_button_);
     toolbar_layout->addWidget(refresh_button_);
     toolbar_layout->addSpacing(8);
@@ -95,7 +90,6 @@ TablePanel::TablePanel(QWidget* parent)
 
     connect(modify_button_, &QToolButton::clicked, this, &TablePanel::modifyTableRequested);
     connect(save_button_, &QToolButton::clicked, this, &TablePanel::saveRequested);
-    connect(box_button_, &QToolButton::toggled, this, &TablePanel::boxRequested);
     connect(column_button_, &QToolButton::clicked, this, &TablePanel::addColumnRequested);
     connect(refresh_button_, &QToolButton::clicked, this, &TablePanel::refreshRequested);
     connect(export_button_, &QToolButton::clicked, this, &TablePanel::exportRequested);
@@ -109,15 +103,9 @@ void TablePanel::setSummary(const QString& text) {
 }
 
 void TablePanel::setTableActionsEnabled(bool enabled) {
-    for (QToolButton* button : {modify_button_, save_button_, box_button_, column_button_, refresh_button_,
-                                export_button_}) {
+    for (QToolButton* button : {modify_button_, save_button_, column_button_, refresh_button_, export_button_}) {
         button->setEnabled(enabled);
     }
-}
-
-void TablePanel::setBoxChecked(bool checked) {
-    const QSignalBlocker blocker(box_button_);
-    box_button_->setChecked(checked);
 }
 
 } // namespace bonsaiviewer::modules::table

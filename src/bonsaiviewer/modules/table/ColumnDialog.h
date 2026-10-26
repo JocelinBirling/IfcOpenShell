@@ -26,9 +26,10 @@ namespace bonsaiviewer::modules::property_selection { class PropertyField; }
 
 namespace bonsaiviewer::modules::table {
 
-// TI07 — the Add / Modify Column window: the kind of column, its name
-// and, for a property, the standard property field (BonsaiViewer26) and
-// AutoConvertTextToNumeric.
+// TI07 — the Add / Modify Column window: the kind of column, its name,
+// for a property, the standard property field (BonsaiViewer26) and
+// AutoConvertTextToNumeric, and how the values of a group are combined
+// (TI07 part C).
 class ColumnDialog : public components::Dialog {
     Q_OBJECT
 
@@ -50,6 +51,9 @@ private:
     QLineEdit* title_edit_ = nullptr;
     property_selection::PropertyField* property_field_ = nullptr;
     QCheckBox* auto_numeric_check_ = nullptr;
+    QComboBox* aggregation_combo_ = nullptr;
+    // The group key is set in the Creation window, not here: kept as is.
+    bool group_key_ = false;
 };
 
 } // namespace bonsaiviewer::modules::table

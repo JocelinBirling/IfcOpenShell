@@ -65,7 +65,11 @@ TablesView::TablesView(TablesPanel* panel, TableStore& store, QObject* parent)
     connect(panel_, &TablesPanel::importRequested, this, [this] { importTable(targetFolder()); });
     connect(panel_, &TablesPanel::runRequested, this, [this] {
         const QString key = panel_->currentKey();
-        if (store_.table(key)) emit openRequested(key);
+        if (store_.table(key)) emit openRequested(key, false);
+    });
+    connect(panel_, &TablesPanel::runOnBoxRequested, this, [this] {
+        const QString key = panel_->currentKey();
+        if (store_.table(key)) emit openRequested(key, true);
     });
     connect(panel_->treeWidget(), &QTreeWidget::currentItemChanged, this, [this] {
         panel_->setRunEnabled(store_.table(panel_->currentKey()).has_value());
@@ -124,7 +128,9 @@ void TablesView::populateContextMenu(const QString& key, ContextMenuBuilder& men
     }
     // A table node.
     menu.addItem({.id = "run", .label = "Run",
-                  .trigger = [this, key]() { emit openRequested(key); }});
+                  .trigger = [this, key]() { emit openRequested(key, false); }});
+    menu.addItem({.id = "run-on-box", .label = "Run on the Box",
+                  .trigger = [this, key]() { emit openRequested(key, true); }});
     menu.addSeparator();
     menu.addItem({.id = "export", .label = "Export…",
                   .trigger = [this, key]() { exportTable(key); }});
@@ -138,7 +144,7 @@ void TablesView::onVisibilityToggled(const QString&, bool) {
 }
 
 void TablesView::onNodeDoubleClicked(const QString& key) {
-    if (store_.table(key)) emit openRequested(key);
+    if (store_.table(key)) emit openRequested(key, false);
 }
 
 void TablesView::onNodeMoved(const QString& key, const QString& new_parent) {

@@ -63,8 +63,9 @@ public:
     void newTable(const QString& folder_id = {});
     // Saves the current table in the store (a new one, or the stored one).
     void saveTable();
-    // Loads a saved table and evaluates it on the loaded models.
-    void openTable(const QString& table_id);
+    // Loads a saved table and evaluates it on the loaded models. With
+    // `on_box`, only the elements of the current box are kept (not saved).
+    void openTable(const QString& table_id, bool on_box = false);
 
 private:
     struct ModelSource {
@@ -117,6 +118,9 @@ private:
     // folder a new table is saved into.
     QString current_id_;
     QString pending_folder_;
+    // Run on Box: the run keeps only the elements of the box. A run option,
+    // not saved with the table; it follows the box while it is set.
+    bool apply_to_box_ = false;
 
     // The evaluation in progress.
     int generation_ = 0;

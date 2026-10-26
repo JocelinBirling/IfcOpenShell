@@ -55,11 +55,15 @@ TablesPanel::TablesPanel(QWidget* parent)
                                          "Add a folder (in the selected folder)", toolbar);
     run_button_ = makeToolButton("Run", ":/icons/refresh-double.svg",
                                  "Load the selected table and apply it to the loaded models", toolbar);
+    run_on_box_button_ = makeToolButton("Run on Box", ":/icons/filter.svg",
+                                        "Load the selected table and keep only the elements of the box",
+                                        toolbar);
     auto* import_button = makeToolButton("Import", ":/icons/floppy-disk.svg",
                                          "Import a table file (in the selected folder)", toolbar);
     toolbar_layout->addWidget(new_button);
     toolbar_layout->addWidget(folder_button);
     toolbar_layout->addWidget(run_button_);
+    toolbar_layout->addWidget(run_on_box_button_);
     toolbar_layout->addWidget(import_button);
     toolbar_layout->addStretch(1);
     section->addBodyWidget(toolbar);
@@ -73,6 +77,7 @@ TablesPanel::TablesPanel(QWidget* parent)
     connect(new_button, &QToolButton::clicked, this, &TablesPanel::newTableRequested);
     connect(folder_button, &QToolButton::clicked, this, &TablesPanel::addFolderRequested);
     connect(run_button_, &QToolButton::clicked, this, &TablesPanel::runRequested);
+    connect(run_on_box_button_, &QToolButton::clicked, this, &TablesPanel::runOnBoxRequested);
     connect(import_button, &QToolButton::clicked, this, &TablesPanel::importRequested);
 
     setRunEnabled(false);
@@ -85,6 +90,7 @@ QString TablesPanel::currentKey() const {
 
 void TablesPanel::setRunEnabled(bool enabled) {
     run_button_->setEnabled(enabled);
+    run_on_box_button_->setEnabled(enabled);
 }
 
 } // namespace bonsaiviewer::modules::table

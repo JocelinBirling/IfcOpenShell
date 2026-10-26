@@ -19,16 +19,17 @@ rows, and the CSV export.
 Save of the current table, and Load (run) of a saved table.
 
 **Phase 2, part B (implemented, to build and test)**:
-- **Apply table to box**: the Box toggle of the Table panel lists only the
-  elements of the current box. The toggle is saved with the table, and the
-  table updates when the box changes.
-- **Count** column: the number of elements of the row. It is 1 per row until
-  the grouped table (part C).
+- **Run on Box**: the Tables panel runs a table on the box: only the elements
+  of the current box are listed. It is a run option, not saved with the table;
+  the table updates when the box changes.
+- **Count** column: the number of elements of the row.
 - **Color** column: a random colour per row, shown in the cell and applied to
   the objects of the row in the viewer. Colours are regenerated when the table
   is evaluated or its columns change.
 
-The grouped table comes next (see Open Subject).
+**Phase 2, part C (implemented, to build and test)**: the grouped table (see
+Grouped Table below): grouping keys in the Table Creation Window, aggregation
+per column in the Add Column window.
 
 
 
@@ -61,7 +62,8 @@ By right clicking, you can open some function, add Folder or Table, delete, or r
 
 - **Export table to csv** — exports the displayed data to a CSV file.
 - **Add Columns** — opens the Add Column window.
-- **Apply table to box** — the table takes only the elements of the active box.
+- **Run on Box** — in the Tables panel, next to Run: the table takes only the
+  elements of the active box.
 
 ### Table Creation Window
 
@@ -105,11 +107,14 @@ Columns can also be modified with the window.
 
 - **Click on a row** — selects the object(s) of the row (several rows with
   Ctrl / Shift).
-- **Double-click on a row** — isolates the object(s) of the row.
+- **Double-click on a row** — isolates the object(s) of the selected rows.
+  If the clicked row is not selected, only that row is isolated.
+- **Right-click on a row** — menu **Isolate**, same rule as the double-click.
 
 ### Columns interaction
 
-With a left click on a column header, the following functions appear:
+With a right click on a column header, the following functions appear
+(a left drag on the header moves the column):
 
 - **Modify Column**
 - **Remove Column**
@@ -128,9 +133,19 @@ Some entities can be grouped together.
 
 - **Text data** — the text data is concatenated.
 - **Numeric data** — sum, average, minimum, maximum, and count.
-- **Mixed data** — numbers are summed, texts are concatenated; any other case returns "ERROR".
+- **Mixed data** — numbers are summed, then the texts follow after a semicolon (for example `12; text A; text B`).
 
 By default, text data is concatenated and numeric data is summed; this can be changed for each column.
+
+- **Grouping keys** — in the Table Creation Window, the checked columns are
+  the keys: the elements sharing the same values of these columns form one row.
+  A key column shows the shared value.
+- **Aggregation** — each column (Add / Modify Column window) has an aggregation:
+  Default, Concatenate, Sum, Average, Min, Max, Count (number of non-empty
+  values). Count and Color columns have none.
+- **Count** — the number of elements of the row.
+- Rows of a grouped table keep the viewer behaviour: selection, isolation and
+  Color apply to all the elements of the row.
 ### Relations
 A relation can be added to the table, taking three inputs:
 
@@ -155,12 +170,9 @@ The first version is strictly arithmetic: `+ - * /` with parentheses and referen
 
 ## Open Subject
 
-Phases 2:
+Phase 2 is done (parts A, B and C), pending the build and tests.
 
-- Save / Load the table, several tables.
-- Apply table to box.
-- Count element and Color columns.
-- Grouped table (grouping, concatenation / aggregation methods).
+- Texts are separated by a semicolon and a space ("; "), never by a comma.
 
 Phase 3:
 

@@ -16,6 +16,8 @@
 #include "../../services/IfcDataAccess.h"
 
 #include <QBrush>
+#include <QHash>
+#include <QStringList>
 
 #include <sstream>
 
@@ -51,6 +53,16 @@ bool isNumber(const QVariant& value) {
     return value.typeId() == QMetaType::Double || value.typeId() == QMetaType::LongLong;
 }
 
+bool isEmptyValue(const QVariant& value) {
+    return !value.isValid() || (value.typeId() == QMetaType::QString && value.toString().isEmpty());
+}
+
+QString joinTexts(const std::vector<QVariant>& values) {
+    QStringList texts;
+    for (const QVariant& value : values) texts << value.toString();
+    return texts.join("; ");
+}
+
 } // namespace
 
 TableModel::TableModel(services::IfcDataAccess& data_access, ModelNameProvider model_name, QObject* parent)
@@ -59,7 +71,7 @@ TableModel::TableModel(services::IfcDataAccess& data_access, ModelNameProvider m
 void TableModel::setColumns(const std::vector<TableColumn>& columns) {
     beginResetModel();
     columns_ = columns;
-    cache_.assign(rows_.size(), {});
+    regroup();
     endResetModel();
 }
 
@@ -67,7 +79,7 @@ void TableModel::setRows(const std::vector<std::uint32_t>& object_ids) {
     beginResetModel();
     rows_ = object_ids;
     row_colours_.clear();
-    cache_.assign(rows_.size(), {});
+    regroup();
     endResetModel();
 }
 
@@ -86,16 +98,47 @@ QVariant TableModel::autoNumeric(const QString& text) {
     return ok ? QVariant(number) : QVariant(text);
 }
 
-const std::vector<QVariant>& TableModel::rowValues(int row) const {
-    std::vector<QVariant>& values = cache_[static_cast<size_t>(row)];
-    if (!values.empty() || columns_.empty()) return values;
+// One row per distinct value of the group-key columns, in first-seen order.
+// Without group-key columns, one row per element.
+void TableModel::regroup() {
+    groups_.clear();
+    std::vector<size_t> key_columns;
+    for (size_t column = 0; column < columns_.size(); ++column) {
+        if (columns_[column].group_key) key_columns.push_back(column);
+    }
 
-    const uint32_t object_id = rows_[static_cast<size_t>(row)];
+    if (key_columns.empty()) {
+        groups_.reserve(rows_.size());
+        for (const std::uint32_t object_id : rows_) groups_.push_back({object_id});
+    } else {
+        QHash<QString, size_t> row_of_key;
+        for (const std::uint32_t object_id : rows_) {
+            const std::vector<QVariant> values = elementValues(object_id);
+            QString key;
+            for (const size_t column : key_columns) {
+                key += values[column].toString();
+                key += QChar(0x1F);
+            }
+            const auto found = row_of_key.constFind(key);
+            if (found == row_of_key.constEnd()) {
+                row_of_key.insert(key, groups_.size());
+                groups_.push_back({object_id});
+            } else {
+                groups_[found.value()].push_back(object_id);
+            }
+        }
+    }
+    cache_.assign(groups_.size(), {});
+}
+
+// The values of one element, one per column (Count is 1 per element).
+std::vector<QVariant> TableModel::elementValues(std::uint32_t object_id) const {
+    std::vector<QVariant> values;
+    values.reserve(columns_.size());
     const auto info = data_access_.basicInfo(object_id);
     bool sets_read = false;
     element_properties psets;
     element_properties qtos;
-    values.reserve(columns_.size());
     for (const TableColumn& column : columns_) {
         switch (column.kind) {
         case TableColumn::Kind::Name:
@@ -111,10 +154,10 @@ const std::vector<QVariant>& TableModel::rowValues(int row) const {
             values.emplace_back(info && model_name_ ? model_name_(info->session_model_id) : QString());
             break;
         case TableColumn::Kind::Count:
-            values.emplace_back(qlonglong(1)); // one element per row until grouping
+            values.emplace_back(qlonglong(1));
             break;
         case TableColumn::Kind::Color:
-            values.emplace_back(QString()); // the colour is the cell background
+            values.emplace_back(QString());
             break;
         case TableColumn::Kind::Property: {
             if (!sets_read) {
@@ -132,13 +175,100 @@ const std::vector<QVariant>& TableModel::rowValues(int row) const {
     return values;
 }
 
+// Combines the values of one column over the elements of a group.
+QVariant TableModel::aggregate(const std::vector<QVariant>& values, const TableColumn& column) {
+    if (column.group_key) return values.empty() ? QVariant(QString()) : values.front();
+
+    std::vector<QVariant> present;
+    for (const QVariant& value : values) {
+        if (!isEmptyValue(value)) present.push_back(value);
+    }
+
+    using Aggregation = TableColumn::Aggregation;
+    switch (column.aggregation) {
+    case Aggregation::Count:
+        return qlonglong(present.size());
+    case Aggregation::Concatenate:
+        return joinTexts(present);
+    case Aggregation::Default:
+        break;
+    default:
+        break;
+    }
+
+    if (present.empty()) return QString();
+
+    if (column.aggregation == Aggregation::Default) {
+        std::vector<QVariant> numbers;
+        std::vector<QVariant> texts;
+        for (const QVariant& value : present) (isNumber(value) ? numbers : texts).push_back(value);
+        if (texts.empty()) {
+            double sum = 0.0;
+            for (const QVariant& value : numbers) sum += value.toDouble();
+            return sum;
+        }
+        if (numbers.empty()) return joinTexts(texts);
+        double sum = 0.0;
+        for (const QVariant& value : numbers) sum += value.toDouble();
+        return QString::number(sum) + "; " + joinTexts(texts);
+    }
+
+    // Sum, Average, Min and Max apply to numbers only.
+    for (const QVariant& value : present) {
+        if (!isNumber(value)) return QString("ERROR");
+    }
+    double sum = 0.0;
+    double low = present.front().toDouble();
+    double high = low;
+    for (const QVariant& value : present) {
+        const double number = value.toDouble();
+        sum += number;
+        low = qMin(low, number);
+        high = qMax(high, number);
+    }
+    switch (column.aggregation) {
+    case Aggregation::Average: return sum / static_cast<double>(present.size());
+    case Aggregation::Min: return low;
+    case Aggregation::Max: return high;
+    default: return sum;
+    }
+}
+
+const std::vector<QVariant>& TableModel::rowValues(int row) const {
+    std::vector<QVariant>& values = cache_[static_cast<size_t>(row)];
+    if (!values.empty() || columns_.empty()) return values;
+
+    const std::vector<std::uint32_t>& group = groups_[static_cast<size_t>(row)];
+    std::vector<std::vector<QVariant>> elements;
+    elements.reserve(group.size());
+    for (const std::uint32_t object_id : group) elements.push_back(elementValues(object_id));
+
+    values.reserve(columns_.size());
+    for (size_t column = 0; column < columns_.size(); ++column) {
+        const TableColumn& definition = columns_[column];
+        if (definition.kind == TableColumn::Kind::Count) {
+            values.emplace_back(qlonglong(group.size()));
+            continue;
+        }
+        if (definition.kind == TableColumn::Kind::Color) {
+            values.emplace_back(QString());
+            continue;
+        }
+        std::vector<QVariant> column_values;
+        column_values.reserve(elements.size());
+        for (const auto& element : elements) column_values.push_back(element[column]);
+        values.push_back(aggregate(column_values, definition));
+    }
+    return values;
+}
+
 QVariant TableModel::value(int row, int column) const {
     if (row < 0 || row >= rowCount() || column < 0 || column >= columnCount()) return {};
     return rowValues(row)[static_cast<size_t>(column)];
 }
 
 int TableModel::rowCount(const QModelIndex& parent) const {
-    return parent.isValid() ? 0 : static_cast<int>(rows_.size());
+    return parent.isValid() ? 0 : static_cast<int>(groups_.size());
 }
 
 int TableModel::columnCount(const QModelIndex& parent) const {

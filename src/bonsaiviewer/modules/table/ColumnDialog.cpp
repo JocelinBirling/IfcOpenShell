@@ -31,6 +31,13 @@ const TableColumn::Kind kKinds[] = {
     TableColumn::Kind::Count, TableColumn::Kind::Color,
 };
 
+const TableColumn::Aggregation kAggregations[] = {
+    TableColumn::Aggregation::Default, TableColumn::Aggregation::Concatenate,
+    TableColumn::Aggregation::Sum,     TableColumn::Aggregation::Average,
+    TableColumn::Aggregation::Min,     TableColumn::Aggregation::Max,
+    TableColumn::Aggregation::Count,
+};
+
 } // namespace
 
 ColumnDialog::ColumnDialog(const TableColumn& column, services::PropertyCatalog& catalog, bool is_new,
@@ -63,6 +70,14 @@ ColumnDialog::ColumnDialog(const TableColumn& column, services::PropertyCatalog&
     auto_numeric_check_ = new QCheckBox("Convert texts that read as numbers to numbers (“.” or “,”)", body);
     auto_numeric_check_->setChecked(column.auto_numeric);
     form->addRow("AutoConvertTextToNumeric", auto_numeric_check_);
+
+    aggregation_combo_ = new QComboBox(body);
+    for (TableColumn::Aggregation aggregation : kAggregations) {
+        aggregation_combo_->addItem(TableColumn::aggregationLabel(aggregation), static_cast<int>(aggregation));
+    }
+    aggregation_combo_->setCurrentIndex(aggregation_combo_->findData(static_cast<int>(column.aggregation)));
+    form->addRow("Aggregation (grouped table)", aggregation_combo_);
+    group_key_ = column.group_key;
     addBodyWidget(body);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -78,6 +93,9 @@ void ColumnDialog::updateKind() {
     const bool property = column().kind == TableColumn::Kind::Property;
     property_field_->setEnabled(property);
     auto_numeric_check_->setEnabled(property);
+    // Count and Color rows are one value each: nothing to combine.
+    const TableColumn::Kind kind = column().kind;
+    aggregation_combo_->setEnabled(kind != TableColumn::Kind::Count && kind != TableColumn::Kind::Color);
     title_edit_->setPlaceholderText(property ? "Automatic (the property name)"
                                              : QString("Automatic (%1)").arg(kind_combo_->currentText()));
 }
@@ -86,6 +104,8 @@ TableColumn ColumnDialog::column() const {
     TableColumn column;
     column.kind = static_cast<TableColumn::Kind>(kind_combo_->currentData().toInt());
     column.title = title_edit_->text().trimmed();
+    column.aggregation = static_cast<TableColumn::Aggregation>(aggregation_combo_->currentData().toInt());
+    column.group_key = group_key_;
     if (column.kind == TableColumn::Kind::Property) {
         column.pset = property_field_->propertySet();
         column.property = property_field_->propertyName();

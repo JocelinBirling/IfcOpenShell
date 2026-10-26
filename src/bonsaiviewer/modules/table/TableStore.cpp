@@ -52,6 +52,29 @@ TableColumn::Kind kindFromString(const QString& value) {
     return TableColumn::Kind::Property;
 }
 
+QString aggregationToString(TableColumn::Aggregation aggregation) {
+    switch (aggregation) {
+    case TableColumn::Aggregation::Default: return "default";
+    case TableColumn::Aggregation::Concatenate: return "concatenate";
+    case TableColumn::Aggregation::Sum: return "sum";
+    case TableColumn::Aggregation::Average: return "average";
+    case TableColumn::Aggregation::Min: return "min";
+    case TableColumn::Aggregation::Max: return "max";
+    case TableColumn::Aggregation::Count: return "count";
+    }
+    return "default";
+}
+
+TableColumn::Aggregation aggregationFromString(const QString& value) {
+    if (value == "concatenate") return TableColumn::Aggregation::Concatenate;
+    if (value == "sum") return TableColumn::Aggregation::Sum;
+    if (value == "average") return TableColumn::Aggregation::Average;
+    if (value == "min") return TableColumn::Aggregation::Min;
+    if (value == "max") return TableColumn::Aggregation::Max;
+    if (value == "count") return TableColumn::Aggregation::Count;
+    return TableColumn::Aggregation::Default;
+}
+
 QJsonObject columnToJson(const TableColumn& column) {
     QJsonObject json;
     json["kind"] = kindToString(column.kind);
@@ -59,6 +82,8 @@ QJsonObject columnToJson(const TableColumn& column) {
     json["pset"] = column.pset;
     json["property"] = column.property;
     json["auto_numeric"] = column.auto_numeric;
+    json["group_key"] = column.group_key;
+    json["aggregation"] = aggregationToString(column.aggregation);
     return json;
 }
 
@@ -69,6 +94,8 @@ TableColumn columnFromJson(const QJsonObject& json) {
     column.pset = json["pset"].toString();
     column.property = json["property"].toString();
     column.auto_numeric = json["auto_numeric"].toBool(true);
+    column.group_key = json["group_key"].toBool(false);
+    column.aggregation = aggregationFromString(json["aggregation"].toString());
     return column;
 }
 
@@ -250,7 +277,6 @@ QJsonObject TableStore::tableToJson(const TableDocument& document) {
     json["folder"] = document.folder_id;
     json["name"] = document.definition.name;
     json["description"] = document.definition.description;
-    json["on_box"] = document.definition.on_box;
     QJsonArray facets;
     for (const auto& facet : document.definition.selection.facets) {
         facets.append(facet.toJson());
@@ -270,7 +296,6 @@ TableDocument TableStore::tableFromJson(const QJsonObject& json) {
     document.folder_id = json["folder"].toString();
     document.definition.name = json["name"].toString();
     document.definition.description = json["description"].toString();
-    document.definition.on_box = json["on_box"].toBool(false);
     for (const auto& value : json["facets"].toArray()) {
         document.definition.selection.facets.push_back(
             bonsaiviewer::services::IdsFacet::fromJson(value.toObject()));

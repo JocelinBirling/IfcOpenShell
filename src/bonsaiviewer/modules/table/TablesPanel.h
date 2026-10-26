@@ -41,11 +41,13 @@ signals:
     void newTableRequested();
     void addFolderRequested();
     void runRequested();
+    void runOnBoxRequested();
     void importRequested();
 
 private:
     QTreeWidget* tree_ = nullptr;
     QToolButton* run_button_ = nullptr;
+    QToolButton* run_on_box_button_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::table

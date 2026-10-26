@@ -45,8 +45,9 @@ public:
     void onNodeMoved(const QString& key, const QString& new_parent) override;
 
 signals:
-    // Load a saved table into the table panel.
-    void openRequested(const QString& table_id);
+    // Load a saved table into the table panel; with on_box, only the
+    // elements of the current box are kept (Run on Box).
+    void openRequested(const QString& table_id, bool on_box);
     // Create a new table in a folder (empty = tree root).
     void newTableRequested(const QString& folder_id);
 

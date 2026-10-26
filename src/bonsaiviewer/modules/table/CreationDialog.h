@@ -20,12 +20,15 @@
 
 #include <vector>
 
+class QListWidget;
+
 namespace bonsaiviewer::modules::filters { class SelectionEditor; }
 
 namespace bonsaiviewer::modules::table {
 
-// TI07 — the Table Creation Window: name, description and the IDS
-// selection of the elements (the same editor as the filter layers).
+// TI07 — the Table Creation Window: name, description, the IDS selection of
+// the elements (the same editor as the filter layers) and the grouping
+// (TI07 part C: the checked columns are the group keys).
 class TableCreationDialog : public components::Dialog {
     Q_OBJECT
 
@@ -46,6 +49,7 @@ public slots:
 private:
     TableDefinition definition_;
     filters::SelectionEditor* selection_editor_ = nullptr;
+    QListWidget* grouping_list_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::table
