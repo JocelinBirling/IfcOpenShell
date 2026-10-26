@@ -36,18 +36,25 @@ per column in the Add Column window.
 ### List Of Table
 As the Filter spec, we need a new panel that list the various kind of table that we can create.
 We can save them, and dispose them in a tree. We can import them. 
-- **Add a new table** — opens the Table Creation Window.
-- **Save the Table** — saves the table configuration (columns, order, colours, calculations).
-- **Load the Table** — reloads a saved configuration and applies it to the current objects.
-- **Create a folder** 
+- **Add a new table** — opens the Table Creation Window; the table is saved at
+  once in the selected folder (or at the root).
+- **Save the Table** — saves the table configuration (columns, order, grouping,
+  aggregations, calculations). Done from the Table panel.
+- **Run the Table** — loads a saved configuration and evaluates it on the loaded models.
+- **Run on the Box** — the same, keeping only the elements of the current box
+  (not saved with the table).
+- **Create a folder** — folders are optional: a table can sit at the root.
+- **Import / Export** — one table per file.
 
-By right clicking, you can open some function, add Folder or Table, delete, or run table.
+By right clicking, you can open some function, add Folder or Table, rename,
+delete, export, run, or run on the box.
 
 ### Table panel
 
 - The panel « Table » is docked at the **bottom** of the window, opened
   with the **Table** button of the ribbon.
-- Tables are created and loaded in the **Tables** panel, not here.
+- Tables are created and run in the **Tables** panel, not here. The Table
+  panel has no creation action: it modifies, saves and evaluates the loaded table.
 - Toolbar: **Modify** (the creation window of the current table), **Save**
   (save the table in the Tables panel), **Column** (add a column at the right
   end), **Refresh** (evaluate again, for instance after loading a model),
@@ -76,7 +83,9 @@ Each table has:
   (facets, methods of the IDS fields, preview, "Isolate in the view").
   The specification is evaluated on **all the loaded models**; the table
   has one row per element.
-- A grouping method — the table can be grouped by one or more properties; for example by entity and then by level.
+- A grouping — the checked columns are the grouping keys: the elements sharing
+  their values form one row (see Grouped Table). Count and Color columns cannot
+  be keys.
 
 A new table starts with two columns: Name and Class.
 
@@ -91,7 +100,8 @@ Each column has these settings:
   completion on all the loaded models, and **Browse…**.
 - A common name — empty = automatic (the property name).
 - AutoConvertTextToNumeric — True by default: tries to convert text to a number, handling both « . » and « , » decimal separators, and saves it as a real number.
-- A method of concatenation.
+- An aggregation (used by a grouped table): Default, Concatenate, Sum, Average,
+  Min, Max or Count (see Grouped Table).
 
 Only one column can be added at a time. An element without the property
 shows an empty cell.
