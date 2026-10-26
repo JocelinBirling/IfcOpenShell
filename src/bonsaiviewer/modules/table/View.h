@@ -1,0 +1,106 @@
+// This file was generated with the assistance of an AI coding tool.
+/********************************************************************************
+ *                                                                              *
+ * This file is part of Bonsai.                                                 *
+ *                                                                              *
+ * Bonsai is free software: you can redistribute it and/or modify               *
+ * it under the terms of the GNU General Public License as published by         *
+ * the Free Software Foundation, either version 3.0 of the License, or          *
+ * (at your option) any later version.                                           *
+ *                                                                              *
+ ********************************************************************************/
+
+#ifndef IFCINTERFACE_MODULES_TABLE_VIEW_H
+#define IFCINTERFACE_MODULES_TABLE_VIEW_H
+
+#include "Table.h"
+
+#include <QObject>
+#include <QStringList>
+
+#include <cstdint>
+#include <optional>
+#include <vector>
+
+namespace bonsaiviewer { class SessionState; }
+namespace bonsaiviewer::services {
+class ActionPipeline;
+class IfcDataAccess;
+class PropertyCatalog;
+class SelectionService;
+}
+
+namespace bonsaiviewer::modules::table {
+
+class TableModel;
+class TablePanel;
+
+// TI07 — drives the Table panel: creates and modifies the table, evaluates
+// its IDS selection on every loaded model (one IfcTester request per
+// model, in sequence), edits the columns from the header menu, selects /
+// isolates the elements of the clicked rows and exports to CSV.
+class TablePanelView : public QObject {
+    Q_OBJECT
+
+public:
+    TablePanelView(TablePanel* panel,
+                   SessionState& session,
+                   bonsaiviewer::services::IdsBridge& bridge,
+                   bonsaiviewer::services::IfcDataAccess& data_access,
+                   bonsaiviewer::services::PropertyCatalog& catalog,
+                   bonsaiviewer::services::SelectionService& selection,
+                   bonsaiviewer::services::ActionPipeline& actions,
+                   QObject* parent = nullptr);
+
+private:
+    struct ModelSource {
+        std::uint32_t session_model_id = 0;
+        QString ifc_path;
+    };
+
+    void newTable();
+    void modifyTable();
+    bool editTable(TableDefinition& definition);
+    void addColumn(int position);
+    void modifyColumn(int index);
+    void removeColumn(int index);
+    void showHeaderMenu(int section);
+    void moveColumn(int from, int to);
+    void applyColumns();
+
+    void evaluate();
+    void evaluateNext();
+    void finishEvaluation();
+    void updateSummary();
+
+    void selectRows();
+    void isolateRow(int row);
+    void isolateExpressIds(std::uint32_t session_model_id, const std::vector<int>& express_ids);
+    void exportCsv();
+
+    std::vector<std::uint32_t> objectIds(std::uint32_t session_model_id, const std::vector<int>& express_ids) const;
+    std::uint32_t activeSessionModelId() const;
+    QString ifcPath(std::uint32_t session_model_id) const;
+
+    TablePanel* panel_ = nullptr;
+    SessionState& session_;
+    bonsaiviewer::services::IdsBridge& bridge_;
+    bonsaiviewer::services::PropertyCatalog& catalog_;
+    bonsaiviewer::services::SelectionService& selection_;
+    bonsaiviewer::services::ActionPipeline& actions_;
+    TableModel* model_ = nullptr;
+
+    std::optional<TableDefinition> table_;
+
+    // The evaluation in progress.
+    int generation_ = 0;
+    bool evaluating_ = false;
+    std::vector<ModelSource> sources_;
+    size_t source_index_ = 0;
+    std::vector<std::uint32_t> found_;
+    QStringList errors_;
+};
+
+} // namespace bonsaiviewer::modules::table
+
+#endif // IFCINTERFACE_MODULES_TABLE_VIEW_H

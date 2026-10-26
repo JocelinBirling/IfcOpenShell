@@ -12,7 +12,7 @@
 
 #include "FacetPages.h"
 
-#include "PropertyPicker.h"
+#include "../property_selection/PropertyPicker.h"
 #include "ValueEditor.h"
 
 #include <QCheckBox>
@@ -415,12 +415,12 @@ void PropertyFacetPage::loadProperties() {
 
 void PropertyFacetPage::openPicker() {
     const IdsFacet entity = entity_ ? entity_() : IdsFacet();
-    auto* picker = new PropertyPicker(psets_, samples_,
+    auto* picker = new property_selection::PropertyPicker(psets_, samples_,
                                       QString("Properties found on the %1 elements of the active model.")
                                           .arg(entity.summary()),
                                       this);
     picker->setAttribute(Qt::WA_DeleteOnClose);
-    connect(picker, &PropertyPicker::picked, this, [this](const QString& pset, const QString& property) {
+    connect(picker, &property_selection::PropertyPicker::picked, this, [this](const QString& pset, const QString& property) {
         loading_ = true;
         pset_editor_->setValue(IdsValue::simpleValue(pset));
         property_editor_->setValue(IdsValue::simpleValue(property));

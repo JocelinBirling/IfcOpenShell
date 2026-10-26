@@ -36,14 +36,16 @@ evaluator — the "IdsSelectionEngine" below is the IdsBridge + worker):
 - `modules/filters/`:
   - Panel + View: toolbar (Filter, Folder, Run, Run on the Box, Import,
     Export), context menus, drag and drop, double-click = run.
-  - CreationDialog: layers; per layer a facet list ("+ Add facet") and the
-    page of the selected facet; the Selection type is "IDS specification"
+  - CreationDialog: layers; the Selection type is "IDS specification"
     or "AND — same elements as the layer above" (not offered on the first
     layer); a non-blocking warning at save lists the selection layers no
-    later action uses; live preview (count in the active model,
-    "Isolate in the view" through B08); actions with their parameters
+    later action uses; actions with their parameters
     (the automatic colour has a "Browse properties…" picker on all the
     products of the active model).
+  - SelectionEditor: the editor of one IDS specification, shared with the
+    tables (TI07): facet list ("+ Add"), page of the selected facet, live
+    preview (count in the active model, "Isolate in the view" through B08),
+    `validationError()` used at save.
   - FacetPages: every IDS field is a ValueEditor. EntityFacetPage (class:
     Value / List / Pattern with schema completion, subtypes and the classes
     they cover, PredefinedType from the schema enumeration, element count);
@@ -53,9 +55,9 @@ evaluator — the "IdsSelectionEngine" below is the IdsBridge + worker):
     (default; empty = no constraint), List, Pattern, Range, Length, switched
     by a row of buttons; the typed text is carried over to the new method.
     Each field shows the methods that make sense for it.
-  - PropertyPicker: the property sets of the layer's entity laid out like
-    the Properties panel (element count, a few values), with a search
-    field; double-click fills the property set and the property.
+  - The property picker now lives in `modules/property_selection/`
+    (BonsaiViewer26, see TI07); the property facet still feeds it with the
+    property sets of the layer's entity.
 
 Not done yet: attribute / classification / material / partOf facets (listed
 disabled in "+ Add facet"); reusable named value lists; IDS import of

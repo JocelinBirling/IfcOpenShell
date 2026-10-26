@@ -12,7 +12,7 @@
 
 #include "CreationDialog.h"
 
-#include "PropertyPicker.h"
+#include "../property_selection/PropertyPicker.h"
 
 #include "../../components/Dialog.h"
 #include "../../services/PopupService.h"
@@ -69,13 +69,6 @@ enum SelectionPage {
     kAndPage,
 };
 
-// The facet pages, by facet type.
-enum FacetPage {
-    kNoFacetPage = 0,
-    kEntityPage,
-    kPropertyPage,
-};
-
 ParamPage pageFor(FilterAction::Type type) {
     switch (type) {
     case FilterAction::Type::Colour: return kColourPage;
@@ -103,11 +96,6 @@ QString actionLabel(const FilterAction& action) {
     return {};
 }
 
-QString facetLabel(const IdsFacet& facet) {
-    return QString("%1  %2").arg(facet.type == IdsFacet::Type::Entity ? "Entity" : "Property",
-                                 facet.summary());
-}
-
 QString layerLabel(int index, const FilterCreationDialog::EditLayer& layer) {
     QString label = QString("%1. ").arg(index + 1);
     if (layer.is_and) {
@@ -129,7 +117,7 @@ FilterCreationDialog::EditLayer defaultLayer(bool is_and) {
     FilterCreationDialog::EditLayer layer;
     layer.is_and = is_and;
     if (!is_and) {
-        layer.fields.facets.push_back(IdsFacet::entity("IfcWall"));
+        layer.fields = SelectionEditor::defaultFields();
     }
     return layer;
 }
@@ -146,17 +134,6 @@ void setColourSwatch(QPushButton* button, const QColor& colour) {
     }
 }
 
-bool valueIsComplete(const IdsValue& value) {
-    switch (value.kind) {
-    case IdsValue::Kind::Any: return true;
-    case IdsValue::Kind::Simple: return !value.simple.trimmed().isEmpty();
-    case IdsValue::Kind::Enumeration: return !value.values.isEmpty();
-    case IdsValue::Kind::Pattern: return !value.pattern.isEmpty();
-    case IdsValue::Kind::Range:
-    case IdsValue::Kind::Length: return !value.min.isEmpty() || !value.max.isEmpty();
-    }
-    return false;
-}
 
 } // namespace
 
@@ -249,73 +226,14 @@ FilterCreationDialog::FilterCreationDialog(const FilterDocument& document,
     selection_layout->addLayout(type_row);
     selection_stack_ = new QStackedWidget(selection_box_);
     selection_layout->addWidget(selection_stack_, 1);
-    auto* splitter = new QSplitter(Qt::Horizontal, selection_stack_);
-
-    auto* facets_side = new QWidget(splitter);
-    auto* facets_layout = new QVBoxLayout(facets_side);
-    facets_layout->setContentsMargins(0, 0, 0, 0);
-    // The facet buttons sit above the list so a short window never hides
-    // them.
-    auto* facet_buttons = new QHBoxLayout();
-    facet_buttons->addWidget(new QLabel("Facets (all must pass)", facets_side), 1);
-    add_facet_button_ = new QToolButton(facets_side);
-    add_facet_button_->setText("+ Add");
-    add_facet_button_->setToolTip("Add a facet (entity, property…)");
-    add_facet_button_->setPopupMode(QToolButton::InstantPopup);
-    add_facet_button_->setMenu(new QMenu(add_facet_button_));
-    remove_facet_button_ = new QPushButton("Remove", facets_side);
-    facet_buttons->addWidget(add_facet_button_);
-    facet_buttons->addWidget(remove_facet_button_);
-    facets_layout->addLayout(facet_buttons);
-    facet_list_ = new QListWidget(facets_side);
-    facet_list_->setWordWrap(true);
-    facet_list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    facets_layout->addWidget(facet_list_, 1);
-
-    facet_pages_ = new QStackedWidget(splitter);
-    auto* empty_page = new QLabel("Select a facet on the left, or add one.", facet_pages_);
-    empty_page->setAlignment(Qt::AlignCenter);
-    empty_page->setProperty("textRole", "secondary");
-    facet_pages_->addWidget(empty_page); // kNoFacetPage
-    entity_page_ = new EntityFacetPage(ids_bridge_, ifc_path_, facet_pages_);
-    property_page_ = new PropertyFacetPage(ids_bridge_, ifc_path_, [this]() { return layerEntity(); },
-                                           facet_pages_);
-    for (QWidget* page : {static_cast<QWidget*>(entity_page_), static_cast<QWidget*>(property_page_)}) {
-        auto* scroll = new QScrollArea(facet_pages_);
-        scroll->setWidgetResizable(true);
-        scroll->setFrameShape(QFrame::NoFrame);
-        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // the page follows the width
-        scroll->setWidget(page);
-        facet_pages_->addWidget(scroll); // kEntityPage, kPropertyPage
-    }
-    splitter->addWidget(facets_side);
-    splitter->addWidget(facet_pages_);
-    // Extra width goes to the facet page, not to the facet list.
-    splitter->setStretchFactor(0, 0);
-    splitter->setStretchFactor(1, 1);
-    splitter->setSizes({190, 700});
-    splitter->setMinimumHeight(180);
-    selection_stack_->addWidget(splitter); // kSpecificationPage
+    selection_editor_ = new SelectionEditor(ids_bridge_, ifc_path_, selection_stack_);
+    selection_stack_->addWidget(selection_editor_); // kSpecificationPage
     auto* and_page = new QLabel("This layer has no selection of its own: its actions apply to the "
                                 "same elements as the layer above.", selection_stack_);
     and_page->setAlignment(Qt::AlignCenter);
     and_page->setWordWrap(true);
     and_page->setProperty("textRole", "secondary");
     selection_stack_->addWidget(and_page); // kAndPage
-
-    auto* preview_row = new QHBoxLayout();
-    preview_label_ = new QLabel(selection_box_);
-    preview_label_->setWordWrap(true);
-    preview_button_ = new QPushButton("Test", selection_box_);
-    preview_button_->setToolTip("Count the elements this layer selects in the active model");
-    isolate_button_ = new QPushButton("Isolate in the view", selection_box_);
-    isolate_button_->setToolTip("Isolate the previewed elements in the viewer");
-    isolate_button_->setEnabled(false);
-    preview_row->addWidget(new QLabel("<b>Preview</b>", selection_box_));
-    preview_row->addWidget(preview_label_, 1);
-    preview_row->addWidget(preview_button_);
-    preview_row->addWidget(isolate_button_);
-    selection_layout->addLayout(preview_row);
     editor_split->addWidget(selection_box_);
 
     // The layer's actions: the list (with its buttons) and the parameters
@@ -398,13 +316,10 @@ FilterCreationDialog::FilterCreationDialog(const FilterDocument& document,
     connect(buttons_, &QDialogButtonBox::rejected, this, &QDialog::reject);
     addFooterWidget(buttons_);
 
-    preview_timer_ = new QTimer(this);
-    preview_timer_->setSingleShot(true);
-    preview_timer_->setInterval(900);
-    connect(preview_timer_, &QTimer::timeout, this, &FilterCreationDialog::runPreview);
-    connect(preview_button_, &QPushButton::clicked, this, &FilterCreationDialog::runPreview);
-    connect(isolate_button_, &QPushButton::clicked, this, [this]() {
-        if (!preview_ids_.empty()) emit isolateRequested(preview_ids_);
+    connect(selection_editor_, &SelectionEditor::isolateRequested, this, &FilterCreationDialog::isolateRequested);
+    connect(selection_editor_, &SelectionEditor::changed, this, [this]() {
+        storeSelection();
+        syncLayerList();
     });
 
     // Layer list wiring.
@@ -421,7 +336,7 @@ FilterCreationDialog::FilterCreationDialog(const FilterDocument& document,
         }
     });
     connect(layer_list_, &QListWidget::currentRowChanged, this, [this](int row) {
-        storeFacetFromPage();
+        storeSelection();
         loadLayer(row);
     });
     connect(selection_type_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
@@ -429,42 +344,12 @@ FilterCreationDialog::FilterCreationDialog(const FilterDocument& document,
         const bool own_selection = index == kSpecificationPage;
         layers_[current_layer_].is_and = !own_selection;
         if (own_selection && layers_[current_layer_].fields.facets.empty()) {
-            layers_[current_layer_].fields = defaultLayer(false).fields;
-            syncFacetList();
-            selectFacet(0);
+            layers_[current_layer_].fields = SelectionEditor::defaultFields();
         }
+        if (own_selection) selection_editor_->setFields(layers_[current_layer_].fields);
         updateSelectionEnabled();
         syncLayerList();
-        schedulePreview();
     });
-
-    // Facet wiring: the pages write back into the current facet.
-    connect(facet_list_, &QListWidget::currentRowChanged, this, [this](int row) {
-        storeFacetFromPage();
-        showFacet(row);
-    });
-    for (const FacetTypeEntry& entry : facetTypes()) {
-        QAction* action = add_facet_button_->menu()->addAction(entry.label);
-        action->setEnabled(entry.available);
-        action->setData(static_cast<int>(entry.type));
-        if (entry.available) {
-            connect(action, &QAction::triggered, this, [this, type = entry.type]() { addFacet(type); });
-        }
-    }
-    connect(remove_facet_button_, &QPushButton::clicked, this, [this]() {
-        if (current_facet_ >= 0) removeFacet(current_facet_);
-    });
-    const auto on_page_changed = [this]() {
-        storeFacetFromPage();
-        if (current_facet_ >= 0 && current_facet_ < facet_list_->count()) {
-            facet_list_->item(current_facet_)->setText(
-                facetLabel(layers_[current_layer_].fields.facets[current_facet_]));
-        }
-        syncLayerList();
-        schedulePreview();
-    };
-    connect(entity_page_, &EntityFacetPage::changed, this, on_page_changed);
-    connect(property_page_, &PropertyFacetPage::changed, this, on_page_changed);
 
     // Action wiring.
     connect(add_action_button, &QPushButton::clicked, this, [this]() { addAction(); });
@@ -578,9 +463,7 @@ void FilterCreationDialog::syncActionListRow(int row) {
 void FilterCreationDialog::loadLayer(int index) {
     const bool valid = index >= 0 && index < static_cast<int>(layers_.size());
     current_layer_ = valid ? index : -1;
-    current_facet_ = -1;
-    syncFacetList();
-    selectFacet(facet_list_->count() > 0 ? 0 : -1);
+    selection_editor_->setFields(valid ? layers_[index].fields : IdsBridge::SelectionFields{});
 
     {
         const QSignalBlocker blocker(action_list_);
@@ -596,9 +479,12 @@ void FilterCreationDialog::loadLayer(int index) {
     }
     loadActionParameters(action_list_->currentRow());
     updateSelectionEnabled();
-    preview_ids_.clear();
-    isolate_button_->setEnabled(false);
-    schedulePreview();
+}
+
+void FilterCreationDialog::storeSelection() {
+    if (current_layer_ < 0 || current_layer_ >= static_cast<int>(layers_.size())) return;
+    if (layers_[current_layer_].is_and) return; // the editor holds no selection of this layer
+    layers_[current_layer_].fields = selection_editor_->fields();
 }
 
 void FilterCreationDialog::updateSelectionEnabled() {
@@ -612,176 +498,7 @@ void FilterCreationDialog::updateSelectionEnabled() {
     }
     selection_type_combo_->setCurrentIndex(is_and ? kAndPage : kSpecificationPage);
     selection_stack_->setCurrentIndex(is_and ? kAndPage : kSpecificationPage);
-    preview_button_->setEnabled(!is_and);
     loading_ = false;
-    updateAddFacetMenu();
-}
-
-// ---------------------------------------------------------------------------
-// Facets
-// ---------------------------------------------------------------------------
-
-void FilterCreationDialog::syncFacetList() {
-    // Callers store the page first and select a facet after (selectFacet).
-    current_facet_ = -1;
-    {
-        const QSignalBlocker blocker(facet_list_);
-        facet_list_->clear();
-        if (current_layer_ >= 0) {
-            for (const auto& facet : layers_[current_layer_].fields.facets) {
-                facet_list_->addItem(facetLabel(facet));
-            }
-        }
-    }
-    updateAddFacetMenu();
-}
-
-void FilterCreationDialog::selectFacet(int index) {
-    if (index >= facet_list_->count()) index = facet_list_->count() - 1;
-    {
-        const QSignalBlocker blocker(facet_list_);
-        facet_list_->setCurrentRow(index);
-    }
-    showFacet(index);
-}
-
-void FilterCreationDialog::showFacet(int index) {
-    current_facet_ = -1;
-    if (current_layer_ < 0) {
-        facet_pages_->setCurrentIndex(kNoFacetPage);
-        return;
-    }
-    const auto& facets = layers_[current_layer_].fields.facets;
-    if (index < 0 || index >= static_cast<int>(facets.size())) {
-        facet_pages_->setCurrentIndex(kNoFacetPage);
-        remove_facet_button_->setEnabled(false);
-        return;
-    }
-    const IdsFacet& facet = facets[index];
-    if (facet.type == IdsFacet::Type::Entity) {
-        entity_page_->setFacet(facet);
-        facet_pages_->setCurrentIndex(kEntityPage);
-    } else {
-        property_page_->setFacet(facet);
-        facet_pages_->setCurrentIndex(kPropertyPage);
-    }
-    current_facet_ = index;
-    remove_facet_button_->setEnabled(true);
-}
-
-void FilterCreationDialog::storeFacetFromPage() {
-    if (current_layer_ < 0 || current_layer_ >= static_cast<int>(layers_.size())) return;
-    auto& facets = layers_[current_layer_].fields.facets;
-    if (current_facet_ < 0 || current_facet_ >= static_cast<int>(facets.size())) return;
-    facets[current_facet_] = facets[current_facet_].type == IdsFacet::Type::Entity
-        ? entity_page_->facet()
-        : property_page_->facet();
-}
-
-void FilterCreationDialog::addFacet(IdsFacet::Type type) {
-    if (current_layer_ < 0 || layers_[current_layer_].is_and) return;
-    storeFacetFromPage();
-    auto& facets = layers_[current_layer_].fields.facets;
-    if (type == IdsFacet::Type::Entity) {
-        const bool has_entity = std::any_of(facets.begin(), facets.end(), [](const IdsFacet& f) {
-            return f.type == IdsFacet::Type::Entity;
-        });
-        if (has_entity) return;
-        facets.insert(facets.begin(), IdsFacet::entity("IfcWall")); // the entity stays first
-        syncFacetList();
-        selectFacet(0);
-    } else {
-        IdsFacet facet = IdsFacet::propertyFacet();
-        facet.pset = IdsValue::simpleValue({});
-        facet.property = IdsValue::simpleValue({});
-        facets.push_back(facet);
-        syncFacetList();
-        selectFacet(facet_list_->count() - 1);
-    }
-    syncLayerList();
-    schedulePreview();
-}
-
-void FilterCreationDialog::removeFacet(int index) {
-    if (current_layer_ < 0) return;
-    auto& facets = layers_[current_layer_].fields.facets;
-    if (index < 0 || index >= static_cast<int>(facets.size())) return;
-    current_facet_ = -1; // do not store the page back into the removed facet
-    facets.erase(facets.begin() + index);
-    syncFacetList();
-    selectFacet(facets.empty() ? -1 : std::min(index, static_cast<int>(facets.size()) - 1));
-    syncLayerList();
-    schedulePreview();
-}
-
-IdsFacet FilterCreationDialog::layerEntity() const {
-    if (current_layer_ < 0 || current_layer_ >= static_cast<int>(layers_.size())) return {};
-    for (const auto& facet : layers_[current_layer_].fields.facets) {
-        if (facet.type == IdsFacet::Type::Entity) return facet;
-    }
-    return {};
-}
-
-void FilterCreationDialog::updateAddFacetMenu() {
-    bool has_entity = false;
-    if (current_layer_ >= 0) {
-        for (const auto& facet : layers_[current_layer_].fields.facets) {
-            has_entity = has_entity || facet.type == IdsFacet::Type::Entity;
-        }
-    }
-    const auto& entries = facetTypes();
-    const auto actions = add_facet_button_->menu()->actions();
-    for (int i = 0; i < actions.size() && i < static_cast<int>(entries.size()); ++i) {
-        const bool entity = entries[i].available && entries[i].type == IdsFacet::Type::Entity;
-        actions[i]->setEnabled(entries[i].available && !(entity && has_entity));
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Preview
-// ---------------------------------------------------------------------------
-
-void FilterCreationDialog::schedulePreview() {
-    preview_timer_->start();
-}
-
-void FilterCreationDialog::runPreview() {
-    preview_timer_->stop();
-    preview_ids_.clear();
-    isolate_button_->setEnabled(false);
-    const int generation = ++preview_generation_;
-    if (current_layer_ < 0) {
-        preview_label_->clear();
-        return;
-    }
-    const EditLayer& layer = layers_[current_layer_];
-    if (layer.is_and) {
-        preview_label_->setText("Same elements as the layer above.");
-        return;
-    }
-    const QString path = ifc_path_ ? ifc_path_() : QString();
-    if (path.isEmpty()) {
-        preview_label_->setText("No model loaded: the preview needs an active model.");
-        return;
-    }
-    if (layerEntity().name.isAny()) {
-        preview_label_->setText("Add an IFC class.");
-        return;
-    }
-    preview_label_->setText("Counting…");
-    QPointer<FilterCreationDialog> guard(this);
-    ids_bridge_.preview(path, layer.fields,
-                        [this, guard, generation](bool ok, std::vector<int> ids, const QString& error) {
-        if (guard.isNull() || generation != preview_generation_) return; // stale
-        if (!ok) {
-            preview_label_->setText("⚠ " + error);
-            return;
-        }
-        preview_label_->setText(QString("%1 element(s) selected by this layer in the active model.")
-                                    .arg(ids.size()));
-        preview_ids_ = std::move(ids);
-        isolate_button_->setEnabled(!preview_ids_.empty());
-    });
 }
 
 // ---------------------------------------------------------------------------
@@ -803,12 +520,11 @@ void FilterCreationDialog::loadActionParameters(int row) {
 }
 
 void FilterCreationDialog::addLayer() {
-    storeFacetFromPage();
+    storeSelection();
     // Insert after the selected layer.
     const int at = current_layer_ >= 0 ? current_layer_ + 1 : static_cast<int>(layers_.size());
     layers_.insert(layers_.begin() + at, defaultLayer(false));
     current_layer_ = -1; // indices shifted: nothing to store on the row change
-    current_facet_ = -1;
     syncLayerList();
     layer_list_->setCurrentRow(at);
 }
@@ -817,7 +533,6 @@ void FilterCreationDialog::removeLayer(int index) {
     if (index < 0 || index >= static_cast<int>(layers_.size())) return;
     layers_.erase(layers_.begin() + index);
     current_layer_ = -1;
-    current_facet_ = -1;
     syncLayerList();
     if (!layers_.empty()) {
         const int next = std::min(index, static_cast<int>(layers_.size()) - 1);
@@ -834,10 +549,9 @@ void FilterCreationDialog::removeLayer(int index) {
 void FilterCreationDialog::moveLayer(int index, int direction) {
     const int target = index + direction;
     if (index < 0 || target < 0 || target >= static_cast<int>(layers_.size())) return;
-    storeFacetFromPage();
+    storeSelection();
     std::swap(layers_[index], layers_[target]);
     current_layer_ = -1;
-    current_facet_ = -1;
     syncLayerList();
     {
         const QSignalBlocker blocker(layer_list_);
@@ -887,10 +601,10 @@ void FilterCreationDialog::browseAutoColourProperty() {
             services::popup::information(this, error);
             return;
         }
-        auto* picker = new PropertyPicker(psets, samples, "Properties found on the products of the active model.",
+        auto* picker = new property_selection::PropertyPicker(psets, samples, "Properties found on the products of the active model.",
                                           this);
         picker->setAttribute(Qt::WA_DeleteOnClose);
-        connect(picker, &PropertyPicker::picked, this, [this](const QString& pset, const QString& property) {
+        connect(picker, &property_selection::PropertyPicker::picked, this, [this](const QString& pset, const QString& property) {
             // The line edits write the action back (see their connections).
             auto_pset_edit_->setText(pset);
             auto_property_edit_->setText(property);
@@ -904,7 +618,7 @@ void FilterCreationDialog::browseAutoColourProperty() {
 // ---------------------------------------------------------------------------
 
 bool FilterCreationDialog::validate() {
-    storeFacetFromPage();
+    storeSelection();
     const auto fail = [this](int layer, const QString& message) {
         services::popup::information(this, message);
         if (layer >= 0) layer_list_->setCurrentRow(layer);
@@ -920,30 +634,8 @@ bool FilterCreationDialog::validate() {
         const EditLayer& layer = layers_[i];
         any_action = any_action || !layer.actions.empty();
         if (layer.is_and) continue;
-        int entities = 0;
-        for (const auto& facet : layer.fields.facets) {
-            if (facet.type == IdsFacet::Type::Entity) {
-                ++entities;
-                if (facet.name.isAny() || !valueIsComplete(facet.name)) {
-                    return fail(i, QString("Layer %1: the entity facet needs an IFC class.").arg(i + 1));
-                }
-                if (!valueIsComplete(facet.predefined_type)) {
-                    return fail(i, QString("Layer %1: the PredefinedType is incomplete.").arg(i + 1));
-                }
-            } else {
-                if (facet.pset.isAny() || !valueIsComplete(facet.pset) ||
-                    facet.property.isAny() || !valueIsComplete(facet.property)) {
-                    return fail(i, QString("Layer %1: a property facet needs its property set and its "
-                                           "property.").arg(i + 1));
-                }
-                if (facet.cardinality != "prohibited" && !valueIsComplete(facet.value)) {
-                    return fail(i, QString("Layer %1: the value of %2 is incomplete (empty list, pattern "
-                                           "or range).").arg(i + 1).arg(facet.summary()));
-                }
-            }
-        }
-        if (entities != 1) {
-            return fail(i, QString("Layer %1 needs exactly one entity facet.").arg(i + 1));
+        if (const QString error = SelectionEditor::validationError(layer.fields); !error.isEmpty()) {
+            return fail(i, QString("Layer %1: %2.").arg(i + 1).arg(error));
         }
         for (const auto& action : layer.actions) {
             if (action.type == FilterAction::Type::AutoColourByProperty &&

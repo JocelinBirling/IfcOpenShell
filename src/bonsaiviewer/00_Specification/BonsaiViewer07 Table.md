@@ -6,11 +6,42 @@ A table panel can be added at the bottom of the UI. The table presents a list of
 
 ## Specification
 
-### Table functions
+### Delivery
 
+The table is delivered in phases. **Phase 1 (done)**: one table at a time,
+the Table Creation Window (name, description, IDS selection), the columns
+(property, name, class, GlobalId, model) with the Add / Modify Column
+window, the header menu, moving columns by drag, click / double-click on
+rows, and the CSV export. The other functions below come in the next
+phases (see Open Subject).
+
+
+
+### List Of Table
+As the Filter spec, we need a new panel that list the various kind of table that we can create.
+We can save them, and dispose them in a tree. We can import them. 
 - **Add a new table** — opens the Table Creation Window.
 - **Save the Table** — saves the table configuration (columns, order, colours, calculations).
 - **Load the Table** — reloads a saved configuration and applies it to the current objects.
+- **Create a folder** 
+
+By right clicking, you can open some function, add Folder or Table, delete, or run table.
+
+### Table panel
+
+- The panel « Table » is docked at the **bottom** of the window, opened
+  with the **Table** button of the ribbon.
+- Toolbar: **Table** (new table), **Modify** (the creation window of the
+  current table), **Column** (add a column at the right end), **Refresh**
+  (evaluate again, for instance after loading a model), **Export** (CSV).
+- Next to the toolbar: the table name, its number of elements and of
+  models.
+
+
+
+### Table functions
+
+
 - **Export table to csv** — exports the displayed data to a CSV file.
 - **Add Columns** — opens the Add Column window.
 - **Apply table to box** — the table takes only the elements of the active box.
@@ -21,18 +52,30 @@ Each table has:
 
 - A name.
 - A description — a text description of the table.
-- A filter — a selection of elements to use in the table.
+- A filter — a selection of elements to use in the table: an **IDS
+  specification**, edited exactly like the selection of a filter layer
+  (facets, methods of the IDS fields, preview, "Isolate in the view").
+  The specification is evaluated on **all the loaded models**; the table
+  has one row per element.
 - A grouping method — the table can be grouped by one or more properties; for example by entity and then by level.
+
+A new table starts with two columns: Name and Class.
 
 #### Add Column window
 
 Each column has these settings:
 
-- A common name.
+- The data: a **Property** (property set or quantity set), or the element's
+  **Name**, **Class**, **GlobalId** or **Model** (the IFC file name).
+- The property, chosen with the standard property field
+  (BonsaiViewer26 Property Selection): Pset and Property inputs with
+  completion on all the loaded models, and **Browse…**.
+- A common name — empty = automatic (the property name).
 - AutoConvertTextToNumeric — True by default: tries to convert text to a number, handling both « . » and « , » decimal separators, and saves it as a real number.
 - A method of concatenation.
 
-When we click on « Add Columns », a window opens showing a tree of the available properties (IFC classes, Psets, quantities) with search and checkboxes, in the manner of Bonsai. Only one column can be added at a time.
+Only one column can be added at a time. An element without the property
+shows an empty cell.
 
 Some specific data can also be added:
 
@@ -43,7 +86,8 @@ Columns can also be modified with the window.
 
 ### Table interactions
 
-- **Click on a row** — selects the object(s) of the row.
+- **Click on a row** — selects the object(s) of the row (several rows with
+  Ctrl / Shift).
 - **Double-click on a row** — isolates the object(s) of the row.
 
 ### Columns interaction
@@ -52,8 +96,15 @@ With a left click on a column header, the following functions appear:
 
 - **Modify Column**
 - **Remove Column**
-- **Add Column to the Right** — new columns are always added to the right
+- **Add Column to the Right** — the new column is added right of the
+  clicked column (the toolbar **Column** adds it at the right end)
 - **Left Drag Click to move the column**
+
+### CSV export
+
+The CSV file follows the system's number format so it opens as columns in
+a spreadsheet: with a "," decimal separator the fields are separated by
+";", otherwise by ",". The file is UTF-8.
 
 ### Grouped Table
 Some entities can be grouped together.
@@ -86,3 +137,15 @@ The formulas use Excel-style syntax: standard operator precedence, with parenthe
 The first version is strictly arithmetic: `+ - * /` with parentheses and references to other columns; any text value returns "ERROR". The evolution of the calculated columns (conditional logic, comparisons, IF) is specified on its own: BonsaiViewer23 - Table Calculated Columns.
 
 ## Open Subject
+
+Phases 2:
+
+- Save / Load the table, several tables.
+- Apply table to box.
+- Count element and Color columns.
+- Grouped table (grouping, concatenation / aggregation methods).
+
+Phase 3:
+
+- Relations (spatial relation).
+- Calculated columns (BonsaiViewer23).

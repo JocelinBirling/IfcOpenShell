@@ -46,6 +46,8 @@
 #include "modules/searchbar/SearchBar.h"
 #include "modules/filters/View.h"
 #include "modules/filters/Panel.h"
+#include "modules/table/Panel.h"
+#include "modules/table/View.h"
 #include "services/ActionPipeline.h"
 #include "services/AppearanceService.h"
 #include "services/ActiveView.h"
@@ -56,6 +58,7 @@
 #include "services/FilterRunner.h"
 #include "services/FilterStore.h"
 #include "services/IdsBridge.h"
+#include "services/PropertyCatalog.h"
 #include "services/IfcDataAccess.h"
 #include "services/PanelManager.h"
 #include "services/PickingService.h"
@@ -589,7 +592,7 @@ QWidget* MainWindow::buildPanelsRibbonPage() {
             makePanelToggle("Views", stored_views_panel_),
             makePanelToggle("Search", search_panel_),
             makePanelToggle("Filters", filters_panel_),
-            makePanelToggle("Sheets", spreadsheet_panel_),
+            makePanelToggle("Table", table_panel_),
             makePanelToggle("Audit", audit_panel_)
         }, this),
         components::buttons::makeButtonGroup("COLLABORATE", {
@@ -683,8 +686,7 @@ void MainWindow::setupPanels() {
     search_panel_ = new components::Panel(
         "Search and Query", new modules::todo::TodoPanel("Search and Query", this), this);
     filters_panel_ = new modules::filters::FiltersPanel(this);
-    spreadsheet_panel_ = new components::Panel(
-        "Spreadsheet", new modules::todo::TodoPanel("Spreadsheet", this), this);
+    table_panel_ = new modules::table::TablePanel(this);
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
     issues_panel_ = new components::Panel("Issues", new modules::todo::TodoPanel("Issues", this), this);
@@ -697,17 +699,16 @@ void MainWindow::setupPanels() {
     addDockWidget(Qt::RightDockWidgetArea, layers_panel_);
     addDockWidget(Qt::RightDockWidgetArea, stored_views_panel_);
     addDockWidget(Qt::RightDockWidgetArea, search_panel_);
-    addDockWidget(Qt::RightDockWidgetArea, spreadsheet_panel_);
     addDockWidget(Qt::RightDockWidgetArea, audit_panel_);
     addDockWidget(Qt::RightDockWidgetArea, clash_panel_);
     addDockWidget(Qt::RightDockWidgetArea, issues_panel_);
+    addDockWidget(Qt::BottomDockWidgetArea, table_panel_);
 
     tabifyDockWidget(properties_panel_, layers_panel_);
     tabifyDockWidget(layers_panel_, stored_views_panel_);
     tabifyDockWidget(stored_views_panel_, search_panel_);
     tabifyDockWidget(search_panel_, filters_panel_);
-    tabifyDockWidget(filters_panel_, spreadsheet_panel_);
-    tabifyDockWidget(spreadsheet_panel_, audit_panel_);
+    tabifyDockWidget(filters_panel_, audit_panel_);
     tabifyDockWidget(audit_panel_, clash_panel_);
     tabifyDockWidget(clash_panel_, issues_panel_);
     properties_panel_->raise();
@@ -716,7 +717,7 @@ void MainWindow::setupPanels() {
     stored_views_panel_->hide();
     search_panel_->hide();
     filters_panel_->hide();
-    spreadsheet_panel_->hide();
+    table_panel_->hide();
     audit_panel_->hide();
     clash_panel_->hide();
     issues_panel_->hide();
@@ -850,6 +851,12 @@ void MainWindow::setupLoader() {
     filters_view_ = new modules::filters::FiltersPanelView(
         filters_panel_, *session_state_, *filter_store_, *filter_runner_, *ids_bridge_, this);
     filters_view_->setActionPipeline(action_pipeline_);
+    // TI07 table: the property catalog of all the loaded models (BonsaiViewer26)
+    // and the table panel, evaluated through the same IDS bridge.
+    property_catalog_ = new bonsaiviewer::services::PropertyCatalog(*session_state_, *data_access_, this);
+    table_view_ = new modules::table::TablePanelView(
+        table_panel_, *session_state_, *ids_bridge_, *data_access_, *property_catalog_,
+        *selection_service_, *action_pipeline_, this);
     // Perpendicular View (right click) and the section gizmo right-click
     // delete menu are viewport-level interactions owned by the shell.
     viewport_widget_->viewport()->installEventFilter(this);
@@ -992,7 +999,7 @@ void MainWindow::setupMenuBar() {
     panel_manager_->adoptPanel(QStringLiteral("filters"),
                                QStringLiteral("Filters"), filters_panel_);
     panel_manager_->adoptPanel(QStringLiteral("sheets"),
-                               QStringLiteral("Sheets"), spreadsheet_panel_);
+                               QStringLiteral("Table"), table_panel_);
     panel_manager_->adoptPanel(QStringLiteral("audit"),
                                QStringLiteral("Audit"), audit_panel_);
     panel_manager_->adoptPanel(QStringLiteral("clash"),

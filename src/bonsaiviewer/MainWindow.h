@@ -55,6 +55,7 @@ namespace bonsaiviewer::services { class IdsBridge; }
 namespace bonsaiviewer::services { class IfcDataAccess; }
 namespace bonsaiviewer::services { class PanelManager; }
 namespace bonsaiviewer::services { class PickingService; }
+namespace bonsaiviewer::services { class PropertyCatalog; }
 namespace bonsaiviewer::services { class PropertyIndex; }
 namespace bonsaiviewer::services { class QueryEngine; }
 namespace bonsaiviewer::services { class SectionPlaneManager; }
@@ -62,6 +63,8 @@ namespace bonsaiviewer::services { class SelectionService; }
 namespace bonsaiviewer::modules::filters { class FiltersPanel; }
 namespace bonsaiviewer::modules::filters { class FiltersPanelView; }
 namespace bonsaiviewer::modules::menubar { class MenuBar; }
+namespace bonsaiviewer::modules::table { class TablePanel; }
+namespace bonsaiviewer::modules::table { class TablePanelView; }
 
 namespace bonsaiviewer::shell {
 
@@ -145,7 +148,7 @@ private:
     QDockWidget* stored_views_panel_ = nullptr;
     QDockWidget* search_panel_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanel* filters_panel_ = nullptr;
-    QDockWidget* spreadsheet_panel_ = nullptr;
+    bonsaiviewer::modules::table::TablePanel* table_panel_ = nullptr;
     QDockWidget* audit_panel_ = nullptr;
     QDockWidget* clash_panel_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;
@@ -153,6 +156,8 @@ private:
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanelView* spatial_view_ = nullptr;
     bonsaiviewer::modules::properties::PropertiesPanelView* properties_view_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
+    bonsaiviewer::services::PropertyCatalog* property_catalog_ = nullptr;
+    bonsaiviewer::modules::table::TablePanelView* table_view_ = nullptr;
 };
 
 } // namespace bonsaiviewer::shell

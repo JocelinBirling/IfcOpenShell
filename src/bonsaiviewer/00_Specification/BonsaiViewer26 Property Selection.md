@@ -82,4 +82,20 @@ proposed the same way, with their element counts.
 - The property sets are read from the application's property index
   (B05 IfcDataAccess / PropertyIndex), not by reopening the IFC files.
 
+## Implementation
+
+- `services/PropertyCatalog` (B05): the property sets and quantity sets of
+  all the loaded models, with element counts and up to three sample values
+  per property. Built on first use, in small chunks so the interface stays
+  responsive, and rebuilt when a model is added or removed.
+- `modules/property_selection/PropertyField`: the Pset and Property inputs
+  with their completions, and "Browse…".
+- `modules/property_selection/PropertyPicker`: the Browse window.
+- Used today by the table columns (07). The filter property facet (06)
+  still proposes the property sets of the layer's entity in the active
+  model; it moves to the property field in a later step.
+
 ## Open Subject
+
+- Use the property field in the filter property facet and in the automatic
+  colour action (06).

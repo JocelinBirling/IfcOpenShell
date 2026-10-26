@@ -14,6 +14,7 @@
 #define IFCINTERFACE_MODULES_FILTERS_CREATIONDIALOG_H
 
 #include "FacetPages.h"
+#include "SelectionEditor.h"
 
 #include "../../components/Dialog.h"
 #include "../../services/FilterStore.h"
@@ -92,19 +93,8 @@ private:
     void buildNextLayer(size_t index);
     bonsaiviewer::services::FilterAction* currentAction();
 
-    // Facets of the current layer.
-    void syncFacetList();
-    void selectFacet(int index);
-    void showFacet(int index);
-    void addFacet(bonsaiviewer::services::IdsFacet::Type type);
-    void removeFacet(int index);
-    void storeFacetFromPage();
-    bonsaiviewer::services::IdsFacet layerEntity() const;
-    void updateAddFacetMenu();
-
-    // Live preview.
-    void schedulePreview();
-    void runPreview();
+    // Writes the selection editor back into the current layer.
+    void storeSelection();
 
     bonsaiviewer::services::FilterDocument document_;
     std::vector<EditLayer> layers_;
@@ -117,20 +107,7 @@ private:
     QComboBox* selection_type_combo_ = nullptr; // IDS specification / AND
     QStackedWidget* selection_stack_ = nullptr;
 
-    QListWidget* facet_list_ = nullptr;
-    QToolButton* add_facet_button_ = nullptr;
-    QPushButton* remove_facet_button_ = nullptr;
-    QStackedWidget* facet_pages_ = nullptr;
-    EntityFacetPage* entity_page_ = nullptr;
-    PropertyFacetPage* property_page_ = nullptr;
-    int current_facet_ = -1;
-
-    QLabel* preview_label_ = nullptr;
-    QPushButton* preview_button_ = nullptr;
-    QPushButton* isolate_button_ = nullptr;
-    QTimer* preview_timer_ = nullptr;
-    int preview_generation_ = 0;
-    std::vector<int> preview_ids_;
+    SelectionEditor* selection_editor_ = nullptr;
 
     QComboBox* action_type_combo_ = nullptr;
     QPushButton* colour_button_ = nullptr;
