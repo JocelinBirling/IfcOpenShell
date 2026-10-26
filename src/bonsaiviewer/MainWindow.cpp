@@ -223,76 +223,6 @@ void MainWindow::populateRecentMenu(QMenu* menu) {
     });
 }
 
-QWidget* MainWindow::buildHomeRibbonPage() {
-    // TI01: the project / models / settings actions moved to the menu
-    // bar's File menu — the Home page stays empty for future content.
-    auto* page = new QFrame(this);
-    page->setObjectName("ribbonPage");
-    auto* row = new QHBoxLayout(page);
-    row->setContentsMargins(6, 4, 6, 4);
-    row->setSpacing(0);
-    row->addStretch(1);
-    return page;
-}
-
-QWidget* MainWindow::buildNavigateRibbonPage() {
-    auto* page = new QFrame(this);
-    page->setObjectName("ribbonPage");
-    auto* row = new QHBoxLayout(page);
-    row->setContentsMargins(2, 4, 2, 4);
-    row->setSpacing(0);
-
-    auto* set_home = components::buttons::makeButton("Set Home", ":/icons/home.svg", this);
-    connect(set_home, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::setHome(*session_state_, *viewport_widget_->viewport());
-    });
-    auto* go_home = components::buttons::makeButton("Go Home", ":/icons/home-alt.svg", this);
-    connect(go_home, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::goHome(*session_state_, *viewport_widget_->viewport());
-    });
-    auto* view_selected = components::buttons::makeButton("View Selected", ":/icons/cube-scan-solid.svg", this);
-    connect(view_selected, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::viewSelected(*viewport_widget_->viewport());
-    });
-
-    auto* plan_view = components::buttons::makeButton("Plan", ":/icons/planimetry.svg", this);
-    connect(plan_view, &QToolButton::clicked, this, [this]() {
-        if (viewport_widget_) viewport_widget_->viewport()->setStandardView(90.0f, 90.0f);
-    });
-    auto* front_view = components::buttons::makeButton("Front", ":/icons/city.svg", this);
-    connect(front_view, &QToolButton::clicked, this, [this]() {
-        if (viewport_widget_) viewport_widget_->viewport()->setStandardView(0.0f, 0.0f);
-    });
-    auto* side_view = components::buttons::makeButton("Side", ":/icons/building.svg", this);
-    connect(side_view, &QToolButton::clicked, this, [this]() {
-        if (viewport_widget_) viewport_widget_->viewport()->setStandardView(90.0f, 0.0f);
-    });
-    auto* align_object = components::buttons::makeButton("Align Object", ":/icons/cellar.svg", this);
-    connect(align_object, &QToolButton::clicked, this, [this]() {
-        session_state_->setStatusMessage("Orientation", "Align to object coming soon");
-    });
-    auto* projection_button = components::buttons::makeButton("Perspective", ":/icons/perspective-view.svg", this);
-    connect(projection_button, &QToolButton::clicked, this, [this, projection_button]() {
-        if (!viewport_widget_) return;
-        viewport_widget_->viewport()->toggleProjection();
-        projection_button->setText(
-            viewport_widget_->viewport()->projectionOrtho() ? "Ortho" : "Perspective");
-    });
-
-    auto* fly_mode = components::buttons::makeButton("Fly", ":/icons/drone.svg", this);
-    connect(fly_mode, &QToolButton::clicked, this, [this]() {
-        modules::viewport::commands::fly(*session_state_, *viewport_widget_->viewport());
-    });
-
-    components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("CAMERA", {set_home, go_home, view_selected}, this),
-        components::buttons::makeButtonGroup("ORIENTATION", {plan_view, front_view, side_view, align_object, projection_button}, this),
-        components::buttons::makeButtonGroup("MODE", {fly_mode}, this),
-    });
-    row->addStretch(1);
-    return page;
-}
-
 // TI05: the generic top panel hosts the search bar's neighbours — the
 // display, box, zoom and colour groups — always visible whatever the
 // ribbon tab.
@@ -474,7 +404,7 @@ void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
         else viewport_widget_->viewport()->unsetCursor();
         session_state_->setStatusMessage(
             "Orientation",
-            checked ? "Perpendicular view armed - right click a surface"
+            checked ? "Perpendicular view armed - left click a surface"
                     : QStringLiteral("Orientation"));
     });
 
@@ -548,6 +478,42 @@ void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
         components::buttons::makeButtonGroup("ZOOM", {fit_view, perpendicular_view}, this),
         components::buttons::makeButtonGroup("COLOUR", {paint, remove_colour, transparency}, this),
     });
+
+    // Hover: the name in bold and a very short description. Set before the
+    // labels are removed below.
+    const auto describe = [](QToolButton* button, const QString& description) {
+        button->setToolTip(QStringLiteral("<b>%1</b><br>%2").arg(button->text(), description));
+    };
+    describe(hide_selected, "Hide the selected objects.");
+    describe(show_selected, "Show the selected objects.");
+    describe(show_all, "Show all the hidden objects.");
+    describe(invert_selection, "Swap the visible and hidden objects.");
+    describe(select_in_view, "Select all the visible objects.");
+    describe(restore_view, "Reset colours, hidden models and hidden objects.");
+    describe(categories, "Show or hide IFC categories.");
+    describe(selection_to_box, "Replace the box with the selection.");
+    describe(add_to_box, "Add the selection to the box.");
+    describe(remove_from_box, "Remove the selection from the box.");
+    describe(isolate_box, "Show only the objects of the box.");
+    describe(hide_box, "Hide the objects of the box.");
+    describe(box_storage, "Save the box to a slot, or isolate a slot.");
+    describe(paint, "Colour the selected objects.");
+    describe(remove_colour, "Remove the colour of the selected objects.");
+    describe(transparency, "Set the opacity of the selected objects.");
+    describe(fit_view, "Frame the whole model.");
+    describe(perpendicular_view, "Arm the view perpendicular to a surface.");
+    describe(section_mode, "Add a section plane.");
+    describe(modify_section, "Remove, hide or suspend the section.");
+
+    // Icon only: the name and description are in the hover tooltip.
+    for (int index = 0; index < row->count(); ++index) {
+        if (QWidget* group = row->itemAt(index)->widget()) {
+            for (QToolButton* button : group->findChildren<QToolButton*>()) {
+                button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+                button->setText(QString());
+            }
+        }
+    }
 }
 
 QWidget* MainWindow::buildInspectRibbonPage() {
@@ -617,7 +583,6 @@ void MainWindow::setupRibbon() {
 
     ribbon_tabs_ = new components::TabBar(shell);
     ribbon_tabs_->addTab("Home");
-    ribbon_tabs_->addTab("Navigate");
     ribbon_tabs_->addTab("Inspect");
     ribbon_tabs_->addTab("Panels");
     ribbon_tabs_->setCurrentIndex(0);
@@ -629,8 +594,8 @@ void MainWindow::setupRibbon() {
     band_layout->setSpacing(0);
 
     ribbon_pages_ = new QStackedWidget(ribbon_band);
-    ribbon_pages_->addWidget(buildHomeRibbonPage());
-    ribbon_pages_->addWidget(buildNavigateRibbonPage());
+    // Home: no ribbon content, the band is hidden on this tab.
+    ribbon_pages_->addWidget(new QWidget(ribbon_pages_));
     ribbon_pages_->addWidget(buildInspectRibbonPage());
     ribbon_pages_->addWidget(buildPanelsRibbonPage());
 
@@ -648,21 +613,31 @@ void MainWindow::setupRibbon() {
                                                          action_pipeline_, generic_panel);
     generic_panel->setSearchBar(search_bar);
     populateGenericTopPanel(generic_panel);
-    shell_layout->addWidget(generic_panel);
     // TI05: one specific top panel per tab, switched with the ribbon.
     // Empty until a feature registers its content.
     auto* specific_panel = new components::SpecificTopPanel(shell);
     specific_panel->addTab(QStringLiteral("Home"));
-    specific_panel->addTab(QStringLiteral("Navigate"));
     specific_panel->addTab(QStringLiteral("Inspect"));
     specific_panel->addTab(QStringLiteral("Panels"));
     connect(ribbon_tabs_, &components::TabBar::currentChanged,
             specific_panel, &components::SpecificTopPanel::setCurrentIndex);
-    shell_layout->addWidget(specific_panel);
+    // Order below the tabs: the tab ribbon, the specific panel, then the
+    // generic panel (Selection, Categories, Section, Box, Zoom, Colour).
     shell_layout->addWidget(ribbon_band);
+    shell_layout->addWidget(specific_panel);
+    // Thin grey line between the two ribbons.
+    auto* ribbon_separator = new QFrame(shell);
+    ribbon_separator->setFixedHeight(1);
+    ribbon_separator->setStyleSheet(QStringLiteral("background-color: #B4B4B4;"));
+    shell_layout->addWidget(ribbon_separator);
+    shell_layout->addWidget(generic_panel);
 
     connect(ribbon_tabs_, &components::TabBar::currentChanged,
             ribbon_pages_, &QStackedWidget::setCurrentIndex);
+    // The ribbon band is empty on Home: hide it there.
+    connect(ribbon_tabs_, &components::TabBar::currentChanged, ribbon_band,
+            [ribbon_band](int index) { ribbon_band->setVisible(index != 0); });
+    ribbon_band->setVisible(false); // Home is the first tab, shown at start-up
 
     setMenuWidget(shell);
 }
@@ -708,8 +683,9 @@ void MainWindow::setupPanels() {
     addDockWidget(Qt::RightDockWidgetArea, clash_panel_);
     addDockWidget(Qt::RightDockWidgetArea, issues_panel_);
     addDockWidget(Qt::BottomDockWidgetArea, table_panel_);
-    addDockWidget(Qt::BottomDockWidgetArea, tables_panel_);
-    tabifyDockWidget(table_panel_, tables_panel_);
+    // Tables: on the left, tabbed with Models, and shown at start-up.
+    addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
+    tabifyDockWidget(models_panel_, tables_panel_);
 
     tabifyDockWidget(properties_panel_, layers_panel_);
     tabifyDockWidget(layers_panel_, stored_views_panel_);
@@ -725,7 +701,7 @@ void MainWindow::setupPanels() {
     search_panel_->hide();
     filters_panel_->hide();
     table_panel_->hide();
-    tables_panel_->hide();
+    tables_panel_->raise();
     audit_panel_->hide();
     clash_panel_->hide();
     issues_panel_->hide();
@@ -952,8 +928,8 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     const bool is_viewport = watched == viewport_widget_->viewport();
     if (is_viewport && event->type() == QEvent::MouseButtonPress) {
         auto* mouse = static_cast<QMouseEvent*>(event);
-        if (mouse->button() == Qt::RightButton && perpendicular_mode_) {
-            // TI02 Perpendicular View: the first right click retrieves
+        if (mouse->button() == Qt::LeftButton && perpendicular_mode_) {
+            // TI02 Perpendicular View: the first left click retrieves
             // the surface normal, frames the view against it, and the
             // tool deactivates — cursor restored.
             const float dpr = viewport_widget_->viewport()->dpr();

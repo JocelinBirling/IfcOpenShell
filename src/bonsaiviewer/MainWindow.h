@@ -90,8 +90,6 @@ private:
     // TI02: viewport-level interactions the shell owns — the Perpendicular
     // View right click and the section gizmo right-click delete menu.
     bool eventFilter(QObject* watched, QEvent* event) override;
-    QWidget* buildHomeRibbonPage();
-    QWidget* buildNavigateRibbonPage();
     QWidget* buildInspectRibbonPage();
     QWidget* buildPanelsRibbonPage();
     void updateWindowTitle();
