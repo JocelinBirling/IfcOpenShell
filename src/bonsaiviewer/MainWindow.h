@@ -40,6 +40,8 @@ namespace bonsaiviewer::modules::models { class ModelsPanel; }
 namespace bonsaiviewer::modules::models { class ModelsPanelView; }
 namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanel; }
 namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanelView; }
+namespace bonsaiviewer::modules::unified_tree { class UnifiedTreePanel; }
+namespace bonsaiviewer::modules::unified_tree { class UnifiedTreeView; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
@@ -175,6 +177,9 @@ private:
     // TI12: the Ifc Class Tree, tabbed with the Spatial Hierarchy.
     bonsaiviewer::components::Panel* class_tree_panel_ = nullptr;
     QTreeWidget* class_tree_widget_ = nullptr;
+    // BonsaiViewer13: the Unified Tree (interpreted), tabbed with the Spatial Hierarchy.
+    bonsaiviewer::modules::unified_tree::UnifiedTreePanel* unified_tree_panel_ = nullptr;
+    bonsaiviewer::modules::unified_tree::UnifiedTreeView* unified_tree_view_ = nullptr;
     QDockWidget* audit_panel_ = nullptr;
     QDockWidget* clash_panel_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;

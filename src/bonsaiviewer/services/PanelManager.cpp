@@ -98,10 +98,22 @@ void PanelManager::buildWindowMenu(QMenu* menu) {
     for (const auto& [id, panel] : panels_) {
         QAction* action = menu->addAction(panel.title);
         action->setCheckable(true);
+        action->setData(id);
         action->setChecked(isPanelVisible(id));
+        // The check mark is the wanted state: it follows the click, not a toggle
+        // of a state that may have changed since the menu was built.
         QObject::connect(action, &QAction::triggered, menu,
-                         [this, id]() { togglePanel(id); });
+                         [this, id](bool checked) { setPanelVisible(id, checked); });
     }
+    // Panels are also shown / hidden elsewhere (workspaces, Panels ribbon,
+    // close button): the check marks are refreshed each time the menu opens.
+    QObject::disconnect(menu, &QMenu::aboutToShow, this, nullptr);
+    QObject::connect(menu, &QMenu::aboutToShow, this, [this, menu]() {
+        for (QAction* action : menu->actions()) {
+            const QString id = action->data().toString();
+            if (!id.isEmpty()) action->setChecked(isPanelVisible(id));
+        }
+    });
 }
 
 QString PanelManager::addTab(const QString& name) {
@@ -149,14 +161,11 @@ void PanelManager::switchTab(const QString& tab_id) {
     if (tabs_.find(tab_id) == tabs_.end()) return;
     if (tab_id == current_tab_) return;
     saveCurrentTabState();
-    // The first tab opened at start-up keeps the panels the shell already
-    // placed; the shell then applies that tab's default layout (TI21).
-    const bool had_previous = !current_tab_.isEmpty();
     current_tab_ = tab_id;
     const Tab& tab = tabs_[tab_id];
     if (tab.has_layout) {
         main_window_->restoreState(tab.layout);
-    } else if (had_previous) {
+    } else {
         // A fresh tab starts with only the central 3D view (TI21).
         hideAllPanels();
     }

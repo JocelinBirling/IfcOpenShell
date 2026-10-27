@@ -362,6 +362,27 @@ public:
     bool computeObjectAabb(uint32_t object_id,
                            Eigen::Vector3f& mn, Eigen::Vector3f& mx) const;
 
+    // World AABB of every object of one model, in a single pass over its
+    // instances (computeObjectAabb walks every instance of every model per
+    // call). `out` maps object_id -> (min, max). BonsaiViewer13.
+    void collectModelObjectAabbs(
+        uint32_t session_model_id,
+        std::unordered_map<uint32_t, std::pair<Eigen::Vector3f, Eigen::Vector3f>>& out) const;
+
+    // FederatedFalseOrigin · ModelTransformation · CoordinateOperation of a
+    // model: maps the model's coordinates (metres) to world. False when the
+    // model is unknown. BonsaiViewer13.
+    bool modelToWorld(uint32_t session_model_id, Eigen::Matrix4d& out) const;
+
+    // World triangles of the given objects of one model, projected on the XY
+    // plane: 6 floats (x0 y0 x1 y1 x2 y2) per triangle, triangles with no area
+    // in plan dropped. Read from the CPU mesh shadow: an object whose meshes
+    // are not resident is absent from `out`. BonsaiViewer13.
+    void collectModelObjectTrianglesXY(
+        uint32_t session_model_id,
+        const std::unordered_set<uint32_t>& object_ids,
+        std::unordered_map<uint32_t, std::vector<float>>& out) const;
+
     // Sum of mesh-local volumes (m³) of every instance whose object_id
     // is in `object_ids`. Each instance is scaled by |det(placement_3x3)|
     // to pick up mapped-item scale/mirror; signed-tetrahedra absolute

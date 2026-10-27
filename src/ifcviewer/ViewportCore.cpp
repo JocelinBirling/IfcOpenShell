@@ -810,6 +810,58 @@ bool ViewportCore::computeObjectAabb(uint32_t object_id,
     return true;
 }
 
+void ViewportCore::collectModelObjectAabbs(
+    uint32_t session_model_id,
+    std::unordered_map<uint32_t, std::pair<Eigen::Vector3f, Eigen::Vector3f>>& out) const {
+    const auto it = models_gpu_.find(session_model_id);
+    if (it == models_gpu_.end()) return;
+    for (const auto& inst : it->second.instances) {
+        const Eigen::Vector3f mn(inst.world_aabb_min[0], inst.world_aabb_min[1], inst.world_aabb_min[2]);
+        const Eigen::Vector3f mx(inst.world_aabb_max[0], inst.world_aabb_max[1], inst.world_aabb_max[2]);
+        auto [entry, inserted] = out.try_emplace(inst.object_id, mn, mx);
+        if (!inserted) {
+            entry->second.first = entry->second.first.cwiseMin(mn);
+            entry->second.second = entry->second.second.cwiseMax(mx);
+        }
+    }
+}
+
+void ViewportCore::collectModelObjectTrianglesXY(
+    uint32_t session_model_id,
+    const std::unordered_set<uint32_t>& object_ids,
+    std::unordered_map<uint32_t, std::vector<float>>& out) const {
+    const auto it = models_gpu_.find(session_model_id);
+    if (it == models_gpu_.end()) return;
+    const ModelGpuData& m = it->second;
+    for (const auto& inst : m.instances) {
+        if (object_ids.count(inst.object_id) == 0) continue;
+        if (inst.mesh_id >= m.mesh_triangles_cache.size()) continue;
+        const auto& tris = m.mesh_triangles_cache[inst.mesh_id];
+        if (tris.indices.empty()) continue;
+        const float* M = inst.transform;  // column-major, mesh-local -> world
+        auto& dst = out[inst.object_id];
+        float xy[6];
+        for (std::size_t t = 0; t + 2 < tris.indices.size(); t += 3) {
+            for (int corner = 0; corner < 3; ++corner) {
+                const float* p = &tris.positions[3 * std::size_t(tris.indices[t + corner])];
+                xy[2 * corner]     = M[0] * p[0] + M[4] * p[1] + M[8] * p[2] + M[12];
+                xy[2 * corner + 1] = M[1] * p[0] + M[5] * p[1] + M[9] * p[2] + M[13];
+            }
+            const float area2 = (xy[2] - xy[0]) * (xy[5] - xy[1]) - (xy[4] - xy[0]) * (xy[3] - xy[1]);
+            if (std::fabs(area2) < 1e-6f) continue;  // vertical face: a segment in plan
+            dst.insert(dst.end(), xy, xy + 6);
+        }
+    }
+}
+
+bool ViewportCore::modelToWorld(uint32_t session_model_id, Eigen::Matrix4d& out) const {
+    const auto it = models_gpu_.find(session_model_id);
+    if (it == models_gpu_.end()) return false;
+    out = federated_false_origin_meters_ * it->second.model_transformation_meters
+        * it->second.coordinate_operation_meters;
+    return true;
+}
+
 // |det| of the 3×3 linear part of a column-major double[16] placement
 // matrix. Picks up uniform scale + mirror so a 2× clone of a 1m³ mesh
 // reports 8m³. Used by the volume readout below.

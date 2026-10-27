@@ -68,6 +68,8 @@
 #include "services/FilterStore.h"
 #include "services/TreePanelFramework.h"
 #include "modules/class_tree/ClassTreeDataSource.h"
+#include "modules/unified_tree/Panel.h"
+#include "modules/unified_tree/View.h"
 #include <QTreeWidget>
 #include "services/IdsBridge.h"
 #include "services/PropertyCatalog.h"
@@ -804,6 +806,10 @@ void MainWindow::setupPanels() {
     // TI12: the Ifc Class Tree is tabbed with the Spatial Hierarchy, shown at start-up.
     addDockWidget(Qt::LeftDockWidgetArea, class_tree_panel_);
     tabifyDockWidget(spatial_panel_, class_tree_panel_);
+    // BonsaiViewer13: the Unified Tree, an extra tab beside the classic trees.
+    unified_tree_panel_ = new modules::unified_tree::UnifiedTreePanel(this);
+    addDockWidget(Qt::LeftDockWidgetArea, unified_tree_panel_);
+    tabifyDockWidget(spatial_panel_, unified_tree_panel_);
     spatial_panel_->raise();
 
     addDockWidget(Qt::RightDockWidgetArea, properties_panel_);
@@ -1016,6 +1022,10 @@ void MainWindow::setupLoader() {
         }
         class_tree_data->onSelectionChanged(keys);
     });
+    // BonsaiViewer13: the Unified Tree view (Settings, Run, interactions).
+    unified_tree_view_ = new modules::unified_tree::UnifiedTreeView(
+        unified_tree_panel_, *session_state_, *viewport_widget_->viewport(),
+        *selection_service_, *action_pipeline_, this);
     connect(tables_view_, &modules::table::TablesView::openRequested,
             table_view_, &modules::table::TablePanelView::openTable);
     connect(tables_view_, &modules::table::TablesView::newTableRequested,
@@ -1160,6 +1170,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Spatial"), spatial_panel_);
     panel_manager_->adoptPanel(QStringLiteral("classtree"),
                                QStringLiteral("Ifc Class Tree"), class_tree_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("unifiedtree"),
+                               QStringLiteral("Unified Tree"), unified_tree_panel_);
     panel_manager_->adoptPanel(QStringLiteral("layers"),
                                QStringLiteral("Layers"), layers_panel_);
     panel_manager_->adoptPanel(QStringLiteral("properties"),

@@ -473,6 +473,22 @@ public:
     // this lazily on modelGeometryReady. Returns false when the model
     // is unknown or has no instances.
     uint32_t modelObjectIdBase(uint32_t session_model_id) const;
+    // BonsaiViewer13 (Unified Tree): every object AABB of a model in one
+    // pass, and the model -> world matrix. See ViewportCore.
+    void collectModelObjectAabbs(
+        uint32_t session_model_id,
+        std::unordered_map<uint32_t, std::pair<Eigen::Vector3f, Eigen::Vector3f>>& out) const {
+        core_.collectModelObjectAabbs(session_model_id, out);
+    }
+    bool modelToWorld(uint32_t session_model_id, Eigen::Matrix4d& out) const {
+        return core_.modelToWorld(session_model_id, out);
+    }
+    void collectModelObjectTrianglesXY(
+        uint32_t session_model_id,
+        const std::unordered_set<uint32_t>& object_ids,
+        std::unordered_map<uint32_t, std::vector<float>>& out) const {
+        core_.collectModelObjectTrianglesXY(session_model_id, object_ids, out);
+    }
     bool firstGeometryPointWorldM(uint32_t session_model_id,
                                   Eigen::Vector3d& out) const;
 

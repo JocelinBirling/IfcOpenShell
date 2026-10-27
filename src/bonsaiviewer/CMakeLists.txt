@@ -144,6 +144,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/UndoStack.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ShortcutStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ShortcutStore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/UnifiedTreeBuilder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/UnifiedTreeBuilder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActionPipeline.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActionPipeline.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CameraService.cpp
@@ -201,6 +203,10 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/class_tree/ClassTreeDataSource.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/class_tree/ClassTreeDataSource.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/View.cpp
