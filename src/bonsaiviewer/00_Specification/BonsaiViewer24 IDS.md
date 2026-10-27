@@ -82,3 +82,7 @@ Same methods as BonsaiViewer06, matching the IDS restrictions:
 - Attribute, classification, material and partOf facets (to add after the first version).
 - Report format (CSV, HTML, BCF link).
 - The facet guides and the developer guide of the IDS manual were not reviewed in detail for this spec. To check before implementation.
+
+
+
+@Todo How to ship the project if it use IfcTester in python, with a IfcTester 

@@ -38,6 +38,8 @@ This part must contain the viewer's graphical customisation options.
 - **Window** — Window: enables or disables the viewer panels.
 It must contains every panel that can be added to the tabs. 
 Each button will be a toggle button, to display or hide the panel in the current tabs. 
+- The check mark shows whether the panel is displayed **in the current tab** (workspace). It is refreshed each time the menu opens, so it follows the tab changes, the workspace defaults and the panels closed with their own button.
+- Checking an item displays the panel in the current tab; unchecking hides it. The other tabs keep their own layout.
 
 
 

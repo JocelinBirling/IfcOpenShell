@@ -180,3 +180,7 @@ Estimate: 600 to 900 lines in 3 to 4 commits, with a comparison against IfcTeste
 - Colour and visibility are separate: impose a colour without imposing visible elements, and impose a set of visible elements. To validate.
 - Auto-completion in the Property fields is validated by a click, not applied on its own when a filter opens.
 - Performance step B: C++ selection engine (see Performance).
+
+
+
+@TODO, Always acivate filter, to color element everytime.
