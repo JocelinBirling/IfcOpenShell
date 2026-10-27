@@ -89,4 +89,3 @@ After the view plane is moved, the function deactivates and the cursor returns t
 
 ## Open Subject
 
-- Color the whole model from the Models panel.

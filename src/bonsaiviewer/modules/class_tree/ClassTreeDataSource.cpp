@@ -63,12 +63,11 @@ ClassTreeDataSource::ClassTreeDataSource(bonsaiviewer::SessionState& session,
                                          QObject* parent)
     : TreeDataSource(parent), session_(session), selection_(selection), actions_(actions)
 {
-    // A model event rebuilds that model's classes only.
+    // A model event rebuilds that model's classes only. The classes come from
+    // the element registry (.ifcview element table, or the stream), filled
+    // before modelGeometryReady; the later IFC data source adds nothing here,
+    // so modelDataSourceReady does not trigger a second rebuild.
     connect(&session_, &bonsaiviewer::SessionState::modelGeometryReady, this, [this](uint32_t id) {
-        rebuildModel(id);
-        emit nodesChanged();
-    });
-    connect(&session_, &bonsaiviewer::SessionState::modelDataSourceReady, this, [this](uint32_t id) {
         rebuildModel(id);
         emit nodesChanged();
     });

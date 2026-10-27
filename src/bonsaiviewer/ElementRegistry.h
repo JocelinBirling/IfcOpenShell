@@ -61,9 +61,13 @@ private:
                                 std::vector<ElementTableRecord> elements,
                                 std::string string_table);
     void onStreamedElementsReady(uint32_t session_model_id, std::vector<ElementInfo> elements);
+    void store(BasicElementInfo info);
 
     SceneLoader* loader_ = nullptr;
     std::unordered_map<uint32_t, BasicElementInfo> elements_;
+    // session_model_id -> its object ids, so per-model queries do not scan
+    // the elements of every open model.
+    std::unordered_map<uint32_t, std::vector<uint32_t>> ids_by_model_;
 };
 
 } // namespace bonsaiviewer

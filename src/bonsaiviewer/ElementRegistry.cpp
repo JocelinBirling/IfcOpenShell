@@ -41,27 +41,35 @@ void ElementRegistry::bindLoader(SceneLoader* loader) {
 
 void ElementRegistry::clear() {
     elements_.clear();
+    ids_by_model_.clear();
 }
 
 void ElementRegistry::removeModel(uint32_t session_model_id) {
-    for (auto it = elements_.begin(); it != elements_.end();) {
-        if (it->second.session_model_id == session_model_id) {
-            it = elements_.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    const auto ids = ids_by_model_.find(session_model_id);
+    if (ids == ids_by_model_.end()) return;
+    for (const uint32_t object_id : ids->second) elements_.erase(object_id);
+    ids_by_model_.erase(ids);
 }
 
 std::vector<BasicElementInfo> ElementRegistry::basicElementInfoForModel(uint32_t session_model_id) const {
     std::vector<BasicElementInfo> result;
-    result.reserve(elements_.size());
-    for (const auto& [object_id, info] : elements_) {
-        (void)object_id;
-        if (info.session_model_id != session_model_id) continue;
-        result.push_back(info);
+    const auto ids = ids_by_model_.find(session_model_id);
+    if (ids == ids_by_model_.end()) return result;
+    result.reserve(ids->second.size());
+    for (const uint32_t object_id : ids->second) {
+        const auto it = elements_.find(object_id);
+        if (it != elements_.end()) result.push_back(it->second);
     }
     return result;
+}
+
+void ElementRegistry::store(BasicElementInfo info) {
+    const uint32_t object_id = info.object_id;
+    const uint32_t session_model_id = info.session_model_id;
+    const auto [it, inserted] = elements_.insert_or_assign(object_id, std::move(info));
+    (void)it;
+    // A re-sent element keeps its single entry in the per-model list.
+    if (inserted) ids_by_model_[session_model_id].push_back(object_id);
 }
 
 std::optional<BasicElementInfo> ElementRegistry::findBasicElementInfo(uint32_t object_id) const {
@@ -104,7 +112,7 @@ void ElementRegistry::onIfcViewElementsReady(uint32_t /*session_model_id*/,
         info.guid = string_from_table(packed_element.guid_offset, packed_element.guid_length);
         info.name = string_from_table(packed_element.name_offset, packed_element.name_length);
         info.type = string_from_table(packed_element.type_offset, packed_element.type_length);
-        elements_[info.object_id] = info;
+        store(std::move(info));
     }
 }
 
@@ -117,7 +125,7 @@ void ElementRegistry::onStreamedElementsReady(uint32_t /*session_model_id*/, std
         info.guid = QString::fromStdString(element.guid);
         info.name = QString::fromStdString(element.name);
         info.type = QString::fromStdString(element.type);
-        elements_[info.object_id] = info;
+        store(std::move(info));
     }
 }
 
