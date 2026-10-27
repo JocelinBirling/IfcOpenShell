@@ -23,6 +23,7 @@
 
 #include "Types.h"
 
+#include <QList>
 #include <QObject>
 #include <QPoint>
 #include <QString>
@@ -63,7 +64,28 @@ public:
     void setTableView(table::TablePanelView* table_view) { table_view_ = table_view; }
 
 private:
+    // The entity shown in the panel: a model entity (session_model_id +
+    // ifc_id), and the object id when it comes from the viewport selection.
+    struct Shown {
+        std::uint32_t session_model_id = 0;
+        int ifc_id = 0;
+        std::uint32_t object_id = 0;
+    };
+
+    // A viewport selection: shows the object and empties the Back history.
     void refresh(uint32_t object_id);
+    // Shows an entity of a model (with or without geometry), keeping the
+    // current one in the Back history (BonsaiViewer14).
+    void open(std::uint32_t session_model_id, int ifc_id);
+    void goBack();
+    void render();
+    QString modelName(std::uint32_t session_model_id) const;
+    // Right click on a Relationships row: Isolate the related elements.
+    void showRelationshipMenu(int row, const QPoint& pos);
+    // The object ids (with geometry) reached through a Relationships row:
+    // the whole model, the occurrences of a type, the content of a spatial
+    // element, or the members of a group.
+    std::vector<std::uint32_t> relatedObjectIds(const RelationshipRow& row) const;
     void showValueMenu(const QString& pset, const QString& property, const QString& value, const QPoint& pos);
     void showNameMenu(const QString& pset, const QString& property, const QPoint& pos);
     // Every element of the scope (all the loaded models, or the box) with its
@@ -82,6 +104,9 @@ private:
     bonsaiviewer::services::SelectionService& selection_;
     bonsaiviewer::services::EntitySetStore& box_;
     table::TablePanelView* table_view_ = nullptr;
+    Shown shown_;
+    QList<Shown> history_;
+    QList<RelationshipRow> relationships_;  // as rendered, for the link clicks
 };
 
 } // namespace bonsaiviewer::modules::properties

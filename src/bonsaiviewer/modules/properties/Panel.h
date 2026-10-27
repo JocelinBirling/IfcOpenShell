@@ -47,6 +47,12 @@ signals:
     void propertyNameContextRequested(const QString& pset, const QString& property, const QPoint& global_pos);
     void propertyValueContextRequested(const QString& pset, const QString& property, const QString& value,
                                        const QPoint& global_pos);
+    // BonsaiViewer14: left click on a link of the Relationships section (row
+    // index in PropertiesPanelState::relationships), and the Back button.
+    void relationshipActivated(int row);
+    // Right click on a Relationships row (key or value).
+    void relationshipContextRequested(int row, const QPoint& global_pos);
+    void backRequested();
 
 private:
     PropertyContextHandler contextHandler();

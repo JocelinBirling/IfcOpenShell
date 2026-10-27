@@ -195,6 +195,83 @@ express::base get_container_s(const express::base& element) {
     return {};
 }
 
+// The groups the element is directly assigned to (HasAssignments →
+// IfcRelAssignsToGroup.RelatingGroup).
+template <typename Schema>
+std::vector<express::base> get_groups_s(const express::base& element) {
+    std::vector<express::base> groups;
+    const auto object = element.template as<typename Schema::IfcObjectDefinition>();
+    if (!object) {
+        return groups;
+    }
+    for (const auto& relationship : object.HasAssignments()) {
+        if (const auto to_group = relationship.template as<typename Schema::IfcRelAssignsToGroup>()) {
+            if (const express::base group = to_group.RelatingGroup()) {
+                groups.push_back(group);
+            }
+        }
+    }
+    return groups;
+}
+
+// The occurrences typed by a type object (Types on IFC4+, ObjectTypeOf on
+// IFC2X3 → IfcRelDefinesByType.RelatedObjects).
+template <typename Schema>
+std::vector<express::base> get_type_occurrences_s(const express::base& element) {
+    std::vector<express::base> occurrences;
+    const auto type = element.template as<typename Schema::IfcTypeObject>();
+    if (!type) {
+        return occurrences;
+    }
+    if constexpr (is_ifc4_or_higher<Schema>::value) {
+        for (const auto& relationship : type.Types()) {
+            for (const auto& related : relationship.RelatedObjects()) {
+                occurrences.push_back(related);
+            }
+        }
+    } else {
+        for (const auto& relationship : type.ObjectTypeOf()) {
+            for (const auto& related : relationship.RelatedObjects()) {
+                occurrences.push_back(related);
+            }
+        }
+    }
+    return occurrences;
+}
+
+// The members of a group (IsGroupedBy → IfcRelAssignsToGroup.RelatedObjects).
+template <typename Schema>
+std::vector<express::base> get_group_members_s(const express::base& element) {
+    std::vector<express::base> members;
+    const auto group = element.template as<typename Schema::IfcGroup>();
+    if (!group) {
+        return members;
+    }
+    for (const auto& relationship : group.IsGroupedBy()) {
+        for (const auto& related : relationship.RelatedObjects()) {
+            members.push_back(related);
+        }
+    }
+    return members;
+}
+
+// The parts of an element (IsDecomposedBy → RelatedObjects): aggregated parts
+// on IFC4+, aggregated and nested parts on IFC2X3.
+template <typename Schema>
+std::vector<express::base> get_parts_s(const express::base& element) {
+    std::vector<express::base> parts;
+    const auto object = element.template as<typename Schema::IfcObjectDefinition>();
+    if (!object) {
+        return parts;
+    }
+    for (const auto& relationship : object.IsDecomposedBy()) {
+        for (const auto& related : relationship.RelatedObjects()) {
+            parts.push_back(related);
+        }
+    }
+    return parts;
+}
+
 } // namespace
 
 std::optional<std::string> get_predefined_type(const express::base& element) {
@@ -252,6 +329,34 @@ express::base get_container(const express::base& element) {
 #define IFCOPENSHELL_DISPATCH(Schema, Identifier) \
     if (name == Identifier) {                     \
         return get_container_s<Schema>(element);  \
+    }
+    IFCOPENSHELL_HELPER_FOR_EACH_SCHEMA(IFCOPENSHELL_DISPATCH)
+#undef IFCOPENSHELL_DISPATCH
+    unsupported_schema(name);
+}
+
+express::base get_aggregate(const express::base& element) {
+    if (!element) {
+        return {};
+    }
+    const std::string name = schema_name(element);
+#define IFCOPENSHELL_DISPATCH(Schema, Identifier) \
+    if (name == Identifier) {                     \
+        return get_aggregate_s<Schema>(element);  \
+    }
+    IFCOPENSHELL_HELPER_FOR_EACH_SCHEMA(IFCOPENSHELL_DISPATCH)
+#undef IFCOPENSHELL_DISPATCH
+    unsupported_schema(name);
+}
+
+std::vector<express::base> get_groups(const express::base& element) {
+    if (!element) {
+        return {};
+    }
+    const std::string name = schema_name(element);
+#define IFCOPENSHELL_DISPATCH(Schema, Identifier) \
+    if (name == Identifier) {                     \
+        return get_groups_s<Schema>(element);     \
     }
     IFCOPENSHELL_HELPER_FOR_EACH_SCHEMA(IFCOPENSHELL_DISPATCH)
 #undef IFCOPENSHELL_DISPATCH
@@ -333,4 +438,46 @@ std::optional<std::string> get_string_attribute(const express::base& element,
     default:
         return std::nullopt;
     }
+}
+
+std::vector<express::base> get_type_occurrences(const express::base& element) {
+    if (!element) {
+        return {};
+    }
+    const std::string name = schema_name(element);
+#define IFCOPENSHELL_DISPATCH(Schema, Identifier) \
+    if (name == Identifier) {                     \
+        return get_type_occurrences_s<Schema>(element); \
+    }
+    IFCOPENSHELL_HELPER_FOR_EACH_SCHEMA(IFCOPENSHELL_DISPATCH)
+#undef IFCOPENSHELL_DISPATCH
+    unsupported_schema(name);
+}
+
+std::vector<express::base> get_group_members(const express::base& element) {
+    if (!element) {
+        return {};
+    }
+    const std::string name = schema_name(element);
+#define IFCOPENSHELL_DISPATCH(Schema, Identifier) \
+    if (name == Identifier) {                     \
+        return get_group_members_s<Schema>(element); \
+    }
+    IFCOPENSHELL_HELPER_FOR_EACH_SCHEMA(IFCOPENSHELL_DISPATCH)
+#undef IFCOPENSHELL_DISPATCH
+    unsupported_schema(name);
+}
+
+std::vector<express::base> get_parts(const express::base& element) {
+    if (!element) {
+        return {};
+    }
+    const std::string name = schema_name(element);
+#define IFCOPENSHELL_DISPATCH(Schema, Identifier) \
+    if (name == Identifier) {                     \
+        return get_parts_s<Schema>(element); \
+    }
+    IFCOPENSHELL_HELPER_FOR_EACH_SCHEMA(IFCOPENSHELL_DISPATCH)
+#undef IFCOPENSHELL_DISPATCH
+    unsupported_schema(name);
 }

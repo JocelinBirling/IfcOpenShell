@@ -72,8 +72,14 @@ SpatialHierarchyPanel::SpatialHierarchyPanel(QWidget* parent)
     addBodyWidget(section);
 
     connect(tree_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int column) {
-        if (!item || column != 2) return;
-        emit visibilityToggleRequested(itemPath(item));
+        if (!item) return;
+        if (column == 2) {
+            emit visibilityToggleRequested(itemPath(item));
+            return;
+        }
+        if (const int ifc_id = item->data(0, Qt::UserRole).toInt(); ifc_id != 0) {
+            emit entityClicked(ifc_id);
+        }
     });
 
     // Right-click: recursive expand/collapse of a subtree or the whole tree.
@@ -123,6 +129,7 @@ void SpatialHierarchyPanel::setNodes(const QList<TreeNode>& nodes) {
 
 void SpatialHierarchyPanel::addNode(QTreeWidgetItem* parent, const TreeNode& node) {
     auto* item = new QTreeWidgetItem(parent, {node.name, node.detail, ""});
+    item->setData(0, Qt::UserRole, node.ifc_id);
     item->setData(2, Qt::UserRole, node.visible);
     item->setSizeHint(0, QSize(0, 24));
     item->setIcon(0, components::icons::makeSvgIcon(iconPath(node.kind)));

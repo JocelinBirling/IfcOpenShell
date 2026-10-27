@@ -49,6 +49,27 @@ express::base get_type(const express::base& element);
 // voided-element branches of the Python original are not ported.)
 express::base get_container(const express::base& element);
 
+// Mirrors ifcopenshell.util.element.get_aggregate: the aggregate parent, via
+// Decomposes → IfcRelAggregates.RelatingObject. Empty when not aggregated.
+express::base get_aggregate(const express::base& element);
+
+// The groups (IfcGroup and subtypes: IfcSystem, IfcZone, IfcAsset, …) the
+// element is directly assigned to, via HasAssignments → IfcRelAssignsToGroup.
+// Parent groups of those groups are not included.
+std::vector<express::base> get_groups(const express::base& element);
+
+// The occurrences of a type object (IfcRelDefinesByType.RelatedObjects).
+// Empty for anything that is not an IfcTypeObject.
+std::vector<express::base> get_type_occurrences(const express::base& element);
+
+// The direct members of a group (IfcRelAssignsToGroup.RelatedObjects).
+// Empty for anything that is not an IfcGroup.
+std::vector<express::base> get_group_members(const express::base& element);
+
+// The direct parts of an element (IsDecomposedBy → RelatedObjects), spatial
+// or not: aggregated parts, plus nested parts on IFC2X3.
+std::vector<express::base> get_parts(const express::base& element);
+
 // Safely read a string- or enum-valued attribute by name (Python's getattr).
 // std::nullopt when the attribute is absent for this entity's type or IFC null.
 std::optional<std::string> get_string_attribute(const express::base& element,

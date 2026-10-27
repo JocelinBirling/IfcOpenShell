@@ -35,6 +35,8 @@ struct KeyValueTableRow {
     QString trailing_icon_path;
     QString trailing_icon_object_name;
     int key_minimum_width = 0;
+    // The trailing icon is a button; a click emits linkActivated(row).
+    bool link = false;
 };
 
 class KeyValueTable : public QWidget {
@@ -45,6 +47,8 @@ public:
 signals:
     // Right click on the key (on_value = false) or the value (true) of a row.
     void contextMenuRequested(int row, bool on_value, const QPoint& global_pos);
+    // Click on the trailing icon of a link row.
+    void linkActivated(int row);
 };
 
 } // namespace bonsaiviewer::components

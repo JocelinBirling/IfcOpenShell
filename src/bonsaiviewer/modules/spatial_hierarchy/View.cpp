@@ -133,6 +133,12 @@ SpatialHierarchyPanelView::SpatialHierarchyPanelView(SpatialHierarchyPanel* widg
         }
     });
 
+    connect(widget_, &SpatialHierarchyPanel::entityClicked, this, [this](int ifc_id) {
+        const QString active_model_id = session_state_->activeModelId();
+        if (active_model_id.isEmpty()) return;
+        session_state_->inspectEntity(session_state_->sessionModelIdForModelId(active_model_id), ifc_id);
+    });
+
     // The tree reflects the active model only. Rebuild when it changes, when its
     // geometry or its live IFC data source arrives (the .ifc for a .ifcview hit
     // loads asynchronously), and on project open/reset.

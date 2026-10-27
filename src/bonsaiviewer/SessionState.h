@@ -94,7 +94,15 @@ public:
     void notifyProjectSaved(const QString& path);
     void notifyProjectReset();
 
+    // BonsaiViewer14: show an IFC entity (with or without geometry) in the
+    // Properties panel, without touching the selection or the view. Used by
+    // the Spatial Hierarchy (and later the System Hierarchy).
+    void inspectEntity(uint32_t session_model_id, int ifc_id) {
+        emit entityInspectRequested(session_model_id, ifc_id);
+    }
+
 signals:
+    void entityInspectRequested(uint32_t session_model_id, int ifc_id);
     void projectOpened(const QString& path);
     void projectSaved(const QString& path);
     void projectReset();

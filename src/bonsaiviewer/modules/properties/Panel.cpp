@@ -86,15 +86,19 @@ QWidget* makeAttributeList(const QList<bonsaiviewer::modules::properties::KeyVal
     return new bonsaiviewer::components::KeyValueTable(table_rows, parent);
 }
 
-QWidget* makeRelationshipList(const QList<bonsaiviewer::modules::properties::RelationshipRow>& rows, QWidget* parent = nullptr) {
+// Rows with an ifc_id are links (with the pointer icon); the others are plain.
+bonsaiviewer::components::KeyValueTable* makeRelationshipList(
+    const QList<bonsaiviewer::modules::properties::RelationshipRow>& rows, QWidget* parent = nullptr) {
     QList<bonsaiviewer::components::KeyValueTableRow> table_rows;
     for (const auto& row_data : rows) {
+        const bool link = row_data.ifc_id != 0;
         table_rows.append({row_data.key,
                            row_data.value,
                            "keyValueValueLabel",
-                           ":/icons/cursor-pointer.svg",
+                           link ? ":/icons/cursor-pointer.svg" : "",
                            "keyValueTrailingIconLabel",
-                           72});
+                           72,
+                           link});
     }
     return new bonsaiviewer::components::KeyValueTable(table_rows, parent);
 }
@@ -125,12 +129,28 @@ QWidget* makeFilterWrapper(QLineEdit** field_out, QWidget* parent = nullptr) {
     return wrapper;
 }
 
-QFrame* makeEntityBox(const bonsaiviewer::modules::properties::EntitySummary& entity, QWidget* parent = nullptr) {
+// The entity header. With can_go_back, a Back button leads the row; it is
+// returned through back_out (nullptr otherwise).
+QFrame* makeEntityBox(const bonsaiviewer::modules::properties::EntitySummary& entity,
+                      bool can_go_back,
+                      QToolButton** back_out,
+                      QWidget* parent = nullptr) {
     auto* entity_box = new QFrame(parent);
     entity_box->setObjectName("entityClassBox");
     auto* entity_layout = new QHBoxLayout(entity_box);
     entity_layout->setContentsMargins(10, 8, 10, 8);
     entity_layout->setSpacing(10);
+
+    *back_out = nullptr;
+    if (can_go_back) {
+        auto* back = new QToolButton(entity_box);
+        back->setObjectName("propertiesBackButton");
+        back->setText(QStringLiteral("\u2190"));
+        back->setToolTip("Back");
+        back->setAutoRaise(true);
+        entity_layout->addWidget(back, 0, Qt::AlignVCenter);
+        *back_out = back;
+    }
 
     auto* entity_icon = new QLabel(entity_box);
     entity_icon->setPixmap(bonsaiviewer::components::icons::makeSvgPixmap(":/icons/cube-dots.svg", QSize(28, 28)));
@@ -172,14 +192,23 @@ void PropertiesPanel::render(const PropertiesPanelState& state) {
     quantities_container_ = nullptr;
 
     auto* entity_section = new components::Section("", components::SectionHeaderMode::Hidden, this);
-    entity_section->addBodyWidget(makeEntityBox(state.entity, this));
+    QToolButton* back = nullptr;
+    entity_section->addBodyWidget(makeEntityBox(state.entity, state.can_go_back, &back, this));
+    if (back) {
+        connect(back, &QToolButton::clicked, this, &PropertiesPanel::backRequested);
+    }
 
     auto* attributes_section = new components::Section("Attributes", components::SectionHeaderMode::Visible, this);
     attributes_section->addBodyWidget(makeAttributeList(state.attributes, this));
     attributes_section->setExpanded(attributes_expanded_);
 
     auto* relationships_section = new components::Section("Relationships", components::SectionHeaderMode::Visible, this);
-    relationships_section->addBodyWidget(makeRelationshipList(state.relationships, this));
+    auto* relationship_list = makeRelationshipList(state.relationships, this);
+    connect(relationship_list, &components::KeyValueTable::linkActivated,
+            this, &PropertiesPanel::relationshipActivated);
+    connect(relationship_list, &components::KeyValueTable::contextMenuRequested, this,
+            [this](int row, bool, const QPoint& pos) { emit relationshipContextRequested(row, pos); });
+    relationships_section->addBodyWidget(relationship_list);
     relationships_section->setExpanded(relationships_expanded_);
 
     auto* properties_section = new components::Section("Properties", components::SectionHeaderMode::Visible, this);

@@ -40,6 +40,8 @@ public:
 
 signals:
     void visibilityToggleRequested(const NodePath& path);
+    // Click on a node's name: show that spatial element in the Properties panel.
+    void entityClicked(int ifc_id);
 
 protected:
     void showEvent(QShowEvent* event) override;

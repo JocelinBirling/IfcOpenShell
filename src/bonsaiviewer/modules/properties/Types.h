@@ -26,6 +26,7 @@
 #include <QPoint>
 #include <QString>
 
+#include <cstdint>
 #include <functional>
 
 namespace bonsaiviewer::modules::properties {
@@ -35,9 +36,13 @@ struct KeyValueRow {
     QString value;
 };
 
+// A row of the Relationships section. A row with an ifc_id is a link to that
+// entity of the model session_model_id (BonsaiViewer14).
 struct RelationshipRow {
     QString key;
     QString value;
+    std::uint32_t session_model_id = 0;
+    int ifc_id = 0;
 };
 
 struct PropertySet {
@@ -61,6 +66,7 @@ struct PropertiesPanelState {
     QList<RelationshipRow> relationships;
     QList<PropertySet> property_sets;
     QList<PropertySet> quantity_sets;
+    bool can_go_back = false;  // show the Back button
 };
 
 } // namespace bonsaiviewer::modules::properties

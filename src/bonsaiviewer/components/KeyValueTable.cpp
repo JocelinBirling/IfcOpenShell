@@ -24,6 +24,7 @@
 
 #include <QGridLayout>
 #include <QLabel>
+#include <QToolButton>
 
 namespace bonsaiviewer::components {
 
@@ -65,7 +66,18 @@ KeyValueTable::KeyValueTable(const QList<KeyValueTableRow>& rows, QWidget* paren
         layout->addWidget(key, row_index, 0, Qt::AlignLeft | Qt::AlignTop);
         layout->addWidget(value, row_index, 1);
 
-        if (!row_data.trailing_icon_path.isEmpty()) {
+        if (row_data.link && !row_data.trailing_icon_path.isEmpty()) {
+            // Link row: the trailing icon is the button that opens the entity.
+            auto* button = new QToolButton(this);
+            button->setObjectName("keyValueLinkButton");
+            button->setIcon(icons::makeSvgIcon(row_data.trailing_icon_path));
+            button->setIconSize(QSize(14, 14));
+            button->setAutoRaise(true);
+            button->setCursor(Qt::PointingHandCursor);
+            button->setToolTip("Show properties");
+            connect(button, &QToolButton::clicked, this, [this, row_index]() { emit linkActivated(row_index); });
+            layout->addWidget(button, row_index, 2, Qt::AlignRight | Qt::AlignTop);
+        } else if (!row_data.trailing_icon_path.isEmpty()) {
             auto* icon = new QLabel(this);
             icon->setObjectName(row_data.trailing_icon_object_name.isEmpty()
                                     ? "keyValueTrailingIconLabel"

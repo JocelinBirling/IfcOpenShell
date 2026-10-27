@@ -29,10 +29,14 @@
 #include "../../services/EntitySetStore.h"
 #include "../../services/IfcDataAccess.h"
 #include "../../services/SelectionService.h"
+#include "../../../ifcviewer/Federation.h"
+#include "../../../ifcviewer/SceneLoader.h"
+#include "../../../ifcparse/file.h"
+#include "../../../ifcparse/schema.h"
 #include "../table/Table.h"
 #include "../table/View.h"
 
-#include "element.h"  // helpers: get_predefined_type, get_type, get_container
+#include "element.h"  // helpers: get_predefined_type, get_type, get_container, get_aggregate, get_groups, get_parts, …
 #include "pset.h"     // helpers: get_psets
 
 #include <QClipboard>
@@ -43,6 +47,7 @@
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace bonsaiviewer::modules::properties {
@@ -111,6 +116,102 @@ QColor groupColour(int index) {
     return QColor::fromHsv((index * 137) % 360, 170, 235);
 }
 
+// Name of a related entity, or its GlobalId when the Name is empty.
+QString relatedLabel(const express::base& related) {
+    if (auto name = get_string_attribute(related, "Name"); name && !name->empty()) {
+        return QString::fromStdString(*name);
+    }
+    if (auto guid = get_string_attribute(related, "GlobalId"); guid && !guid->empty()) {
+        return QString::fromStdString(*guid);
+    }
+    return QString::fromStdString(related.declaration().name());
+}
+
+bool isSpatial(const express::base& element) {
+    const auto& declaration = element.declaration();
+    return declaration.is("IfcSpatialStructureElement") || declaration.is("IfcSpatialElement");
+}
+
+// Relationships rows (BonsaiViewer14), after the Model row: Type, the spatial
+// chain Site / Building / Storey / Space, then System / Zone / Asset / Group.
+// Every row links to its entity.
+void appendRelationships(const express::base& entity, std::uint32_t session_model_id,
+                         QList<RelationshipRow>& rows) {
+    auto link = [&](const QString& key, const express::base& related) {
+        rows.append({key, relatedLabel(related), session_model_id, static_cast<int>(related.id())});
+    };
+    try {
+        if (express::base type = get_type(entity); type && type.id() != entity.id()) {
+            link("Type", type);
+        }
+
+        // Walk up from the container (from the aggregate parent for a spatial
+        // element), keeping the nearest level of each kind.
+        express::base site, building, storey, space;
+        express::base level = isSpatial(entity) ? get_aggregate(entity) : get_container(entity);
+        for (int guard = 0; level && guard < 64; ++guard) {
+            const auto& declaration = level.declaration();
+            if (declaration.is("IfcSite")) { if (!site) site = level; }
+            else if (declaration.is("IfcBuilding")) { if (!building) building = level; }
+            else if (declaration.is("IfcBuildingStorey")) { if (!storey) storey = level; }
+            else if (declaration.is("IfcSpace")) { if (!space) space = level; }
+            level = get_aggregate(level);
+        }
+        if (site) link("Site", site);
+        if (building) link("Building", building);
+        if (storey) link("Storey", storey);
+        if (space) link("Space", space);
+
+        // Groups the entity is directly assigned to, by family.
+        QList<RelationshipRow> systems, zones, assets, groups;
+        for (const express::base& group : get_groups(entity)) {
+            const auto& declaration = group.declaration();
+            const RelationshipRow row{QString(), relatedLabel(group), session_model_id,
+                                      static_cast<int>(group.id())};
+            if (declaration.is("IfcZone")) zones.append(row);
+            else if (declaration.is("IfcSystem")) systems.append(row);
+            else if (declaration.is("IfcAsset")) assets.append(row);
+            else groups.append(row);
+        }
+        for (auto [key, family] : {std::pair{QStringLiteral("System"), &systems},
+                                   std::pair{QStringLiteral("Zone"), &zones},
+                                   std::pair{QStringLiteral("Asset"), &assets},
+                                   std::pair{QStringLiteral("Group"), &groups}}) {
+            for (RelationshipRow row : *family) {
+                row.key = key;
+                rows.append(row);
+            }
+        }
+    } catch (const std::exception&) {
+        // Unsupported schema: keep the rows found so far.
+    }
+}
+
+// An element and its parts, recursively (geometry often sits on the parts).
+void collectWithParts(const express::base& element, std::unordered_set<int>& ids) {
+    if (!element || !ids.insert(static_cast<int>(element.id())).second) return;
+    for (const express::base& part : get_parts(element)) collectWithParts(part, ids);
+}
+
+// A spatial element, what it contains, and its spatial children, recursively.
+void collectSpatial(const express::base& element, std::unordered_set<int>& ids) {
+    if (!element || !ids.insert(static_cast<int>(element.id())).second) return;
+    for (const express::base& contained : get_contained_elements(element)) collectWithParts(contained, ids);
+    for (const express::base& part : get_parts(element)) {
+        if (isSpatial(part)) collectSpatial(part, ids);
+        else collectWithParts(part, ids);
+    }
+}
+
+// The members of a group; a member that is a group adds its own members.
+void collectGroup(const express::base& group, std::unordered_set<int>& ids, std::unordered_set<int>& seen) {
+    if (!group || !seen.insert(static_cast<int>(group.id())).second) return;
+    for (const express::base& member : get_group_members(group)) {
+        if (member.declaration().is("IfcGroup")) collectGroup(member, ids, seen);
+        else collectWithParts(member, ids);
+    }
+}
+
 } // namespace
 
 PropertiesPanelView::PropertiesPanelView(PropertiesPanel* widget,
@@ -141,6 +242,21 @@ PropertiesPanelView::PropertiesPanelView(PropertiesPanel* widget,
     connect(session_state_, &bonsaiviewer::SessionState::projectOpened, this, [this](const QString&) {
         refresh(0);
     });
+    connect(session_state_, &bonsaiviewer::SessionState::entityInspectRequested, this,
+            [this](uint32_t session_model_id, int ifc_id) { open(session_model_id, ifc_id); });
+    // The IFC source opens after the geometry: re-read the shown entity.
+    connect(session_state_, &bonsaiviewer::SessionState::modelDataSourceReady, this,
+            [this](uint32_t session_model_id) {
+                if (shown_.session_model_id == session_model_id) render();
+            });
+    connect(widget_, &PropertiesPanel::relationshipActivated, this, [this](int row) {
+        if (row < 0 || row >= relationships_.size()) return;
+        const RelationshipRow& target = relationships_.at(row);
+        open(target.session_model_id, target.ifc_id);
+    });
+    connect(widget_, &PropertiesPanel::backRequested, this, [this]() { goBack(); });
+    connect(widget_, &PropertiesPanel::relationshipContextRequested, this,
+            [this](int row, const QPoint& pos) { showRelationshipMenu(row, pos); });
     connect(widget_, &PropertiesPanel::propertyValueContextRequested, this,
             [this](const QString& pset, const QString& property, const QString& value, const QPoint& pos) {
                 showValueMenu(pset, property, value, pos);
@@ -153,48 +269,83 @@ PropertiesPanelView::PropertiesPanelView(PropertiesPanel* widget,
 }
 
 void PropertiesPanelView::refresh(uint32_t object_id) {
-    auto* registry = session_state_->elementRegistry();
+    history_.clear();
+    shown_ = {};
+    if (object_id != 0) {
+        auto* registry = session_state_->elementRegistry();
+        if (auto info = registry ? registry->findBasicElementInfo(object_id) : std::nullopt) {
+            shown_ = {info->session_model_id, info->ifc_id, object_id};
+        }
+    }
+    render();
+}
 
+void PropertiesPanelView::open(std::uint32_t session_model_id, int ifc_id) {
+    if (session_model_id == 0 || ifc_id == 0) return;
+    if (shown_.ifc_id != 0) history_.append(shown_);
+    shown_ = {session_model_id, ifc_id, 0};
+    render();
+}
+
+void PropertiesPanelView::goBack() {
+    if (history_.isEmpty()) return;
+    shown_ = history_.takeLast();
+    render();
+}
+
+QString PropertiesPanelView::modelName(std::uint32_t session_model_id) const {
+    const QString model_id = session_state_->modelIdForSessionModelId(session_model_id);
+    if (auto* federation = session_state_->federation()) {
+        if (const auto* model = federation->findById(model_id); model && !model->display_name.isEmpty()) {
+            return model->display_name;
+        }
+    }
+    auto* loader = session_state_->loader();
+    return loader ? loader->displayName(session_model_id) : QString();
+}
+
+void PropertiesPanelView::render() {
     // Empty default: nothing selected → "No item selected" with empty sections.
-    // Real data is filled in below when an object resolves.
     PropertiesPanelState state;
     state.entity = {"No item selected", ""};
+    state.can_go_back = !history_.isEmpty();
 
-    auto entity = registry ? registry->findEntity(object_id)
-                           : std::optional<express::base>{};
+    express::base entity;
+    if (shown_.ifc_id != 0) {
+        auto* loader = session_state_->loader();
+        if (auto* file = loader ? loader->ifcFile(shown_.session_model_id) : nullptr) {
+            try {
+                entity = file->instance_by_id(shown_.ifc_id);
+            } catch (...) {
+                entity = {};
+            }
+        }
+        // The model is known even before the IFC data source is open.
+        const QString model = modelName(shown_.session_model_id);
+        if (!model.isEmpty()) state.relationships.append({"Model", model, shown_.session_model_id, 0});
+    }
+
     if (entity) {
-        state.entity.entity_class = QString::fromStdString(entity->declaration().name());
-        if (auto predefined_type = get_predefined_type(*entity)) {
+        state.entity.entity_class = QString::fromStdString(entity.declaration().name());
+        if (auto predefined_type = get_predefined_type(entity)) {
             state.entity.predefined_type = QString::fromStdString(*predefined_type);
         }
         // Direct EXPRESS attributes, primitives only — lists / entity refs omitted.
-        for (const auto& [name, value] : get_scalar_attributes(*entity)) {
+        for (const auto& [name, value] : get_scalar_attributes(entity)) {
             state.attributes.append({QString::fromStdString(name), QString::fromStdString(value)});
         }
-        // Relationships: the construction type and the spatial container, shown
-        // by name (falling back to the entity class when unnamed).
-        auto display_name = [](const express::base& related) -> QString {
-            if (auto name = get_string_attribute(related, "Name"); name && !name->empty()) {
-                return QString::fromStdString(*name);
-            }
-            return QString::fromStdString(related.declaration().name());
-        };
-        if (express::base type = get_type(*entity)) {
-            state.relationships.append({"Type", display_name(type)});
-        }
-        if (express::base container = get_container(*entity)) {
-            state.relationships.append({"Container", display_name(container)});
-        }
+        appendRelationships(entity, shown_.session_model_id, state.relationships);
         // Property sets (Pset_*) and quantity sets (Qto_* / BaseQuantities),
         // occurrence values inheriting from the type.
-        state.property_sets = toPropertySets(get_psets(*entity, /*psets_only=*/true, /*qtos_only=*/false));
-        state.quantity_sets = toPropertySets(get_psets(*entity, /*psets_only=*/false, /*qtos_only=*/true));
-    } else if (registry) {
+        state.property_sets = toPropertySets(get_psets(entity, /*psets_only=*/true, /*qtos_only=*/false));
+        state.quantity_sets = toPropertySets(get_psets(entity, /*psets_only=*/false, /*qtos_only=*/true));
+    } else if (shown_.object_id != 0) {
         // No live IFC source for this object — typical when a pure-geometry
-        // .ifcview was loaded without its .ifc/.rdb sibling.  Fall back
-        // to the basic info cached in the element registry so the panel still
-        // shows class / GlobalId / Name for visible elements.
-        auto info = registry->findBasicElementInfo(object_id);
+        // .ifcview was loaded without its .ifc/.rdb sibling, or before it is
+        // open. Fall back to the basic info cached in the element registry so
+        // the panel still shows class / GlobalId / Name for visible elements.
+        auto* registry = session_state_->elementRegistry();
+        auto info = registry ? registry->findBasicElementInfo(shown_.object_id) : std::nullopt;
         if (info && !info->type.isEmpty()) {
             state.entity.entity_class = info->type;
             // Geometry only — no live IFC entity to read a predefined type from.
@@ -207,7 +358,67 @@ void PropertiesPanelView::refresh(uint32_t object_id) {
             state.attributes.append({"Name", info->name});
         }
     }
+    relationships_ = state.relationships;
     widget_->render(state);
+}
+
+std::vector<std::uint32_t> PropertiesPanelView::relatedObjectIds(const RelationshipRow& row) const {
+    std::vector<std::uint32_t> object_ids;
+    auto* registry = session_state_->elementRegistry();
+    if (registry == nullptr || row.session_model_id == 0) return object_ids;
+    const auto elements = registry->basicElementInfoForModel(row.session_model_id);
+
+    // The Model row: every element of the model.
+    if (row.ifc_id == 0) {
+        object_ids.reserve(elements.size());
+        for (const auto& info : elements) object_ids.push_back(info.object_id);
+        return object_ids;
+    }
+
+    auto* loader = session_state_->loader();
+    ifcopenshell::file* file = loader ? loader->ifcFile(row.session_model_id) : nullptr;
+    if (file == nullptr) return object_ids;
+    std::unordered_set<int> ifc_ids;
+    try {
+        const express::base related = file->instance_by_id(row.ifc_id);
+        const auto& declaration = related.declaration();
+        if (declaration.is("IfcTypeObject")) {
+            for (const express::base& occurrence : get_type_occurrences(related)) {
+                collectWithParts(occurrence, ifc_ids);
+            }
+        } else if (declaration.is("IfcGroup")) {
+            std::unordered_set<int> seen;
+            collectGroup(related, ifc_ids, seen);
+        } else if (isSpatial(related)) {
+            collectSpatial(related, ifc_ids);
+        } else {
+            collectWithParts(related, ifc_ids);
+        }
+    } catch (...) {
+        return object_ids;
+    }
+    // Keep the ids that have geometry (the element registry).
+    for (const auto& info : elements) {
+        if (ifc_ids.count(info.ifc_id) != 0) object_ids.push_back(info.object_id);
+    }
+    return object_ids;
+}
+
+void PropertiesPanelView::showRelationshipMenu(int row, const QPoint& pos) {
+    if (row < 0 || row >= relationships_.size()) return;
+    const RelationshipRow target = relationships_.at(row);
+    services::ContextMenuBuilder menu;
+    menu.addItem("isolate_related",
+                 "Isolate",
+                 [this, target] {
+                     const auto ids = relatedObjectIds(target);
+                     if (ids.empty()) {
+                         session_state_->setStatusMessage("Properties", "No element to isolate");
+                         return;
+                     }
+                     actions_.run(ids, services::ActionPipeline::Action::Isolate);
+                 });
+    menu.exec(pos, widget_);
 }
 
 std::vector<std::pair<std::uint32_t, std::optional<QString>>> PropertiesPanelView::scan(
