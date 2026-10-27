@@ -48,4 +48,3 @@ Each button will be a toggle button, to display or hide the panel in the current
 - **About** — Help > About: shows the licence information.
 
 # Open Subject
-Make the window button specific to each tabs.

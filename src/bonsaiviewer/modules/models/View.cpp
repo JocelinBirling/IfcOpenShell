@@ -23,11 +23,14 @@
 #include "FederationItemModel.h"
 #include "Panel.h"
 
+#include "../../ElementRegistry.h"
 #include "../../ViewerSettings.h"
 #include "../../SessionState.h"
+#include "../../services/AppearanceService.h"
 #include "../../../ifcviewer/Federation.h"
 #include "../../../ifcviewer/ViewportWindow.h"
 
+#include <QColorDialog>
 #include <QTimer>
 
 namespace bonsaiviewer::modules::models {
@@ -55,6 +58,28 @@ QList<GroupOption> validMoveTargets(const Federation& federation,
     return out;
 }
 
+void ModelsPanelView::setAppearanceService(bonsaiviewer::services::AppearanceService* service) {
+    appearance_ = service;
+}
+
+void ModelsPanelView::colourModels(const QStringList& model_ids) {
+    if (appearance_ == nullptr || session_state_->elementRegistry() == nullptr) return;
+    const QColor colour = QColorDialog::getColor(Qt::white, widget_, "Colour Model");
+    if (!colour.isValid()) return;
+
+    // Every element of the chosen models, hidden ones included.
+    std::vector<uint32_t> object_ids;
+    for (const QString& model_id : model_ids) {
+        const uint32_t session_model_id = session_state_->sessionModelIdForModelId(model_id);
+        if (session_model_id == 0) continue;
+        for (const auto& info : session_state_->elementRegistry()->basicElementInfoForModel(session_model_id)) {
+            object_ids.push_back(info.object_id);
+        }
+    }
+    if (object_ids.empty()) return;
+    appearance_->setColour(object_ids, colour, bonsaiviewer::services::AppearanceService::Layer::UserPaint);
+}
+
 ModelsPanelView::ModelsPanelView(ModelsPanel* widget,
                                  bonsaiviewer::SessionState* session_state,
                                  ViewportWindow* viewport,
@@ -66,6 +91,7 @@ ModelsPanelView::ModelsPanelView(ModelsPanel* widget,
     , model_(new FederationItemModel(session_state->federation(), this))
 {
     widget_->setModel(model_);
+    widget_->setColourModelsHandler([this](const QStringList& model_ids) { colourModels(model_ids); });
 
     // Coarse signals: full rebuild + re-style. The granular Federation
     // signals are handled inside FederationItemModel and don't reach here.

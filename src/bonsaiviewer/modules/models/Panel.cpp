@@ -352,6 +352,14 @@ ModelsPanel::ModelsPanel(bonsaiviewer::SessionState* session_state,
                 commands::viewModels(*session_state_, *viewport_, selected_model_ids);
             });
 
+            // BonsaiViewer02 / 29: colour every element of the selected models.
+            QAction* colour_models = menu.addAction(
+                components::icons::makeSvgIcon(":/icons/paint-bucket.svg"),
+                selected_model_ids.size() > 1 ? "Colour Selected Models" : "Colour Model");
+            connect(colour_models, &QAction::triggered, this, [this, selected_model_ids]() {
+                if (colour_models_handler_) colour_models_handler_(selected_model_ids);
+            });
+
             QAction* rename = menu.addAction(
                 components::icons::makeSvgIcon(":/icons/cube.svg"), "Rename");
             connect(rename, &QAction::triggered, this, [this, id]() {

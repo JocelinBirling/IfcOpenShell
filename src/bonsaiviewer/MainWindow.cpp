@@ -859,6 +859,8 @@ void MainWindow::setupLoader() {
         *session_state_->elementRegistry());
     appearance_service_ = new bonsaiviewer::services::AppearanceService(
         *session_state_, *viewport_widget_->viewport(), this);
+    // BonsaiViewer02 / 29: the Models panel's "Colour Model" needs the colour service.
+    if (models_view_ != nullptr) models_view_->setAppearanceService(appearance_service_);
     camera_service_ = new bonsaiviewer::services::CameraService(
         *session_state_, *viewport_widget_->viewport(), this);
     picking_service_ = new bonsaiviewer::services::PickingService(

@@ -26,6 +26,7 @@
 #include "../../components/Panel.h"
 
 #include <QList>
+#include <QStringList>
 #include <QUrl>
 
 #include <functional>
@@ -57,12 +58,19 @@ public:
     // (BonsaiViewer22). Internal drags, which move models, are unchanged.
     void setFilesDropHandler(std::function<void(const QList<QUrl>&)> handler);
 
+    // Receives the model ids chosen in the "Colour Model" menu action
+    // (BonsaiViewer02 / 29): colour every element of those models.
+    void setColourModelsHandler(std::function<void(const QStringList&)> handler) {
+        colour_models_handler_ = std::move(handler);
+    }
+
 private:
     void applyColumnLayout();
 
     bonsaiviewer::SessionState* session_state_ = nullptr;
     ViewportWindow* viewport_ = nullptr;
     QTreeView* tree_ = nullptr;
+    std::function<void(const QStringList&)> colour_models_handler_;
     FederationItemModel* model_ = nullptr;
 };
 

@@ -24,10 +24,12 @@
 #include "Types.h"
 
 #include <QObject>
+#include <QStringList>
 
 class Federation;
 class ViewportWindow;
 namespace bonsaiviewer { class SessionState; }
+namespace bonsaiviewer::services { class AppearanceService; }
 
 namespace bonsaiviewer::modules::models {
 
@@ -59,13 +61,19 @@ public:
                              ViewportWindow* viewport,
                              QObject* parent = nullptr);
 
+    // Set once the colour service exists (created after the panels).
+    void setAppearanceService(bonsaiviewer::services::AppearanceService* service);
+
 private:
     void refreshResidency();
+    // Colours every element of the given models with a colour picked by the user.
+    void colourModels(const QStringList& model_ids);
 
     ModelsPanel* widget_ = nullptr;
     bonsaiviewer::SessionState* session_state_ = nullptr;
     ViewportWindow* viewport_ = nullptr;
     FederationItemModel* model_ = nullptr;
+    bonsaiviewer::services::AppearanceService* appearance_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::models
