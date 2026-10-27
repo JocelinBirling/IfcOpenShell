@@ -1,5 +1,9 @@
 # BonsaiViewer15 - Back Ground
 
+
+
+#DO NOT IMPLEMENT, A GOOD IDEA ?
+
 ## Introduction
 The idea is to give the user a choice of viewport backgrounds:
 - Solid colour

@@ -180,9 +180,6 @@ The first version is strictly arithmetic: `+ - * /` with parentheses and referen
 
 ## Open Subject
 
-Phase 2 is done (parts A, B and C), pending the build and tests.
-
-- Texts are separated by a semicolon and a space ("; "), never by a comma.
 
 Phase 3:
 

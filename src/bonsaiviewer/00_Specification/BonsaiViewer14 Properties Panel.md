@@ -72,3 +72,8 @@ We want to deduce some data from the models, unified the Level Rattachement, or 
 
 If can construct some data automaticaly, but it's not actual data from the IFC.
 We should present that data somewhere and make the possibility to export.
+
+
+## Open Subject
+Relation to display
+Unified Data to display
