@@ -11,14 +11,14 @@ The selections follow the IDS standard (buildingSMART) and are evaluated by IfcT
 
 ### Filters Panel
 
-The panel « Filters » is opened with the **Filters** button of the QUERY group of the ribbon; it is tabbed next to « Search ».
+The panel "Filters" is opened with the **Filters** button of the QUERY group of the ribbon; it is tabbed next to "Search".
 
 It holds a **toolbar** and a **tree**:
 
 - Toolbar: **Filter** (add a filter), **Folder** (add a folder), **Run**, **Run on the Box**, **Import**, **Export**. New filters and folders go into the selected folder (or the folder of the selected filter). Run and Run on the Box need a selected filter.
-- Tree: folders, folders of folders, filters. While the tree is empty, a hint explains how to create or import a filter.
+- Tree: folders, sub-folders, filters. While the tree is empty, a hint explains how to create or import a filter.
 - Drag and drop moves filters and folders in the tree.
-- Double-clicking a filter runs it on the whole model.
+- Double-clicking a filter runs it on all the loaded models.
 
 Context menus (right click):
 
@@ -40,10 +40,12 @@ The selections are evaluated by **IfcTester**, run in a Python process. The Pyth
 
 ### Run a filter
 
-- **Run** evaluates the filter on the **active model**.
-- **Run on the Box** restricts the candidates to the elements of the current box. An empty box is refused with a message.
+- **Run** evaluates the filter on **all the loaded models**, by default. The layers run on each model in turn.
+- **Run on the Box** restricts the candidates to the elements of the current box, in every loaded model. An empty box is refused with a message.
 - A filter always starts from an **empty view**: everything is hidden right before its first action, then its actions build the view. A filter that only adds the walls to the view shows the walls only. If a selection fails, the view is left untouched.
-- The status bar shows the progress and a summary (layers run, elements affected); an error opens a message.
+- **Isolate in the view** replaces what is visible, but keeps the elements already shown by the previous models of the same run.
+- A run never creates an undo point (CTRL+Z, see BonsaiViewer02).
+- The status bar shows the progress and a summary (layers run, models, elements affected); an error opens a message.
 
 ### Filter Creation Window
 
@@ -59,19 +61,19 @@ The window adapts to the screen size.
 
 The **Type** of the selection is either:
 
-- **IDS specification** — the layer selects its own elements, or
-- **AND — same elements as the layer above** — the layer has no selection of its own. Not available on the first layer.
+- **IDS specification**: the layer selects its own elements, or
+- **AND, same elements as the layer above**: the layer has no selection of its own. Not available on the first layer.
 
-An IDS specification is a list of **facets**; an element is selected when it passes **all** of them. « + Add » adds a facet, « Remove » removes the selected one. Selecting a facet shows its configuration page.
+An IDS specification is a list of **facets**; an element is selected when it passes **all** of them. "+ Add" adds a facet, "Remove" removes the selected one. Selecting a facet shows its configuration page.
 
 - **Entity facet** (exactly one per specification):
   - the **IFC class**: one class, a list of classes or a pattern on the class name;
   - **Include the subtypes** (checked by default): IDS matches the class exactly, so without it IfcWall does not select IfcWallStandardCase;
-  - the page shows the classes covered and how many elements of the active model they hold;
+  - the page shows the classes covered and how many elements of the loaded models they hold;
   - the **PredefinedType**, proposed from the schema for the chosen classes;
   - a class unknown to the schema, or a pattern matching no class, only shows a warning.
 - **Property facet** (any number):
-  - the **property set** and the **property** (Psets and quantity sets), proposed from the elements of the entity in the active model;
+  - the **property set** and the **property** (Psets and quantity sets), proposed from the elements of the entity in the loaded models;
   - **Browse properties…** opens a picker laid out like the Properties panel (one group per property set, element counts, a few values, a search field); double-clicking a property fills both fields;
   - the **cardinality**: required (must exist and match), optional (must match when present), prohibited (must not exist);
   - the **value**, with the values found in the model and their element counts.
@@ -85,7 +87,7 @@ Every IDS field uses the same editor. A row of buttons switches the method; what
 |--------|---------|-----|
 | Value (default) | one exact value; empty = no constraint | simple value |
 | List | one of several values: checkable values from the model (with element counts) or the schema, free additions, paste of a list (lines, `;` or `,`), All / None | xs:enumeration |
-| Pattern | « starts with », « contains », « ends with », or a free regular expression; the generated pattern and a test field are shown | xs:pattern |
+| Pattern | "starts with", "contains", "ends with", or a free regular expression; the generated pattern and a test field are shown | xs:pattern |
 | Range | a minimum and/or a maximum, each included or not; decimal or integer | xs:min/maxInclusive, xs:min/maxExclusive |
 | Length | a number of characters: minimum and/or maximum (equal = exact) | xs:length, xs:minLength, xs:maxLength |
 
@@ -104,7 +106,7 @@ Below the selection, the preview counts the elements the layer selects in the ac
 
 #### Actions of a layer
 
-A layer has zero, one or several actions, applied in order. Selecting an action shows its parameters (colour, transparency, property).
+A layer has zero, one or several actions, applied in order. Selecting an action shows its parameters (colour, transparency, property). Several actions can be added to the same layer, so "isolate" and "colour" can be done in one layer.
 
 #### Saving
 
@@ -122,6 +124,7 @@ The layers run from top to bottom, with a pending set of elements:
 - The **actions of a layer** apply to the pending set: the union of the selections accumulated since the last action, plus the layer's own specification if it has one. After the actions run, the pending set is emptied and a new group starts.
 - An **AND** layer placed right after an action layer applies its actions to the same elements as the layer above: several actions on the same selection, without duplicating the specification.
 - A group whose specifications match nothing stays empty: its actions do not fall back on the previous group.
+- The whole list of layers runs once per loaded model; the pending set is separate for each model.
 
 Example (the view starts empty):
 
@@ -129,23 +132,19 @@ Example (the view starts empty):
 |---|-----------|---------|--------|
 | 1 | specification: IfcWall | — | pending = all walls |
 | 2 | specification: IfcSlab | — | pending = walls + slabs (union) |
-| 3 | AND | Add to the view and colour red | walls + slabs are shown and painted red; the group closes |
+| 3 | AND | Apply Color (red) | walls + slabs are shown and painted red; the group closes |
 | 4 | AND | Change the transparency 50 % | same elements as layer 3 become half transparent |
 | 5 | specification: IfcSpace | Add to the view | a new group starts: the spaces are shown too |
 
 ### Actions
 
-- **Isolate in the view** — replaces what is visible: with several Isolate layers, the last one wins.
+- **Isolate in the view**: replaces what is visible, but keeps the elements shown by the previous models of the run. Inside one model, with several Isolate layers, the last one wins.
 - **Add to the view**
 - **Remove from the view**
-- **Add to the view and colour** — adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
-- **Change the transparency** — a percentage of transparency: 0 % = opaque, 100 % = invisible (30 % leaves the elements 70 % opaque).
-- **Add to the view and automatic colour by property** — adds the elements to the view, then each distinct value of the chosen property gets its own colour (elements without the property are grey). The property can be chosen with **Browse properties…**, on all the products of the active model.
-- **Activate/Deactivate** One it's activate, it will always be displayed. The color and the selection of object cannot be modifier. 
-
-
-
-
+- **Apply Color**: adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
+- **Change the transparency**: a percentage of transparency: 0 % = opaque, 100 % = invisible (30 % leaves the elements 70 % opaque). A base transparency of the model (for example windows) is kept.
+- **Automatic Color**: adds the elements to the view, then each distinct value of the chosen property gets its own colour (elements without the property are grey). The property can be chosen with **Browse properties…**, on all the loaded models.
+- **Activate/Deactivate**: once activated, the elements are always displayed. Their colour and selection cannot be modified.
 
 ### Filter file format
 
@@ -165,20 +164,5 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 - Property set / property completion on all the loaded models (BonsaiViewer26 Property Selection).
 - Reusable named lists of values.
 - Importing third-party IDS files as filter layers (BonsaiViewer24 IDS).
-- TODO : Filter need to apply to every model loaded
-
-
-I need to change the way filter work. 
-How to impose a set of color without imposing a set of visible elemnts ?
-How to impose a set of visible elements ?
-
-
-I need to switch back to: 
-Color
-Automatic Color
-We can add several action to each Layout, so it's easy to do Add Object and Color Object. 
-
-If the object has a base transparency, it need to be keep. For windows.
-
-
-When you open a filter, it complete some text. Auto-completion need to be clicked not done alone.
+- Colour and visibility are separate: impose a colour without imposing visible elements, and impose a set of visible elements. To validate.
+- Auto-completion in the Property fields is validated by a click, not applied on its own when a filter opens.
