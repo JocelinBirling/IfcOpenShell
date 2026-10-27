@@ -127,6 +127,7 @@ void AppearanceService::applyToViewport(const std::vector<std::uint32_t>& ids) {
     std::vector<std::uint32_t> opaque;
     std::vector<std::uint32_t> opaque_rgb;
     std::vector<std::uint32_t> alpha_only;
+    std::vector<std::uint32_t> alpha_only_rgba;
     for (std::uint32_t id : ids) {
         auto it = states_.find(id);
         if (it == states_.end()) {
@@ -141,7 +142,9 @@ void AppearanceService::applyToViewport(const std::vector<std::uint32_t>& ids) {
         if (effective < 0 && state.opacity == 255) {
             restore.push_back(id);
         } else if (effective < 0) {
+            // No colour layer: the baked RGB stays, the alpha byte carries the opacity.
             alpha_only.push_back(id);
+            alpha_only_rgba.push_back(packRgba8(0, 0, 0, state.opacity));
         } else {
             opaque.push_back(id);
             opaque_rgb.push_back(packRgba8(state.layer_rgb8[effective] & 0xFFu,
@@ -162,8 +165,13 @@ void AppearanceService::applyToViewport(const std::vector<std::uint32_t>& ids) {
     for (const auto& [rgba8, object_ids] : by_colour) {
         viewport_.setObjectsColor(object_ids, rgba8);
     }
-    if (!alpha_only.empty()) {
-        viewport_.setObjectsColor(alpha_only, packRgba8(0, 0, 0, 255), kAlphaOnlyFlag);
+    // The alpha byte is the object's own opacity: group by it, as for colours.
+    std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> by_alpha;
+    for (std::size_t i = 0; i < alpha_only.size(); ++i) {
+        by_alpha[alpha_only_rgba[i]].push_back(alpha_only[i]);
+    }
+    for (const auto& [rgba8, object_ids] : by_alpha) {
+        viewport_.setObjectsColor(object_ids, rgba8, kAlphaOnlyFlag);
     }
     emit appearanceChanged(ids);
 }
