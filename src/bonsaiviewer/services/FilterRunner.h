@@ -19,6 +19,7 @@
 #include <QString>
 
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace bonsaiviewer {
@@ -128,6 +129,8 @@ private:
     // finished models; target_shown_ the ones shown by the current model.
     std::vector<uint32_t> kept_ids_;
     std::vector<uint32_t> target_shown_;
+    // EXPRESS id -> object id of the current model, built once per model.
+    std::unordered_map<int, uint32_t> object_id_by_ifc_id_;
     UndoStack* undo_ = nullptr;
 };
 

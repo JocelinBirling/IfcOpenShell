@@ -158,6 +158,19 @@ A library (Export All Filters) is one JSON document with `format` (`bonsaiviewer
 
 The envelope itself is a simple proprietary JSON; only the specifications it contains follow the IDS standard.
 
+### Performance
+
+**Diagnosis (October 2026).** The selection runs in the IfcTester worker (Python), which opens each IFC itself with `ifcopenshell.open`. The worker kept only one model in memory, so a run on several models re-read every file from disk at each run, and the editor preview (active model) evicted the others again. With models of 200 to 475 MB, this reading dominates the run time. The worker also holds a second copy of models the viewer already has open, and tests the facets element by element in Python.
+
+**Step A — done.** The worker keeps every model it opened, up to `IFCTESTER_IPC_CACHE_SIZE` files (environment variable, 8 by default), least recently used dropped first. A file changed on disk is reopened. Cost: the worker memory grows with the number of models. On the viewer side, the EXPRESS id → object id map is built once per model, and Remove from view runs in linear time.
+
+**Step B — to decide after measuring A.** Run the selection in the viewer, in C++, on the IFC file it already has open; the worker would only build and parse the IDS XML. This means re-implementing the facets the editor supports:
+- Entity: exact class or with subtypes, PredefinedType (inherited from the type);
+- Property: property set and property inherited from the type, cardinality required / optional / prohibited;
+- Values: simple, enumeration, XSD pattern, range, length, data type, conversion to SI units like IfcTester.
+
+Estimate: 600 to 900 lines in 3 to 4 commits, with a comparison against IfcTester on real models. Each future facet (attribute, classification, material, part-of) would then need its own C++ implementation.
+
 ## Open Subject
 
 - Attribute, classification, material and part-of facets.
@@ -166,3 +179,4 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 - Importing third-party IDS files as filter layers (BonsaiViewer24 IDS).
 - Colour and visibility are separate: impose a colour without imposing visible elements, and impose a set of visible elements. To validate.
 - Auto-completion in the Property fields is validated by a click, not applied on its own when a filter opens.
+- Performance step B: C++ selection engine (see Performance).

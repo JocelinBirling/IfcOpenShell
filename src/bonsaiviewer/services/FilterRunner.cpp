@@ -25,6 +25,7 @@
 #include <QHash>
 
 #include <algorithm>
+#include <unordered_set>
 
 namespace bonsaiviewer::services {
 
@@ -135,6 +136,13 @@ void FilterRunner::startTarget() {
     // Isolate action of this run.
     kept_ids_.insert(kept_ids_.end(), target_shown_.begin(), target_shown_.end());
     target_shown_.clear();
+    object_id_by_ifc_id_.clear();
+    if (target_index_ < targets_.size()) {
+        const auto elements =
+            session_.elementRegistry()->basicElementInfoForModel(targets_[target_index_].session_model_id);
+        object_id_by_ifc_id_.reserve(elements.size());
+        for (const auto& info : elements) object_id_by_ifc_id_.emplace(info.ifc_id, info.object_id);
+    }
     layer_index_ = 0;
     pending_.clear();
     last_group_.clear();
@@ -216,17 +224,12 @@ void FilterRunner::fail(const QString& error) {
 }
 
 void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>& express_ids) {
-    const uint32_t session_model_id = targets_[target_index_].session_model_id;
-    // EXPRESS ids -> the session's object ids through the element registry.
-    QHash<int, uint32_t> object_id_by_ifc_id;
-    for (const auto& info : session_.elementRegistry()->basicElementInfoForModel(session_model_id)) {
-        object_id_by_ifc_id.insert(info.ifc_id, info.object_id);
-    }
+    // EXPRESS ids -> the session's object ids (map built once per model).
     std::vector<uint32_t> object_ids;
     object_ids.reserve(express_ids.size());
     for (int id : express_ids) {
-        const auto found = object_id_by_ifc_id.find(id);
-        if (found != object_id_by_ifc_id.end()) object_ids.push_back(found.value());
+        const auto found = object_id_by_ifc_id_.find(id);
+        if (found != object_id_by_ifc_id_.end()) object_ids.push_back(found->second);
     }
     // A filter starts from an empty view: everything is hidden right before
     // its first action (not at launch, so a failed selection leaves the
@@ -254,16 +257,15 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
             pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
             target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
             break;
-        case FilterAction::Type::RemoveFromView:
+        case FilterAction::Type::RemoveFromView: {
             pipeline_.run(object_ids, ActionPipeline::Action::RemoveFromView);
+            // Hash set: a linear search per element was quadratic on large sets.
+            const std::unordered_set<uint32_t> removed(object_ids.begin(), object_ids.end());
             target_shown_.erase(std::remove_if(target_shown_.begin(), target_shown_.end(),
-                                               [&object_ids](uint32_t id) {
-                                                   return std::find(object_ids.begin(),
-                                                                    object_ids.end(), id)
-                                                       != object_ids.end();
-                                               }),
+                                               [&removed](uint32_t id) { return removed.count(id) != 0; }),
                                 target_shown_.end());
             break;
+        }
         case FilterAction::Type::Colour:
             // Colour only: the elements are not shown or hidden by this action.
             // They must be added with an Add to the view action to be displayed.

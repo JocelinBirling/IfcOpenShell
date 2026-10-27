@@ -71,6 +71,7 @@ Only the worker's own JSON ever reaches stdout; library output goes to
 stderr.
 """
 
+import collections
 import json
 import os
 import re
@@ -92,9 +93,13 @@ SCHEMAS = ("IFC2X3", "IFC4", "IFC4X3_ADD2")
 CARDINALITIES = ("required", "optional", "prohibited")
 BOUND_KEYS = ("minInclusive", "minExclusive", "maxInclusive", "maxExclusive")
 
-# One open file, reopened when the file changes on disk: opening a large
-# IFC is by far the most expensive part of every request.
-_file_cache = {}
+# Open files, most recently used last, each reopened when it changes on disk:
+# opening a large IFC is by far the most expensive part of every request. A
+# filter runs on every loaded model, so all of them stay open (up to
+# IFCTESTER_IPC_CACHE_SIZE files, 8 by default; the least recently used one is
+# dropped beyond that). See BonsaiViewer06, "Performance".
+_file_cache = collections.OrderedDict()
+_CACHE_SIZE = max(1, int(os.environ.get("IFCTESTER_IPC_CACHE_SIZE", "8")))
 
 
 class UserError(Exception):
@@ -109,10 +114,13 @@ def open_ifc(path):
     mtime = os.path.getmtime(path)
     cached = _file_cache.get(path)
     if cached is not None and cached[0] == mtime:
+        _file_cache.move_to_end(path)
         return cached[1]
+    _file_cache.pop(path, None)  # changed on disk: drop the stale copy first
     ifc_file = ifcopenshell.open(path)
-    _file_cache.clear()  # keep a single model in memory
     _file_cache[path] = (mtime, ifc_file)
+    while len(_file_cache) > _CACHE_SIZE:
+        _file_cache.popitem(last=False)
     return ifc_file
 
 
