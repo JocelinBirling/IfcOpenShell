@@ -45,6 +45,8 @@ namespace bonsaiviewer { class SessionState; }
 
 namespace bonsaiviewer::services {
 
+class UndoStack;
+
 class AppearanceService : public QObject {
     Q_OBJECT
 
@@ -77,22 +79,31 @@ public:
     // Drop every override in every layer and restore the viewport.
     void clearOverrides();
 
-signals:
-    void appearanceChanged(const std::vector<std::uint32_t>& ids);
-
-private:
+    // Undo (BonsaiViewer27): the overrides as they are now, and a way back.
     struct ObjectState {
         bool        layer_set[kLayerCount] = {};
         std::uint32_t layer_rgb8[kLayerCount] = {};
         std::uint8_t opacity = 255;
     };
+    using Snapshot = std::unordered_map<std::uint32_t, ObjectState>;
+    Snapshot snapshot() const { return states_; }
+    void restore(const Snapshot& snapshot);
 
+    // Set by the shell. setColour and setOpacity record a display state
+    // before they change anything (see UndoStack).
+    void setUndoStack(UndoStack* undo) { undo_ = undo; }
+
+signals:
+    void appearanceChanged(const std::vector<std::uint32_t>& ids);
+
+private:
     void applyToViewport(const std::vector<std::uint32_t>& ids);
     void purgeModel(std::uint32_t session_model_id);
 
     bonsaiviewer::SessionState& session_;
     ViewportWindow& viewport_;
     std::unordered_map<std::uint32_t, ObjectState> states_;
+    UndoStack* undo_ = nullptr;
 };
 
 } // namespace bonsaiviewer::services

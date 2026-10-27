@@ -29,6 +29,7 @@ namespace bonsaiviewer::services {
 class ActionPipeline;
 class EntitySetStore;
 class IdsBridge;
+class UndoStack;
 }
 
 // B06 filters — FilterRunner. Walks the layers of a filter document from
@@ -77,6 +78,10 @@ public:
 
     bool isRunning() const { return running_; }
 
+    // Set by the shell. A run suspends the undo stack from its start to its
+    // end, so filters never store an undo point (BonsaiViewer27).
+    void setUndoStack(UndoStack* undo) { undo_ = undo; }
+
     // The IFC file of the active model (empty when none is loaded), and
     // optionally its session model id. Shared with the creation window's
     // live preview.
@@ -123,6 +128,7 @@ private:
     // finished models; target_shown_ the ones shown by the current model.
     std::vector<uint32_t> kept_ids_;
     std::vector<uint32_t> target_shown_;
+    UndoStack* undo_ = nullptr;
 };
 
 } // namespace bonsaiviewer::services

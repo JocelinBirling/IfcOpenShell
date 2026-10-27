@@ -24,6 +24,7 @@
 #include "../ElementRegistry.h"
 #include "../SessionState.h"
 #include "../ifcviewer/ViewportWindow.h"
+#include "UndoStack.h"
 
 #include <unordered_set>
 
@@ -35,6 +36,7 @@ ActiveView::ActiveView(SessionState& session,
     : session_(session), viewport_(viewport), categories_(categories) {}
 
 void ActiveView::isolate(const std::vector<std::uint32_t>& ids) {
+    if (undo_) undo_->record();
     std::unordered_set<std::uint32_t> wanted(ids.begin(), ids.end());
     std::vector<std::uint32_t> complement;
     for (std::uint32_t id : allObjectIds()) {
@@ -49,28 +51,33 @@ void ActiveView::isolate(const std::vector<std::uint32_t>& ids) {
 }
 
 void ActiveView::add(const std::vector<std::uint32_t>& ids) {
+    if (undo_) undo_->record();
     viewport_.setObjectsVisible(ids, true);
     categories_.applyToViewport();
     session_.notifyVisibilityChanged();
 }
 
 void ActiveView::remove(const std::vector<std::uint32_t>& ids) {
+    if (undo_) undo_->record();
     viewport_.setObjectsVisible(ids, false);
     session_.notifyVisibilityChanged();
 }
 
 void ActiveView::showAll() {
+    if (undo_) undo_->record();
     viewport_.showAllElements();
     categories_.applyToViewport();
     session_.notifyVisibilityChanged();
 }
 
 void ActiveView::hideAll() {
+    if (undo_) undo_->record();
     viewport_.hideAllElements();
     session_.notifyVisibilityChanged();
 }
 
 void ActiveView::invert() {
+    if (undo_) undo_->record();
     viewport_.invertElementVisibility();
     categories_.applyToViewport();
     session_.notifyVisibilityChanged();
@@ -88,6 +95,30 @@ std::vector<std::uint32_t> ActiveView::visibleIds() const {
         }
     }
     return ids;
+}
+
+std::vector<std::uint32_t> ActiveView::hiddenIds() const {
+    std::vector<std::uint32_t> ids;
+    for (std::uint32_t id : allObjectIds()) {
+        if (viewport_.isObjectHidden(id)) {
+            ids.push_back(id);
+        }
+    }
+    return ids;
+}
+
+void ActiveView::restoreHidden(const std::vector<std::uint32_t>& hidden) {
+    std::unordered_set<std::uint32_t> wanted(hidden.begin(), hidden.end());
+    std::vector<std::uint32_t> shown;
+    for (std::uint32_t id : allObjectIds()) {
+        if (wanted.find(id) == wanted.end()) {
+            shown.push_back(id);
+        }
+    }
+    viewport_.setObjectsVisible(hidden, false);
+    viewport_.setObjectsVisible(shown, true);
+    categories_.applyToViewport();
+    session_.notifyVisibilityChanged();
 }
 
 std::vector<std::uint32_t> ActiveView::allObjectIds() const {

@@ -23,6 +23,7 @@
 #include "../ElementRegistry.h"
 #include "../SessionState.h"
 #include "../ifcviewer/ViewportWindow.h"
+#include "UndoStack.h"
 
 #include <algorithm>
 
@@ -54,6 +55,7 @@ AppearanceService::AppearanceService(bonsaiviewer::SessionState& session,
 
 void AppearanceService::setColour(const std::vector<std::uint32_t>& ids,
                                   const QColor& colour, Layer layer) {
+    if (undo_) undo_->record();
     setLayerColour(ids, colour, layer);
 }
 
@@ -70,6 +72,7 @@ void AppearanceService::setLayerColour(const std::vector<std::uint32_t>& ids,
 }
 
 void AppearanceService::removeColour(const std::vector<std::uint32_t>& ids) {
+    if (undo_) undo_->record();
     for (std::uint32_t id : ids) {
         auto it = states_.find(id);
         if (it == states_.end()) continue;
@@ -90,11 +93,25 @@ void AppearanceService::clearLayer(Layer layer) {
 }
 
 void AppearanceService::setOpacity(const std::vector<std::uint32_t>& ids, int percent) {
+    if (undo_) undo_->record();
     const std::uint8_t alpha = static_cast<std::uint8_t>(
         std::clamp(percent, 0, 100) * 255 / 100);
     for (std::uint32_t id : ids) {
         states_[id].opacity = alpha;
     }
+    applyToViewport(ids);
+}
+
+void AppearanceService::restore(const Snapshot& snapshot) {
+    // Every object that has an override now, or had one in the snapshot,
+    // must be re-applied to the viewport.
+    std::vector<std::uint32_t> ids;
+    ids.reserve(states_.size() + snapshot.size());
+    for (const auto& [id, state] : states_) ids.push_back(id);
+    for (const auto& [id, state] : snapshot) ids.push_back(id);
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    states_ = snapshot;
     applyToViewport(ids);
 }
 

@@ -29,6 +29,7 @@ namespace bonsaiviewer { class SessionState; }
 
 namespace bonsaiviewer::services {
 class CategoryOverrideFilter;
+class UndoStack;
 }
 
 // B02 — ActiveView (see 00_Technical_Implementation/BonsaiViewerTI00).
@@ -63,6 +64,13 @@ public:
     bool isVisible(std::uint32_t object_id) const;
     std::vector<std::uint32_t> visibleIds() const;
 
+    // Undo (BonsaiViewer27): the hidden set as it is now, and a way back.
+    std::vector<std::uint32_t> hiddenIds() const;
+    void restoreHidden(const std::vector<std::uint32_t>& hidden);
+
+    // Set by the shell. Each mutation above records a display state first.
+    void setUndoStack(UndoStack* undo) { undo_ = undo; }
+
 private:
     // Every element of every open model, per the element registry.
     std::vector<std::uint32_t> allObjectIds() const;
@@ -70,6 +78,7 @@ private:
     SessionState& session_;
     ViewportWindow& viewport_;
     CategoryOverrideFilter& categories_;
+    UndoStack* undo_ = nullptr;
 };
 
 } // namespace bonsaiviewer::services

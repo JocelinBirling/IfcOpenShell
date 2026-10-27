@@ -64,6 +64,7 @@ namespace bonsaiviewer::services { class PropertyIndex; }
 namespace bonsaiviewer::services { class QueryEngine; }
 namespace bonsaiviewer::services { class SectionPlaneManager; }
 namespace bonsaiviewer::services { class SelectionService; }
+namespace bonsaiviewer::services { class UndoStack; }
 namespace bonsaiviewer::modules::filters { class FiltersPanel; }
 namespace bonsaiviewer::modules::filters { class FiltersPanelView; }
 namespace bonsaiviewer::modules::menubar { class MenuBar; }
@@ -140,6 +141,8 @@ private:
     // perpendicular framing, B09 picking, B11 section toggles).
     bonsaiviewer::services::IfcDataAccess* data_access_ = nullptr;
     bonsaiviewer::services::AppearanceService* appearance_service_ = nullptr;
+    // BonsaiViewer27: CTRL+Z over the display state (visibility and colours).
+    bonsaiviewer::services::UndoStack* undo_stack_ = nullptr;
     bonsaiviewer::services::CameraService* camera_service_ = nullptr;
     bonsaiviewer::services::PickingService* picking_service_ = nullptr;
     bonsaiviewer::services::SectionPlaneManager* section_manager_ = nullptr;

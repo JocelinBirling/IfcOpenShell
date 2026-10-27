@@ -140,6 +140,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveView.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/AppearanceService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/AppearanceService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/UndoStack.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/UndoStack.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActionPipeline.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActionPipeline.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/CameraService.cpp

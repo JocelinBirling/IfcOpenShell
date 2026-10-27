@@ -56,6 +56,7 @@
 #include "services/ActionPipeline.h"
 #include "services/AppearanceService.h"
 #include "services/ActiveView.h"
+#include "services/UndoStack.h"
 #include "services/CameraService.h"
 #include "services/CategoryOverrideFilter.h"
 #include "services/ContextMenuBuilder.h"
@@ -147,6 +148,10 @@ void MainWindow::setupChrome() {
         shortcut->setContext(Qt::WindowShortcut);
         connect(shortcut, &QShortcut::activated, this, handler);
     };
+    // BonsaiViewer27: the stack exists only once the services are created.
+    bind_shortcut(QKeySequence::Undo, [this]() {
+        if (undo_stack_ != nullptr) undo_stack_->undo();
+    });
     bind_shortcut(QKeySequence("Ctrl+Shift+L"), [this]() {
         modules::viewport::commands::toggleDistance(*viewport_widget_->viewport());
     });
@@ -886,6 +891,14 @@ void MainWindow::setupLoader() {
     filter_store_ = new bonsaiviewer::services::FilterStore(this);
     filter_runner_ = new bonsaiviewer::services::FilterRunner(
         *session_state_, *ids_bridge_, *action_pipeline_, *entity_set_store_, this);
+    // BonsaiViewer27: CTRL+Z. The display services record their state before
+    // each user action; the filter runner suspends recording while it runs.
+    undo_stack_ = new bonsaiviewer::services::UndoStack(*active_view_, *appearance_service_);
+    active_view_->setUndoStack(undo_stack_);
+    appearance_service_->setUndoStack(undo_stack_);
+    filter_runner_->setUndoStack(undo_stack_);
+    connect(session_state_, &bonsaiviewer::SessionState::projectReset, this,
+            [this]() { undo_stack_->clear(); });
     filters_view_ = new modules::filters::FiltersPanelView(
         filters_panel_, *session_state_, *filter_store_, *filter_runner_, *ids_bridge_, this);
     filters_view_->setActionPipeline(action_pipeline_);

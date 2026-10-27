@@ -16,6 +16,7 @@
 #include "../ElementRegistry.h"
 #include "EntitySetStore.h"
 #include "IdsBridge.h"
+#include "UndoStack.h"
 #include "../SessionState.h"
 
 #include "../../ifcviewer/SceneLoader.h"
@@ -124,6 +125,7 @@ bool FilterRunner::run(const FilterDocument& document, Scope scope) {
     kept_ids_.clear();
     target_shown_.clear();
     running_ = true;
+    if (undo_) undo_->setSuspended(true);
     startTarget();
     return true;
 }
@@ -149,6 +151,7 @@ void FilterRunner::step() {
             return;
         }
         running_ = false;
+        if (undo_) undo_->setSuspended(false);
         emit finished(true, QString("%1 layer(s) run on %2 model(s), %3 element(s) affected")
                                 .arg(layers_executed_)
                                 .arg(targets_.size())
@@ -203,6 +206,7 @@ void FilterRunner::finishLayer() {
 
 void FilterRunner::fail(const QString& error) {
     running_ = false;
+    if (undo_) undo_->setSuspended(false);
     pending_.clear();
     last_group_.clear();
     emit finished(false, QString("model %1, layer %2: %3")
