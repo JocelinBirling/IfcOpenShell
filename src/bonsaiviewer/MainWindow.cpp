@@ -549,39 +549,6 @@ QWidget* MainWindow::buildInspectRibbonPage() {
     return page;
 }
 
-QWidget* MainWindow::buildPanelsRibbonPage() {
-    auto* page = new QFrame(this);
-    page->setObjectName("ribbonPage");
-    auto* row = new QHBoxLayout(page);
-    row->setContentsMargins(2, 4, 2, 4);
-    row->setSpacing(0);
-
-    components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("DATA", {
-            makePanelToggle("Models", models_panel_),
-            makePanelToggle("Spatial", spatial_panel_),
-            makePanelToggle("Class Tree", class_tree_panel_),
-            makePanelToggle("Layers", layers_panel_),
-            makePanelToggle("Properties", properties_panel_)
-        }, this),
-        components::buttons::makeButtonGroup("QUERY", {
-            makePanelToggle("Views", stored_views_panel_),
-            makePanelToggle("Search", search_panel_),
-            makePanelToggle("Filters", filters_panel_),
-            makePanelToggle("Table", table_panel_),
-            makePanelToggle("Text Digger", text_digger_panel_),
-            makePanelToggle("Tables", tables_panel_),
-            makePanelToggle("Audit", audit_panel_)
-        }, this),
-        components::buttons::makeButtonGroup("COLLABORATE", {
-            makePanelToggle("Clash", clash_panel_),
-            makePanelToggle("Issues", issues_panel_)
-        }, this),
-    });
-    row->addStretch(1);
-    return page;
-}
-
 void MainWindow::setupRibbon() {
     auto* shell = new QFrame(this);
 
@@ -589,10 +556,13 @@ void MainWindow::setupRibbon() {
     shell_layout->setContentsMargins(0, 0, 0, 0);
     shell_layout->setSpacing(0);
 
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table) and the Inspect
+    // tab share one row. Workspace tabs are indexes 0 to 2, Inspect is 3.
     ribbon_tabs_ = new components::TabBar(shell);
     ribbon_tabs_->addTab("Home");
+    ribbon_tabs_->addTab("Filter");
+    ribbon_tabs_->addTab("Table");
     ribbon_tabs_->addTab("Inspect");
-    ribbon_tabs_->addTab("Panels");
     ribbon_tabs_->setCurrentIndex(0);
 
     auto* ribbon_band = new QFrame(shell);
@@ -602,10 +572,11 @@ void MainWindow::setupRibbon() {
     band_layout->setSpacing(0);
 
     ribbon_pages_ = new QStackedWidget(ribbon_band);
-    // Home: no ribbon content, the band is hidden on this tab.
-    ribbon_pages_->addWidget(new QWidget(ribbon_pages_));
+    // Workspaces: no ribbon content, the band is hidden on these tabs.
+    for (int i = 0; i < 3; ++i) {
+        ribbon_pages_->addWidget(new QWidget(ribbon_pages_));
+    }
     ribbon_pages_->addWidget(buildInspectRibbonPage());
-    ribbon_pages_->addWidget(buildPanelsRibbonPage());
 
     band_layout->addWidget(ribbon_pages_);
     // TI01: the menu bar sits above the tabs ribbon (spec 05). The shell
@@ -625,8 +596,9 @@ void MainWindow::setupRibbon() {
     // Empty until a feature registers its content.
     auto* specific_panel = new components::SpecificTopPanel(shell);
     specific_panel->addTab(QStringLiteral("Home"));
+    specific_panel->addTab(QStringLiteral("Filter"));
+    specific_panel->addTab(QStringLiteral("Table"));
     specific_panel->addTab(QStringLiteral("Inspect"));
-    specific_panel->addTab(QStringLiteral("Panels"));
     connect(ribbon_tabs_, &components::TabBar::currentChanged,
             specific_panel, &components::SpecificTopPanel::setCurrentIndex);
     // Order below the tabs: the tab ribbon, the specific panel, then the
@@ -642,12 +614,66 @@ void MainWindow::setupRibbon() {
 
     connect(ribbon_tabs_, &components::TabBar::currentChanged,
             ribbon_pages_, &QStackedWidget::setCurrentIndex);
-    // The ribbon band is empty on Home: hide it there.
+    // The ribbon band is shown on Inspect only (index 3).
     connect(ribbon_tabs_, &components::TabBar::currentChanged, ribbon_band,
-            [ribbon_band](int index) { ribbon_band->setVisible(index != 0); });
+            [ribbon_band](int index) { ribbon_band->setVisible(index == 3); });
     ribbon_band->setVisible(false); // Home is the first tab, shown at start-up
 
     setMenuWidget(shell);
+    setupWorkspaces();
+}
+
+// TI21 phase 1: three workspaces, each one a PanelManager tab with its own
+// dock layout. The default layout of a workspace is applied on its first
+// visit; afterwards PanelManager restores what the user left.
+void MainWindow::setupWorkspaces() {
+    for (const QString& name : QStringList{QStringLiteral("Home"),
+                                           QStringLiteral("Filter"),
+                                           QStringLiteral("Table")}) {
+        workspace_ids_.append(panel_manager_->addTab(name));
+    }
+    // Home is the start-up workspace: the shell already placed its panels,
+    // so its defaults are applied in place.
+    panel_manager_->switchTab(workspace_ids_.at(0));
+    applyWorkspaceDefaults(0);
+    workspace_defaults_applied_.append(workspace_ids_.at(0));
+    connect(ribbon_tabs_, &components::TabBar::currentChanged,
+            this, &MainWindow::onWorkspaceChanged);
+}
+
+void MainWindow::onWorkspaceChanged(int index) {
+    if (index < 0 || index >= workspace_ids_.size()) return;
+    const QString tab_id = workspace_ids_.at(index);
+    panel_manager_->switchTab(tab_id);
+    if (!workspace_defaults_applied_.contains(tab_id)) {
+        applyWorkspaceDefaults(index);
+        workspace_defaults_applied_.append(tab_id);
+    }
+}
+
+// Default panels of each workspace (BonsaiViewer21, phase 1).
+// Home: Models, Spatial Hierarchy, Ifc Class Tree, Properties, 3D view.
+// Filter: Home plus Filters, under the Spatial Hierarchy.
+// Table: Home plus Tables, under the Spatial Hierarchy, and the Table
+// with the Ifc Text Digger at the bottom.
+void MainWindow::applyWorkspaceDefaults(int index) {
+    QStringList visible{QStringLiteral("models"), QStringLiteral("spatial"),
+                        QStringLiteral("classtree"), QStringLiteral("properties")};
+    if (index == 1) {
+        // Filter: no Ifc Class Tree in this workspace.
+        visible.removeAll(QStringLiteral("classtree"));
+        addDockWidget(Qt::LeftDockWidgetArea, filters_panel_);
+        splitDockWidget(spatial_panel_, filters_panel_, Qt::Vertical);
+        visible << QStringLiteral("filters");
+    } else if (index == 2) {
+        addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
+        splitDockWidget(spatial_panel_, tables_panel_, Qt::Vertical);
+        visible << QStringLiteral("tables") << QStringLiteral("sheets")
+                << QStringLiteral("text_digger");
+    }
+    for (const QString& id : panel_manager_->registeredPanels()) {
+        panel_manager_->setPanelVisible(id, visible.contains(id));
+    }
 }
 
 void MainWindow::setupViewport() {

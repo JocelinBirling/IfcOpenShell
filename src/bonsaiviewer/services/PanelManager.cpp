@@ -149,11 +149,14 @@ void PanelManager::switchTab(const QString& tab_id) {
     if (tabs_.find(tab_id) == tabs_.end()) return;
     if (tab_id == current_tab_) return;
     saveCurrentTabState();
+    // The first tab opened at start-up keeps the panels the shell already
+    // placed; the shell then applies that tab's default layout (TI21).
+    const bool had_previous = !current_tab_.isEmpty();
     current_tab_ = tab_id;
     const Tab& tab = tabs_[tab_id];
     if (tab.has_layout) {
         main_window_->restoreState(tab.layout);
-    } else {
+    } else if (had_previous) {
         // A fresh tab starts with only the central 3D view (TI21).
         hideAllPanels();
     }

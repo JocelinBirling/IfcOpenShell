@@ -89,6 +89,11 @@ private:
     void setupStatus();
     void setupLoader();
     void setupMenuBar();
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table) and their
+    // default panel layouts.
+    void setupWorkspaces();
+    void applyWorkspaceDefaults(int index);
+    void onWorkspaceChanged(int index);
     // TI05: fill the generic top panel (search bar neighbours: display,
     // box, zoom, colour groups).
     void populateGenericTopPanel(components::GenericTopPanel* panel);
@@ -96,7 +101,6 @@ private:
     // View right click and the section gizmo right-click delete menu.
     bool eventFilter(QObject* watched, QEvent* event) override;
     QWidget* buildInspectRibbonPage();
-    QWidget* buildPanelsRibbonPage();
     void updateWindowTitle();
     QToolButton* makePanelToggle(const QString& text, QDockWidget* dock);
     // Rebuilds `menu` from the persisted recent-projects list. Wired to the
@@ -113,6 +117,10 @@ private:
     QElapsedTimer memory_shortfall_since_;
     QProgressBar* status_progress_bar_ = nullptr;
     bonsaiviewer::components::TabBar* ribbon_tabs_ = nullptr;
+    // TI21 phase 1: the PanelManager tab id of each workspace (Home, Filter,
+    // Table, in ribbon order) and the ones whose default layout is applied.
+    QStringList workspace_ids_;
+    QStringList workspace_defaults_applied_;
     QStackedWidget* ribbon_pages_ = nullptr;
     bonsaiviewer::modules::viewport::ViewportPanel* viewport_widget_ = nullptr;
     // BonsaiViewer22: drag and drop of IFC files onto the viewport panel.
