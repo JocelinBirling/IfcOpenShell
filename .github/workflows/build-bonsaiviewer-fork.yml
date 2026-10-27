@@ -1,7 +1,9 @@
 name: Build BonsaiViewer (fork)
 
 # Builds BonsaiViewer from this repository on GitHub runners and uploads the
-# result as a workflow artifact. Draft: not run yet, expect a first-run fix-up.
+# result as a workflow artifact. Linux and Windows follow the official
+# workflows (build-ifcopenshell-linux.yml, build-ifcopenshell-windows.yml),
+# without their dependency cache: the first run builds every dependency.
 
 permissions:
   contents: read
@@ -10,18 +12,91 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: windows-x64
-            runner: windows-2022
-          - name: linux-x64
-            runner: ubuntu-22.04
-          - name: macos-arm64
-            runner: macos-14
-    runs-on: ${{ matrix.runner }}
+  linux:
+    name: linux-x64
+    runs-on: ubuntu-22.04
+    # Same image and packages as the official Linux build.
+    container:
+      image: rockylinux:9
+    steps:
+      - name: Install build tools
+        run: |
+          echo "fastestmirror=True" >> /etc/dnf/dnf.conf
+          dnf install -y epel-release
+          dnf install -y --enablerepo=crb gcc gcc-c++ git autoconf automake bison byacc make zip unzip \
+            cmake ninja-build bzip2 patch xz findutils patchelf libstdc++-static \
+            mesa-libGL-devel fontconfig-devel libxkbcommon-devel dbus-devel \
+            libffi-devel zlib-devel openssl-devel sqlite-devel bzip2-devel xz-devel libuuid-devel \
+            libXext-devel libXinerama-devel libXcursor-devel libXrender-devel libXfixes-devel \
+            libXft-devel pango-devel cairo-devel
+          git config --global --add safe.directory '*'
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      # The packaging step builds the Autodesk connector (Rust) shipped with the viewer.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: fork-bonsaiviewer-rockylinux9-x64
+          install: binary
+
+      # -v prints the output of each dependency build, so a failure shows its cause.
+      - name: Build BonsaiViewer
+        shell: bash
+        env:
+          QT6_VERSION: '6.8.3'
+        run: |
+          set -o pipefail
+          CXXFLAGS="-O3" CFLAGS="-O3" \
+            uv run --python 3.13 nix/build-all.py BonsaiViewer \
+              -v --shared --build-cfg Release --use-ninja \
+            2>&1 | tee build.log
+
+      # Bundles the executable with its libraries, Qt and the connector.
+      - name: Package BonsaiViewer
+        shell: bash
+        env:
+          QT6_VERSION: '6.8.3'
+        run: |
+          set -euo pipefail
+          uv run --python 3.13 nix/package-zip-archives.py linux64
+          mkdir -p dist
+          cp "$HOME"/output/BonsaiViewer-*.zip dist/
+
+      - name: Upload BonsaiViewer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bonsaiviewer-linux-x64
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-logs-linux-x64
+          path: |
+            build.log
+            build/*/*/logs/
+            build/**/CMakeFiles/*.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  windows:
+    name: windows-x64
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,43 +105,78 @@ jobs:
 
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
-      - uses: actions/setup-python@v5
-        if: runner.os == 'Windows'
+      # The packaging step builds the Autodesk connector (Rust) shipped with the viewer.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
-          python-version: '3.13'
+          toolchain: stable
 
-      - name: Install Qt (Windows)
-        if: runner.os == 'Windows'
-        id: qt
-        uses: jurplel/install-qt-action@v4
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
         with:
-          version: '6.8.3'
-          arch: win64_msvc2022_64
-          modules: qtsvg
+          key: fork-bonsaiviewer-win-x64
+          max-size: 5000MB
 
-      - name: Set QT_DIR (Windows)
-        if: runner.os == 'Windows'
+      # The Windows scripts of the project (win/), not nix/build-all.py:
+      # build-deps.py builds the dependencies and installs Qt 6 itself (aqtinstall).
+      - name: Build BonsaiViewer
+        shell: cmd # zizmor: ignore[misfeature] needed for vcvars environment
+        env:
+          QT6_VERSION: '6.8.3'
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cd win
+          uv run build-deps.py vs2022-x64 Release -y --reuse-boost --use-ninja --shared --python-version 3.13.6 || exit /b 1
+          uv run run-cmake.py vs2022-x64 --add-commit-sha --use-ninja --build-cfg Release -- -DENABLE_BUILD_OPTIMIZATIONS=ON -DGLTF_SUPPORT=ON -DWITH_PROJ=ON -DBUILD_EXAMPLES=OFF -DBUILD_BONSAIVIEWER=ON -DBUILD_CONVERT=OFF -DBUILD_GEOMSERVER=OFF -DBUILD_IFCPYTHON=OFF -DIFOPSH_SAFE_INSTANCE=OFF -DUSE_CCACHE=ON -DCREATE_BUNDLE=ON || exit /b 1
+          uv run install-ifcopenshell.py vs2022-x64 Release || exit /b 1
+          uv run build-all-win.py --skip-ifcopenshell-build || exit /b 1
+
+      # build-all-win.py zips each executable with its DLLs, Qt and the connector.
+      - name: Collect BonsaiViewer
         shell: bash
-        run: echo "QT_DIR=${{ steps.qt.outputs.qtpath }}" >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "$USERPROFILE"/output/BonsaiViewer-*.zip dist/
+
+      - name: Upload BonsaiViewer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bonsaiviewer-windows-x64
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-logs-windows-x64
+          path: |
+            _deps/*.log
+            _build-*/CMakeFiles/*.log
+            _build-*/**/CMakeFiles/*.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  macos:
+    name: macos-arm64
+    # Unchanged: this job already builds.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Install Qt (macOS)
-        if: runner.os == 'macOS'
         run: |
           brew install qt
           echo "QT_DIR=$(brew --prefix qt)" >> "$GITHUB_ENV"
 
-      - name: Install system packages (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build libgl-dev libxkbcommon-dev \
-            libxkbcommon-x11-dev libxcb-cursor0 libxcb-cursor-dev
-
       - name: Install Ninja
-        if: runner.os != 'Linux'
         run: uv tool install ninja
 
-      # On Linux, build-all.py installs Qt 6 itself (aqtinstall) using QT6_VERSION.
       - name: Build BonsaiViewer
         shell: bash
         env:
@@ -78,18 +188,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          exe="$(find build -type f \( -name 'BonsaiViewer' -o -name 'BonsaiViewer.exe' \) | head -n 1)"
+          exe="$(find build -type f -name 'BonsaiViewer' | head -n 1)"
           test -n "$exe"
           cp "$exe" dist/
-          # Windows: copy the Qt runtime next to the executable so it runs standalone.
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            "$QT_DIR/bin/windeployqt.exe" --release dist/BonsaiViewer.exe
-          fi
 
       - name: Upload BonsaiViewer
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: bonsaiviewer-${{ matrix.name }}
+          name: bonsaiviewer-macos-arm64
           path: dist/
           retention-days: 30
           if-no-files-found: error
@@ -98,10 +204,9 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: build-logs-${{ matrix.name }}
+          name: build-logs-macos-arm64
           path: |
-            build/Linux/x86_64/logs/
-            build/Linux/x86_64/build/occt/build/CMakeFiles/*.log
+            build/*/*/*/logs/
             build/**/CMakeFiles/*.log
           if-no-files-found: warn
           retention-days: 7
