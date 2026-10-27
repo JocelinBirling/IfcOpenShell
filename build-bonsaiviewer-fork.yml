@@ -1,0 +1,107 @@
+name: Build BonsaiViewer (fork)
+
+# Builds BonsaiViewer from this repository on GitHub runners and uploads the
+# result as a workflow artifact. Draft: not run yet, expect a first-run fix-up.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            runner: windows-2022
+          - name: linux-x64
+            runner: ubuntu-22.04
+          - name: macos-arm64
+            runner: macos-14
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - uses: actions/setup-python@v5
+        if: runner.os == 'Windows'
+        with:
+          python-version: '3.13'
+
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: win64_msvc2022_64
+          modules: qtsvg
+
+      - name: Set QT_DIR (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "QT_DIR=${{ steps.qt.outputs.qtpath }}" >> "$GITHUB_ENV"
+
+      - name: Install Qt (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install qt
+          echo "QT_DIR=$(brew --prefix qt)" >> "$GITHUB_ENV"
+
+      - name: Install system packages (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libxcb-cursor0 libxcb-cursor-dev
+
+      - name: Install Ninja
+        if: runner.os != 'Linux'
+        run: uv tool install ninja
+
+      # On Linux, build-all.py installs Qt 6 itself (aqtinstall) using QT6_VERSION.
+      - name: Build BonsaiViewer
+        shell: bash
+        env:
+          QT6_VERSION: '6.8.3'
+        run: uv run --python 3.13 nix/build-all.py BonsaiViewer --use-ninja --build-cfg Release
+
+      - name: Collect BonsaiViewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          exe="$(find build -type f \( -name 'BonsaiViewer' -o -name 'BonsaiViewer.exe' \) | head -n 1)"
+          test -n "$exe"
+          cp "$exe" dist/
+          # Windows: copy the Qt runtime next to the executable so it runs standalone.
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            "$QT_DIR/bin/windeployqt.exe" --release dist/BonsaiViewer.exe
+          fi
+
+      - name: Upload BonsaiViewer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bonsaiviewer-${{ matrix.name }}
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-logs-${{ matrix.name }}
+          path: |
+            build/Linux/x86_64/logs/
+            build/Linux/x86_64/build/occt/build/CMakeFiles/*.log
+            build/**/CMakeFiles/*.log
+          if-no-files-found: warn
+          retention-days: 7
