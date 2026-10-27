@@ -185,11 +185,12 @@ void ClassTreeDataSource::populateContextMenu(const QString& key,
     if (key.isEmpty()) return;
     // On a selected node, Isolate applies to the whole selection.
     const QStringList keys = selected_keys_.contains(key) ? selected_keys_ : QStringList{key};
-    menu.addItem({.id = "isolate", .label = "Isolate",
-                  .trigger = [this, keys]() {
-                      actions_.run(idsOfKeys(keys),
-                                   bonsaiviewer::services::ActionPipeline::Action::Isolate);
-                  }});
+    menu.addItem("isolate",
+                 "Isolate",
+                 [this, keys]() {
+                     actions_.run(idsOfKeys(keys),
+                                  bonsaiviewer::services::ActionPipeline::Action::Isolate);
+                 });
 }
 
 void ClassTreeDataSource::onNodeDoubleClicked(const QString& key) {

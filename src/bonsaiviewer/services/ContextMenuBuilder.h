@@ -51,6 +51,13 @@ public:
     };
 
     ContextMenuBuilder& addItem(Item item);
+    // Positional form, for C++17 call sites (MSVC builds the viewer in C++17,
+    // which has no designated initializers).
+    ContextMenuBuilder& addItem(const QString& id,
+                                const QString& label,
+                                std::function<void()> trigger,
+                                std::function<bool()> is_enabled = {},
+                                std::function<bool()> is_visible = {});
     ContextMenuBuilder& addSeparator();
 
     // Evaluate the predicates and build the QMenu. Ownership passes to the

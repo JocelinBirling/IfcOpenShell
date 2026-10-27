@@ -163,49 +163,63 @@ std::vector<TreeNode> FiltersPanelView::childrenOf(const QString& key) {
 
 void FiltersPanelView::populateContextMenu(const QString& key, ContextMenuBuilder& menu) {
     if (key.isEmpty()) {
-        menu.addItem({.id = "add-folder", .label = "Add Folder",
-                      .trigger = [this]() { addFolder({}); }});
-        menu.addItem({.id = "add-filter", .label = "Add Filter",
-                      .trigger = [this]() { addFilter({}); }});
+        menu.addItem("add-folder",
+                     "Add Folder",
+                     [this]() { addFolder({}); });
+        menu.addItem("add-filter",
+                     "Add Filter",
+                     [this]() { addFilter({}); });
         menu.addSeparator();
-        menu.addItem({.id = "import", .label = "Import Filters…",
-                      .trigger = [this]() { importFilter({}); }});
-        menu.addItem({.id = "export-all", .label = "Export All Filters…",
-                      .is_enabled = [this]() { return !store_.folders().empty() || !store_.filtersInFolder({}).empty(); },
-                      .trigger = [this]() { exportLibrary(); }});
+        menu.addItem("import",
+                     "Import Filters…",
+                     [this]() { importFilter({}); });
+        menu.addItem("export-all",
+                     "Export All Filters…",
+                     [this]() { exportLibrary(); },
+                     [this]() { return !store_.folders().empty() || !store_.filtersInFolder({}).empty(); });
         return;
     }
     if (store_.isFolder(key)) {
-        menu.addItem({.id = "add-folder", .label = "Add Folder",
-                      .trigger = [this, key]() { addFolder(key); }});
-        menu.addItem({.id = "add-filter", .label = "Add Filter",
-                      .trigger = [this, key]() { addFilter(key); }});
+        menu.addItem("add-folder",
+                     "Add Folder",
+                     [this, key]() { addFolder(key); });
+        menu.addItem("add-filter",
+                     "Add Filter",
+                     [this, key]() { addFilter(key); });
         menu.addSeparator();
-        menu.addItem({.id = "rename", .label = "Rename…",
-                      .trigger = [this, key]() { renameFolder(key); }});
-        menu.addItem({.id = "delete", .label = "Delete",
-                      .trigger = [this, key]() { deleteFolder(key); }});
+        menu.addItem("rename",
+                     "Rename…",
+                     [this, key]() { renameFolder(key); });
+        menu.addItem("delete",
+                     "Delete",
+                     [this, key]() { deleteFolder(key); });
         menu.addSeparator();
-        menu.addItem({.id = "import", .label = "Import Filters Here…",
-                      .trigger = [this, key]() { importFilter(key); }});
+        menu.addItem("import",
+                     "Import Filters Here…",
+                     [this, key]() { importFilter(key); });
         return;
     }
     // A filter node.
     const auto not_running = [this]() { return !runner_.isRunning(); };
-    menu.addItem({.id = "run", .label = "Run",
-                  .is_enabled = not_running,
-                  .trigger = [this, key]() { runFilter(key, false); }});
-    menu.addItem({.id = "run-box", .label = "Run on the Box",
-                  .is_enabled = not_running,
-                  .trigger = [this, key]() { runFilter(key, true); }});
+    menu.addItem("run",
+                 "Run",
+                 [this, key]() { runFilter(key, false); },
+                 not_running);
+    menu.addItem("run-box",
+                 "Run on the Box",
+                 [this, key]() { runFilter(key, true); },
+                 not_running);
     menu.addSeparator();
-    menu.addItem({.id = "modify", .label = "Modify…",
-                  .trigger = [this, key]() { modifyFilter(key); }});
-    menu.addItem({.id = "export", .label = "Export…",
-                  .trigger = [this, key]() { exportFilter(key); }});
+    menu.addItem("modify",
+                 "Modify…",
+                 [this, key]() { modifyFilter(key); });
+    menu.addItem("export",
+                 "Export…",
+                 [this, key]() { exportFilter(key); });
     menu.addSeparator();
-    menu.addItem({.id = "delete", .label = "Delete",
-                  .trigger = [this, key]() { deleteFilter(key); }});
+    menu.addItem("delete",
+                 "Delete",
+                 [this, key]() { deleteFilter(key); });
 }
 
 void FiltersPanelView::onVisibilityToggled(const QString&, bool) {

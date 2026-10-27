@@ -245,34 +245,40 @@ void PropertiesPanelView::showValueMenu(const QString& pset, const QString& prop
     };
 
     services::ContextMenuBuilder menu;
-    menu.addItem({.id = "copy", .label = "Copy the value",
-                  .trigger = [value] { QGuiApplication::clipboard()->setText(value); }});
-    menu.addItem({.id = "isolate_similar", .label = "Isolate similar",
-                  .trigger = [this, similar] {
-                      const auto ids = similar();
-                      if (!ids.empty()) actions_.run(ids, services::ActionPipeline::Action::Isolate);
-                  }});
-    menu.addItem({.id = "select_similar", .label = "Select similar",
-                  .trigger = [this, similar] {
-                      selection_.setSelection(similar(), services::SelectionSource::Service);
-                  }});
+    menu.addItem("copy",
+                 "Copy the value",
+                 [value] { QGuiApplication::clipboard()->setText(value); });
+    menu.addItem("isolate_similar",
+                 "Isolate similar",
+                 [this, similar] {
+                     const auto ids = similar();
+                     if (!ids.empty()) actions_.run(ids, services::ActionPipeline::Action::Isolate);
+                 });
+    menu.addItem("select_similar",
+                 "Select similar",
+                 [this, similar] {
+                     selection_.setSelection(similar(), services::SelectionSource::Service);
+                 });
     menu.exec(pos, widget_);
 }
 
 void PropertiesPanelView::showNameMenu(const QString& pset, const QString& property, const QPoint& pos) {
     services::ContextMenuBuilder menu;
-    menu.addItem({.id = "isolate_property", .label = "Isolate the property",
-                  .trigger = [this, pset, property] {
-                      std::vector<std::uint32_t> ids;
-                      for (const auto& [object_id, found] : scan(pset, property, false)) {
-                          if (found) ids.push_back(object_id);
-                      }
-                      if (!ids.empty()) actions_.run(ids, services::ActionPipeline::Action::Isolate);
-                  }});
-    menu.addItem({.id = "colour_by_property", .label = "Colour by property",
-                  .trigger = [this, pset, property] { colourByProperty(pset, property, false); }});
-    menu.addItem({.id = "colour_box_by_property", .label = "Colour the box by property",
-                  .trigger = [this, pset, property] { colourByProperty(pset, property, true); }});
+    menu.addItem("isolate_property",
+                 "Isolate the property",
+                 [this, pset, property] {
+                     std::vector<std::uint32_t> ids;
+                     for (const auto& [object_id, found] : scan(pset, property, false)) {
+                         if (found) ids.push_back(object_id);
+                     }
+                     if (!ids.empty()) actions_.run(ids, services::ActionPipeline::Action::Isolate);
+                 });
+    menu.addItem("colour_by_property",
+                 "Colour by property",
+                 [this, pset, property] { colourByProperty(pset, property, false); });
+    menu.addItem("colour_box_by_property",
+                 "Colour the box by property",
+                 [this, pset, property] { colourByProperty(pset, property, true); });
     menu.exec(pos, widget_);
 }
 

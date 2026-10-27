@@ -23,11 +23,27 @@
 #include <QAction>
 #include <QMenu>
 
+#include <utility>
+
 namespace bonsaiviewer::services {
 
 ContextMenuBuilder& ContextMenuBuilder::addItem(Item item) {
     entries_.push_back(Entry{false, std::move(item)});
     return *this;
+}
+
+ContextMenuBuilder& ContextMenuBuilder::addItem(const QString& id,
+                                                const QString& label,
+                                                std::function<void()> trigger,
+                                                std::function<bool()> is_enabled,
+                                                std::function<bool()> is_visible) {
+    Item item;
+    item.id = id;
+    item.label = label;
+    item.is_enabled = std::move(is_enabled);
+    item.is_visible = std::move(is_visible);
+    item.trigger = std::move(trigger);
+    return addItem(std::move(item));
 }
 
 ContextMenuBuilder& ContextMenuBuilder::addSeparator() {

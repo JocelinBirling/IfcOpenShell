@@ -102,41 +102,53 @@ std::vector<TreeNode> TablesView::childrenOf(const QString& key) {
 
 void TablesView::populateContextMenu(const QString& key, ContextMenuBuilder& menu) {
     if (key.isEmpty()) {
-        menu.addItem({.id = "new-table", .label = "New Table…",
-                      .trigger = [this]() { emit newTableRequested(QString()); }});
-        menu.addItem({.id = "add-folder", .label = "Add Folder…",
-                      .trigger = [this]() { addFolder(QString()); }});
+        menu.addItem("new-table",
+                     "New Table…",
+                     [this]() { emit newTableRequested(QString()); });
+        menu.addItem("add-folder",
+                     "Add Folder…",
+                     [this]() { addFolder(QString()); });
         menu.addSeparator();
-        menu.addItem({.id = "import", .label = "Import Table…",
-                      .trigger = [this]() { importTable(QString()); }});
+        menu.addItem("import",
+                     "Import Table…",
+                     [this]() { importTable(QString()); });
         return;
     }
     if (store_.isFolder(key)) {
-        menu.addItem({.id = "new-table", .label = "New Table…",
-                      .trigger = [this, key]() { emit newTableRequested(key); }});
-        menu.addItem({.id = "add-folder", .label = "Add Folder…",
-                      .trigger = [this, key]() { addFolder(key); }});
+        menu.addItem("new-table",
+                     "New Table…",
+                     [this, key]() { emit newTableRequested(key); });
+        menu.addItem("add-folder",
+                     "Add Folder…",
+                     [this, key]() { addFolder(key); });
         menu.addSeparator();
-        menu.addItem({.id = "rename", .label = "Rename…",
-                      .trigger = [this, key]() { renameFolder(key); }});
-        menu.addItem({.id = "delete", .label = "Delete",
-                      .trigger = [this, key]() { deleteFolder(key); }});
+        menu.addItem("rename",
+                     "Rename…",
+                     [this, key]() { renameFolder(key); });
+        menu.addItem("delete",
+                     "Delete",
+                     [this, key]() { deleteFolder(key); });
         menu.addSeparator();
-        menu.addItem({.id = "import", .label = "Import Table Here…",
-                      .trigger = [this, key]() { importTable(key); }});
+        menu.addItem("import",
+                     "Import Table Here…",
+                     [this, key]() { importTable(key); });
         return;
     }
     // A table node.
-    menu.addItem({.id = "run", .label = "Run",
-                  .trigger = [this, key]() { emit openRequested(key, false); }});
-    menu.addItem({.id = "run-on-box", .label = "Run on the Box",
-                  .trigger = [this, key]() { emit openRequested(key, true); }});
+    menu.addItem("run",
+                 "Run",
+                 [this, key]() { emit openRequested(key, false); });
+    menu.addItem("run-on-box",
+                 "Run on the Box",
+                 [this, key]() { emit openRequested(key, true); });
     menu.addSeparator();
-    menu.addItem({.id = "export", .label = "Export…",
-                  .trigger = [this, key]() { exportTable(key); }});
+    menu.addItem("export",
+                 "Export…",
+                 [this, key]() { exportTable(key); });
     menu.addSeparator();
-    menu.addItem({.id = "delete", .label = "Delete",
-                  .trigger = [this, key]() { deleteTable(key); }});
+    menu.addItem("delete",
+                 "Delete",
+                 [this, key]() { deleteTable(key); });
 }
 
 void TablesView::onVisibilityToggled(const QString&, bool) {

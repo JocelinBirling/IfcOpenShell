@@ -45,10 +45,14 @@ class IdsBridge;
 //   * a run starts from an empty view: everything is hidden right before
 //     the first action.
 //
-// The worked example of the specification is the acceptance test. The
-// selections come from the IdsBridge (IfcTester); the actions run through
-// B08 ActionPipeline. Runs are asynchronous: the runner emits progress()
-// per stage and finished() with a summary once done.
+// A run applies the filter to every loaded model (BonsaiViewer06). The
+// layers run once per model, one model after the other; the view is
+// emptied once for the whole run. EXPRESS ids are per file, so each model
+// keeps its own pending set.
+//
+// The selections come from the IdsBridge (IfcTester); the actions run
+// through B08 ActionPipeline. Runs are asynchronous: the runner emits
+// progress() per stage and finished() with a summary once done.
 
 namespace bonsaiviewer::services {
 
@@ -57,8 +61,8 @@ class FilterRunner : public QObject {
 
 public:
     enum class Scope {
-        WholeModel,
-        Box, // the current EntitySetStore set instead of the whole model
+        WholeModel, // every loaded model, whole content
+        Box,        // every loaded model, only the elements of the current box
     };
 
     FilterRunner(SessionState& session,
@@ -68,7 +72,7 @@ public:
                  QObject* parent = nullptr);
 
     // Starts an asynchronous run. Returns false (and emits finished) when
-    // there is nothing to run on — no active model, or an empty document.
+    // there is nothing to run on — no loaded model, or an empty document.
     bool run(const FilterDocument& document, Scope scope);
 
     bool isRunning() const { return running_; }
@@ -83,6 +87,14 @@ signals:
     void finished(bool ok, const QString& summary);
 
 private:
+    // One loaded model the filter runs on.
+    struct Target {
+        QString ifc_path;
+        uint32_t session_model_id = 0;
+        std::optional<std::vector<int>> limit; // EXPRESS ids of the box (Scope::Box)
+    };
+
+    void startTarget();
     void step();
     void finishLayer();
     void fail(const QString& error);
@@ -97,16 +109,20 @@ private:
     bool running_ = false;
     FilterDocument document_;
     Scope scope_ = Scope::WholeModel;
-    std::optional<std::vector<int>> limit_; // EXPRESS ids of the box (Scope::Box)
-    size_t layer_index_ = 0;
-    QString ifc_path_;
-    uint32_t session_model_id_ = 0;
+    std::vector<Target> targets_;
+    size_t target_index_ = 0;      // model being run
+    size_t layer_index_ = 0;       // layer of that model
     std::vector<int> pending_;     // express ids accumulated since the last action
     std::vector<int> last_group_;  // express ids the previous action group ran on
     bool group_open_ = false;      // a specification layer ran since the last action
     int actioned_elements_ = 0;
     bool view_cleared_ = false;    // the view was emptied before the first action
     int layers_executed_ = 0;
+    // An Isolate action replaces the view, so it must keep the elements the
+    // previous models of this run have shown. kept_ids_ holds those from the
+    // finished models; target_shown_ the ones shown by the current model.
+    std::vector<uint32_t> kept_ids_;
+    std::vector<uint32_t> target_shown_;
 };
 
 } // namespace bonsaiviewer::services

@@ -67,72 +67,103 @@ bool FilterRunner::run(const FilterDocument& document, Scope scope) {
         emit finished(false, "a filter is already running");
         return false;
     }
-    uint32_t session_model_id = 0;
-    const QString ifc_path = activeIfcPath(session_, &session_model_id);
-    if (ifc_path.isEmpty()) {
-        emit finished(false, "no active IFC model");
-        return false;
-    }
-    if (!QFileInfo::exists(ifc_path)) {
-        emit finished(false, QString("the IFC file of the active model cannot be found: %1").arg(ifc_path));
-        return false;
-    }
     if (document.layers.empty()) {
         emit finished(false, "the filter has no layers");
         return false;
     }
 
-    // Run on the box: the candidates are the box's EXPRESS ids in the
-    // active model, computed once for the whole run.
-    std::optional<std::vector<int>> limit;
+    // Every loaded model, as the filter applies to the whole federation.
+    std::vector<Target> targets;
+    auto* loader = session_.loader();
+    for (uint32_t session_model_id : session_.sessionModelIds()) {
+        if (loader == nullptr || session_model_id == 0) continue;
+        const QString path = loader->filePath(session_model_id);
+        if (path.isEmpty() || !QFileInfo::exists(path)) continue;
+        Target target;
+        target.ifc_path = path;
+        target.session_model_id = session_model_id;
+        targets.push_back(std::move(target));
+    }
+    if (targets.empty()) {
+        emit finished(false, "no loaded IFC model");
+        return false;
+    }
+
+    // Run on the box: per model, the candidates are the box's EXPRESS ids,
+    // computed once for the whole run. Models without box elements are skipped.
     if (scope == Scope::Box) {
-        std::vector<int> ids;
-        for (uint32_t object_id : set_store_.current()) {
-            const auto info = session_.elementRegistry()->findBasicElementInfo(object_id);
-            if (info && info->session_model_id == session_model_id && info->ifc_id != 0) {
-                ids.push_back(info->ifc_id);
+        for (auto& target : targets) {
+            std::vector<int> ids;
+            for (uint32_t object_id : set_store_.current()) {
+                const auto info = session_.elementRegistry()->findBasicElementInfo(object_id);
+                if (info && info->session_model_id == target.session_model_id && info->ifc_id != 0) {
+                    ids.push_back(info->ifc_id);
+                }
             }
+            if (ids.empty()) continue;
+            std::sort(ids.begin(), ids.end());
+            ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+            target.limit = std::move(ids);
         }
-        if (ids.empty()) {
-            emit finished(false, "the box is empty (or holds no element of the active model)");
+        targets.erase(std::remove_if(targets.begin(), targets.end(),
+                                     [](const Target& t) { return !t.limit.has_value(); }),
+                      targets.end());
+        if (targets.empty()) {
+            emit finished(false, "the box is empty (or holds no element of the loaded models)");
             return false;
         }
-        std::sort(ids.begin(), ids.end());
-        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
-        limit = std::move(ids);
     }
 
     document_ = document;
     scope_ = scope;
-    limit_ = std::move(limit);
-    layer_index_ = 0;
-    ifc_path_ = ifc_path;
-    session_model_id_ = session_model_id;
-    pending_.clear();
-    last_group_.clear();
-    group_open_ = false;
+    targets_ = std::move(targets);
+    target_index_ = 0;
     actioned_elements_ = 0;
     view_cleared_ = false;
     layers_executed_ = 0;
+    kept_ids_.clear();
+    target_shown_.clear();
     running_ = true;
-    step();
+    startTarget();
     return true;
+}
+
+void FilterRunner::startTarget() {
+    // The previous model is done: its shown elements are kept for the next
+    // Isolate action of this run.
+    kept_ids_.insert(kept_ids_.end(), target_shown_.begin(), target_shown_.end());
+    target_shown_.clear();
+    layer_index_ = 0;
+    pending_.clear();
+    last_group_.clear();
+    group_open_ = false;
+    step();
 }
 
 void FilterRunner::step() {
     if (layer_index_ >= document_.layers.size()) {
+        // This model is done: the next loaded model starts from its first layer.
+        if (target_index_ + 1 < targets_.size()) {
+            ++target_index_;
+            startTarget();
+            return;
+        }
         running_ = false;
-        emit finished(true, QString("%1 layer(s) run, %2 element(s) affected")
+        emit finished(true, QString("%1 layer(s) run on %2 model(s), %3 element(s) affected")
                                 .arg(layers_executed_)
+                                .arg(targets_.size())
                                 .arg(actioned_elements_));
         return;
     }
     const FilterLayer& layer = document_.layers[layer_index_];
     if (!layer.is_and && !layer.ids_xml.isEmpty()) {
-        emit progress(QString("selecting layer %1 of %2…")
+        const Target& target = targets_[target_index_];
+        emit progress(QString("model %1 of %2, selecting layer %3 of %4…")
+                          .arg(target_index_ + 1)
+                          .arg(targets_.size())
                           .arg(layer_index_ + 1)
                           .arg(static_cast<int>(document_.layers.size())));
-        ids_bridge_.select(ifc_path_, layer.ids_xml, limit_,
+        ids_bridge_.select(target.ifc_path, layer.ids_xml, target.limit,
                            [this](bool ok, std::vector<int> ids, const QString& error) {
             if (!ok) {
                 fail(error);
@@ -174,14 +205,17 @@ void FilterRunner::fail(const QString& error) {
     running_ = false;
     pending_.clear();
     last_group_.clear();
-    emit finished(false, QString("layer %1: %2").arg(layer_index_ + 1).arg(error));
+    emit finished(false, QString("model %1, layer %2: %3")
+                             .arg(target_index_ + 1)
+                             .arg(layer_index_ + 1)
+                             .arg(error));
 }
 
 void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>& express_ids) {
-    // EXPRESS ids -> the session's object ids through the element registry;
-    // ids of other models simply do not resolve.
+    const uint32_t session_model_id = targets_[target_index_].session_model_id;
+    // EXPRESS ids -> the session's object ids through the element registry.
     QHash<int, uint32_t> object_id_by_ifc_id;
-    for (const auto& info : session_.elementRegistry()->basicElementInfoForModel(session_model_id_)) {
+    for (const auto& info : session_.elementRegistry()->basicElementInfoForModel(session_model_id)) {
         object_id_by_ifc_id.insert(info.ifc_id, info.object_id);
     }
     std::vector<uint32_t> object_ids;
@@ -192,19 +226,26 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
     }
     // A filter starts from an empty view: everything is hidden right before
     // its first action (not at launch, so a failed selection leaves the
-    // view untouched). An action layer that matches nothing still empties
-    // the view.
+    // view untouched). Once per run, not once per model.
     if (!view_cleared_) {
         pipeline_.run({}, ActionPipeline::Action::Isolate);
         view_cleared_ = true;
     }
     if (object_ids.empty()) return;
     actioned_elements_ += static_cast<int>(object_ids.size());
+    target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
     for (const auto& action : layer.actions) {
         switch (action.type) {
-        case FilterAction::Type::Isolate:
-            pipeline_.run(object_ids, ActionPipeline::Action::Isolate);
+        case FilterAction::Type::Isolate: {
+            // Replaces the view, but keeps the elements of the previous
+            // models of this run (BonsaiViewer06: the filter covers every model).
+            std::vector<uint32_t> isolated = kept_ids_;
+            isolated.insert(isolated.end(), object_ids.begin(), object_ids.end());
+            std::sort(isolated.begin(), isolated.end());
+            isolated.erase(std::unique(isolated.begin(), isolated.end()), isolated.end());
+            pipeline_.run(isolated, ActionPipeline::Action::Isolate);
             break;
+        }
         case FilterAction::Type::AddToView:
             pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
             break;
