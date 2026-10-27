@@ -22,6 +22,7 @@ Default list:
 - Show All: ALT+S
 - Invert View: CTRL+I
 - Restore View: CTRL+R
+- Undo View: CTRL+Z (see BonsaiViewer02, Undo View)
 - Section Plane: CTRL+S
 - Remove Section: no default shortcut
 - Hide Section: no default shortcut
@@ -40,21 +41,41 @@ Default list:
 - Fit View: CTRL+F
 - Perpendicular View: CTRL+P
 
+Toggle Visibility has no default shortcut. Its behaviour: if every selected element is shown, they are hidden; otherwise they are shown.
+
+Other functions already in the viewer, kept with their shortcut (not in the default list above):
+
+- Isolate Selection: SHIFT+H
+- Measure Distance: CTRL+SHIFT+L
+- Measure Area: CTRL+SHIFT+A
+- Measure Volume: CTRL+SHIFT+V
+- Fly Mode: SHIFT+F
+
+The previous shortcuts K (section tool) and SHIFT+K (remove section) are replaced by Section Plane (CTRL+S) and Remove Section (no default). ALT+H (Show All) is replaced by ALT+S.
+
+Section functions use the viewport's existing toggles: Hide Section switches the section gizmos hidden, Suspend Section switches the section planes suspended.
+
 ### Shortcut Editor
 
-In the Settings, the shortcut editor offers:
+In the Settings, the Keybindings tab offers:
 
 - The list of functions with their current shortcut.
 - Click on a shortcut, then type the new key combination to record it.
-- A search box and a filter on the function list.
-- Conflict detection: a combination already used by another function triggers a warning.
+- A filter box on the function list.
+- Conflict detection: a combination already used by another function is refused, a message names that function, and the previous shortcut is kept.
+- A Reset button per function, and Reset All. A reset is refused when the default shortcut is used by another function.
+- An empty shortcut is allowed: the function then has no shortcut.
 
 ### Export/Import
 
-- The export saves the keybindings only, in a file.
+- The export saves the keybindings only, in a JSON file (format `bonsai-shortcuts`, version 1).
 - The shortcut is stored as typed: the file is tied to one keyboard layout (one export for QWERTY, one export for AZERTY).
-- The import replaces the current keybindings entirely with those of the file.
+- The import replaces the current keybindings entirely with those of the file. A function missing from the file loses its shortcut. A file where two functions use the same shortcut is refused, and nothing changes.
+
+### Storage
+
+- The bindings are kept in the user's settings (group `shortcuts`), and read back at start.
 
 ## Open Subject
 
-- Undo view (CTRL+Z): see BonsaiViewer02, to be validated before adding it to the default list.
+- None.

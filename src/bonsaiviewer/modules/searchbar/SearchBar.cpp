@@ -76,6 +76,11 @@ SearchBar::SearchBar(bonsaiviewer::services::QueryEngine* engine,
     connect(magnifier_, &QToolButton::clicked, this, &SearchBar::runSearch);
 }
 
+void SearchBar::focusSearch() {
+    edit_->setFocus(Qt::ShortcutFocusReason);
+    edit_->selectAll();
+}
+
 void SearchBar::runSearch() {
     if (!engine_ || !pipeline_) return;
     const QString text = edit_->text().trimmed();

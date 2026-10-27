@@ -29,6 +29,7 @@
 #include "../../components/Style.h"
 #include "../connectors/Process.h"
 #include "../connectors/Registry.h"
+#include "../../services/ShortcutStore.h"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -51,6 +52,11 @@
 #include <QVBoxLayout>
 #include <QFileDialog>
 #include <QHBoxLayout>
+#include <QHeaderView>
+#include <QKeySequenceEdit>
+#include <QSignalBlocker>
+#include <QTableWidget>
+#include <QTableWidgetItem>
 
 namespace bonsaiviewer::modules::settings {
 
@@ -274,32 +280,6 @@ void SettingsDialog::setupUi() {
         });
     }
 
-    auto make_placeholder_tab = [this](const QString& title, const QString& detail) {
-        auto* tab = new QWidget(this);
-        auto* layout = new QVBoxLayout(tab);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(components::style::metrics::padding);
-        layout->setAlignment(Qt::AlignTop);
-
-        auto* section = new components::Section(title, components::SectionHeaderMode::Visible, tab);
-        auto* body = new QWidget(section);
-        auto* body_layout = new QVBoxLayout(body);
-        body_layout->setContentsMargins(0, 0, 0, 0);
-        body_layout->setSpacing(8);
-
-        auto* heading = new QLabel(title, body);
-        auto* content = new QLabel(detail, body);
-        content->setProperty("textRole", "secondary");
-        content->setWordWrap(true);
-
-        body_layout->addWidget(heading);
-        body_layout->addWidget(content);
-        section->addBodyWidget(body);
-        layout->addWidget(section);
-        layout->addStretch(1);
-        return tab;
-    };
-
     auto make_about_tab = [this]() {
         auto* tab = new QWidget(this);
         auto* layout = new QVBoxLayout(tab);
@@ -374,7 +354,7 @@ void SettingsDialog::setupUi() {
     };
 
     addTab("Interface", interface_tab);
-    addTab("Keybindings", make_placeholder_tab("Keybindings", "Shortcut presets and command bindings will live here."));
+    addTab("Keybindings", buildKeybindingsTab());
     addTab("Graphics", graphics_tab);
     addTab("Connectors", buildConnectorsTab());
     addTab("Filters", buildFiltersTab());
@@ -417,6 +397,158 @@ void SettingsDialog::syncFromSettings() {
     QSettings settings;
     ids_interpreter_edit_->setText(settings.value("filters/interpreter").toString());
     ids_script_edit_->setText(settings.value("filters/script").toString());
+    refreshShortcutRows();
+}
+
+QWidget* SettingsDialog::buildKeybindingsTab() {
+    auto* tab = new QWidget(this);
+    auto* layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(components::style::metrics::padding);
+
+    auto* toolbar = new QHBoxLayout();
+    shortcut_filter_ = new QLineEdit(tab);
+    shortcut_filter_->setPlaceholderText("Filter functions");
+    toolbar->addWidget(shortcut_filter_, 1);
+    auto* reset_all = new QPushButton("Reset All", tab);
+    auto* export_button = new QPushButton("Export...", tab);
+    auto* import_button = new QPushButton("Import...", tab);
+    toolbar->addWidget(reset_all);
+    toolbar->addWidget(export_button);
+    toolbar->addWidget(import_button);
+    layout->addLayout(toolbar);
+
+    shortcut_table_ = new QTableWidget(0, 3, tab);
+    shortcut_table_->setHorizontalHeaderLabels({"Function", "Shortcut", ""});
+    shortcut_table_->verticalHeader()->setVisible(false);
+    shortcut_table_->setSelectionMode(QAbstractItemView::NoSelection);
+    shortcut_table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    auto* header = shortcut_table_->horizontalHeader();
+    header->setSectionResizeMode(0, QHeaderView::Stretch);
+    header->setSectionResizeMode(1, QHeaderView::Fixed);
+    header->resizeSection(1, 180);
+    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    layout->addWidget(shortcut_table_, 1);
+
+    shortcut_warning_ = new QLabel(tab);
+    shortcut_warning_->setWordWrap(true);
+    shortcut_warning_->setVisible(false);
+    layout->addWidget(shortcut_warning_);
+
+    connect(shortcut_filter_, &QLineEdit::textChanged, this,
+            [this](const QString& text) { applyShortcutFilter(text); });
+    connect(reset_all, &QPushButton::clicked, this, [this]() {
+        bonsaiviewer::services::ShortcutStore::instance().resetAll();
+        shortcut_warning_->setVisible(false);
+        refreshShortcutRows();
+    });
+    connect(export_button, &QPushButton::clicked, this, &SettingsDialog::exportShortcuts);
+    connect(import_button, &QPushButton::clicked, this, &SettingsDialog::importShortcuts);
+    return tab;
+}
+
+void SettingsDialog::refreshShortcutRows() {
+    const auto& store = bonsaiviewer::services::ShortcutStore::instance();
+    shortcut_table_->setRowCount(0);
+    shortcut_table_->setRowCount(static_cast<int>(store.definitions().size()));
+    int row = 0;
+    for (const auto& def : store.definitions()) {
+        const QString id = def.id;
+
+        auto* label = new QTableWidgetItem(def.label);
+        label->setData(Qt::UserRole, id);
+        label->setFlags(Qt::ItemIsEnabled);
+        shortcut_table_->setItem(row, 0, label);
+
+        // The editor records the key combination typed while it has focus.
+        auto* editor = new QKeySequenceEdit(store.sequence(id), shortcut_table_);
+        connect(editor, &QKeySequenceEdit::keySequenceChanged, this,
+                [this, id](const QKeySequence& sequence) { onShortcutEdited(id, sequence); });
+        shortcut_table_->setCellWidget(row, 1, editor);
+
+        auto* reset = new QPushButton("Reset", shortcut_table_);
+        connect(reset, &QPushButton::clicked, this, [this, id]() {
+            auto& store = bonsaiviewer::services::ShortcutStore::instance();
+            if (!store.reset(id)) {
+                shortcut_warning_->setText(
+                    QStringLiteral("The default shortcut is used by another function."));
+                shortcut_warning_->setVisible(true);
+                return;
+            }
+            shortcut_warning_->setVisible(false);
+            if (auto* edit = shortcutEditor(id)) {
+                QSignalBlocker blocker(edit);
+                edit->setKeySequence(store.sequence(id));
+            }
+        });
+        shortcut_table_->setCellWidget(row, 2, reset);
+        ++row;
+    }
+    shortcut_warning_->setVisible(false);
+    applyShortcutFilter(shortcut_filter_->text());
+}
+
+void SettingsDialog::applyShortcutFilter(const QString& text) {
+    for (int row = 0; row < shortcut_table_->rowCount(); ++row) {
+        const auto* item = shortcut_table_->item(row, 0);
+        const bool match = item != nullptr && item->text().contains(text, Qt::CaseInsensitive);
+        shortcut_table_->setRowHidden(row, !match);
+    }
+}
+
+QKeySequenceEdit* SettingsDialog::shortcutEditor(const QString& id) const {
+    for (int row = 0; row < shortcut_table_->rowCount(); ++row) {
+        const auto* item = shortcut_table_->item(row, 0);
+        if (item != nullptr && item->data(Qt::UserRole).toString() == id) {
+            return qobject_cast<QKeySequenceEdit*>(shortcut_table_->cellWidget(row, 1));
+        }
+    }
+    return nullptr;
+}
+
+void SettingsDialog::onShortcutEdited(const QString& id, const QKeySequence& sequence) {
+    auto& store = bonsaiviewer::services::ShortcutStore::instance();
+    if (sequence == store.sequence(id)) return;
+
+    const QString other = store.conflictingId(id, sequence);
+    if (!other.isEmpty()) {
+        const auto* other_def = store.definition(other);
+        shortcut_warning_->setText(
+            QStringLiteral("%1 already uses %2. Choose another shortcut.")
+                .arg(other_def != nullptr ? other_def->label : other,
+                     sequence.toString(QKeySequence::NativeText)));
+        shortcut_warning_->setVisible(true);
+        // Put the previous shortcut back in the editor.
+        if (auto* edit = shortcutEditor(id)) {
+            QSignalBlocker blocker(edit);
+            edit->setKeySequence(store.sequence(id));
+        }
+        return;
+    }
+    shortcut_warning_->setVisible(false);
+    store.assign(id, sequence);
+}
+
+void SettingsDialog::exportShortcuts() {
+    const QString path = QFileDialog::getSaveFileName(
+        this, "Export Shortcuts", "bonsai-shortcuts.json", "Shortcut files (*.json)");
+    if (path.isEmpty()) return;
+    QString error;
+    if (!bonsaiviewer::services::ShortcutStore::instance().exportToFile(path, &error)) {
+        QMessageBox::warning(this, "Export Shortcuts", error);
+    }
+}
+
+void SettingsDialog::importShortcuts() {
+    const QString path = QFileDialog::getOpenFileName(
+        this, "Import Shortcuts", QString(), "Shortcut files (*.json)");
+    if (path.isEmpty()) return;
+    QString error;
+    if (!bonsaiviewer::services::ShortcutStore::instance().importFromFile(path, &error)) {
+        QMessageBox::warning(this, "Import Shortcuts", error);
+        return;
+    }
+    refreshShortcutRows();
 }
 
 void SettingsDialog::syncThemeSettings() {

@@ -84,3 +84,4 @@ After the view plane is moved, the function deactivates and the cursor returns t
 
 ## Open Subject
 
+@todo Repair Transparency methdo

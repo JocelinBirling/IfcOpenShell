@@ -23,11 +23,15 @@
 
 #include "../../components/Dialog.h"
 
+#include <QKeySequence>
 #include <QString>
 #include <vector>
 
 class QCheckBox;
 class QComboBox;
+class QKeySequenceEdit;
+class QLabel;
+class QTableWidget;
 class QDoubleSpinBox;
 class QLineEdit;
 class QShowEvent;
@@ -57,6 +61,15 @@ private:
     void pickThemeColor(QLineEdit* edit);
     void onAccepted();
 
+    // BonsaiViewer31: the Keybindings tab (ShortcutStore).
+    QWidget* buildKeybindingsTab();
+    void refreshShortcutRows();
+    void applyShortcutFilter(const QString& text);
+    void onShortcutEdited(const QString& id, const QKeySequence& sequence);
+    QKeySequenceEdit* shortcutEditor(const QString& id) const;
+    void exportShortcuts();
+    void importShortcuts();
+
     bonsaiviewer::SessionState* session_state_ = nullptr;
 
     struct ThemeColorEditor {
@@ -84,6 +97,10 @@ private:
     // TI06 filters: the IfcTester IDS worker's interpreter and script.
     QLineEdit* ids_interpreter_edit_ = nullptr;
     QLineEdit* ids_script_edit_ = nullptr;
+    // BonsaiViewer31: the shortcut filter, table and conflict message.
+    QLineEdit* shortcut_filter_ = nullptr;
+    QTableWidget* shortcut_table_ = nullptr;
+    QLabel* shortcut_warning_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::settings

@@ -57,6 +57,9 @@
 #include "services/AppearanceService.h"
 #include "services/ActiveView.h"
 #include "services/UndoStack.h"
+#include "services/ShortcutStore.h"
+
+#include <functional>
 #include "services/CameraService.h"
 #include "services/CategoryOverrideFilter.h"
 #include "services/ContextMenuBuilder.h"
@@ -137,48 +140,74 @@ MainWindow::MainWindow(QWidget* parent)
     resize(1720, 980);
 }
 
+namespace {
+
+// BonsaiViewer31: one QShortcut per function, named after its id so that
+// syncShortcutKeys finds it again. The key comes from ShortcutStore.
+void bindShortcut(QWidget* window, const QString& id, std::function<void()> handler) {
+    auto* shortcut = new QShortcut(
+        bonsaiviewer::services::ShortcutStore::instance().sequence(id), window);
+    shortcut->setObjectName(id);
+    shortcut->setContext(Qt::WindowShortcut);
+    QObject::connect(shortcut, &QShortcut::activated, window, std::move(handler));
+}
+
+// Re-reads the key of every bound function after a change in ShortcutStore.
+void syncShortcutKeys(QWidget* window) {
+    const auto& store = bonsaiviewer::services::ShortcutStore::instance();
+    for (auto* shortcut : window->findChildren<QShortcut*>()) {
+        if (store.definition(shortcut->objectName()) == nullptr) continue;
+        shortcut->setKey(store.sequence(shortcut->objectName()));
+    }
+}
+
+} // namespace
+
 void MainWindow::setupChrome() {
     setObjectName("appWindow");
     setDockOptions(QMainWindow::AllowNestedDocks |
                    QMainWindow::AllowTabbedDocks |
                    QMainWindow::GroupedDragging);
 
-    auto bind_shortcut = [this](const QKeySequence& sequence, auto handler) {
-        auto* shortcut = new QShortcut(sequence, this);
-        shortcut->setContext(Qt::WindowShortcut);
-        connect(shortcut, &QShortcut::activated, this, handler);
-    };
+    // BonsaiViewer31: the functions that are not ribbon buttons are bound
+    // here; the ribbon buttons in populateGenericTopPanel, the search bar in
+    // setupRibbon. Every key is read from ShortcutStore.
     // BonsaiViewer27: the stack exists only once the services are created.
-    bind_shortcut(QKeySequence::Undo, [this]() {
+    bindShortcut(this, "view.undo", [this]() {
         if (undo_stack_ != nullptr) undo_stack_->undo();
     });
-    bind_shortcut(QKeySequence("Ctrl+Shift+L"), [this]() {
-        modules::viewport::commands::toggleDistance(*viewport_widget_->viewport());
-    });
-    bind_shortcut(QKeySequence("Ctrl+Shift+A"), [this]() {
-        modules::viewport::commands::toggleArea(*viewport_widget_->viewport());
-    });
-    bind_shortcut(QKeySequence("Ctrl+Shift+V"), [this]() {
-        modules::viewport::commands::toggleVolume(*viewport_widget_->viewport());
-    });
-    bind_shortcut(QKeySequence(Qt::SHIFT | Qt::Key_F), [this]() {
-        modules::viewport::commands::fly(*session_state_, *viewport_widget_->viewport());
-    });
-    bind_shortcut(QKeySequence(Qt::Key_K), [this]() {
+    bindShortcut(this, "section.plane", [this]() {
         modules::viewport::commands::toggleSection(*session_state_, *viewport_widget_->viewport());
     });
-    bind_shortcut(QKeySequence(Qt::SHIFT | Qt::Key_K), [this]() {
+    bindShortcut(this, "section.remove", [this]() {
         modules::viewport::commands::clearSection(*session_state_, *viewport_widget_->viewport());
     });
-    bind_shortcut(QKeySequence(Qt::Key_H), [this]() {
-        active_view_->remove(selection_service_->selectionIdsAsVector());
+    bindShortcut(this, "section.hide", [this]() {
+        auto* viewport = viewport_widget_->viewport();
+        viewport->setSectionGizmosHidden(!viewport->sectionGizmosHidden());
     });
-    bind_shortcut(QKeySequence(Qt::SHIFT | Qt::Key_H), [this]() {
+    bindShortcut(this, "section.suspend", [this]() {
+        auto* viewport = viewport_widget_->viewport();
+        viewport->setSectionsSuspended(!viewport->sectionsSuspended());
+    });
+    bindShortcut(this, "camera.fly", [this]() {
+        modules::viewport::commands::fly(*session_state_, *viewport_widget_->viewport());
+    });
+    bindShortcut(this, "tool.measure_distance", [this]() {
+        modules::viewport::commands::toggleDistance(*viewport_widget_->viewport());
+    });
+    bindShortcut(this, "tool.measure_area", [this]() {
+        modules::viewport::commands::toggleArea(*viewport_widget_->viewport());
+    });
+    bindShortcut(this, "tool.measure_volume", [this]() {
+        modules::viewport::commands::toggleVolume(*viewport_widget_->viewport());
+    });
+    bindShortcut(this, "view.isolate_selection", [this]() {
         active_view_->isolate(selection_service_->selectionIdsAsVector());
     });
-    bind_shortcut(QKeySequence(Qt::ALT | Qt::Key_H), [this]() {
-        active_view_->showAll();
-    });
+    connect(&bonsaiviewer::services::ShortcutStore::instance(),
+            &bonsaiviewer::services::ShortcutStore::changed, this,
+            [this]() { syncShortcutKeys(this); });
     updateWindowTitle();
 }
 
@@ -419,6 +448,40 @@ void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
                     : QStringLiteral("Orientation"));
     });
 
+    // BonsaiViewer31: the buttons above, bound to their shortcuts. A shortcut
+    // runs the button's own handler, so both paths stay identical.
+    bindShortcut(this, "view.hide", [hide_selected]() { hide_selected->click(); });
+    bindShortcut(this, "view.show", [show_selected]() { show_selected->click(); });
+    bindShortcut(this, "view.show_all", [show_all]() { show_all->click(); });
+    bindShortcut(this, "view.invert", [invert_selection]() { invert_selection->click(); });
+    bindShortcut(this, "view.restore", [restore_view]() { restore_view->click(); });
+    bindShortcut(this, "select.all", [select_in_view]() { select_in_view->click(); });
+    bindShortcut(this, "color.paint", [paint]() { paint->click(); });
+    bindShortcut(this, "color.remove", [remove_colour]() { remove_colour->click(); });
+    bindShortcut(this, "color.transparency", [transparency]() { transparency->click(); });
+    bindShortcut(this, "box.set", [selection_to_box]() { selection_to_box->click(); });
+    bindShortcut(this, "box.add", [add_to_box]() { add_to_box->click(); });
+    bindShortcut(this, "box.remove", [remove_from_box]() { remove_from_box->click(); });
+    bindShortcut(this, "box.isolate", [isolate_box]() { isolate_box->click(); });
+    bindShortcut(this, "box.hide", [hide_box]() { hide_box->click(); });
+    bindShortcut(this, "view.fit", [fit_view]() { fit_view->click(); });
+    bindShortcut(this, "view.perpendicular", [perpendicular_view]() { perpendicular_view->click(); });
+    // Toggle Visibility (BonsaiViewer31): the selection is hidden when all of
+    // it is shown, shown otherwise.
+    bindShortcut(this, "view.toggle_visibility", [this]() {
+        const auto ids = selection_service_->selectionIdsAsVector();
+        if (ids.empty()) return;
+        bool all_visible = true;
+        for (const auto id : ids) {
+            if (!active_view_->isVisible(id)) {
+                all_visible = false;
+                break;
+            }
+        }
+        if (all_visible) active_view_->remove(ids);
+        else active_view_->add(ids);
+    });
+
     // Spec 02 section controls (user-placed in the generic band): arm
     // the tool, remove every plane, hide the gizmos (cuts stay),
     // suspend (gizmos and cuts both stop). The toggles are checkable so
@@ -596,6 +659,7 @@ void MainWindow::setupRibbon() {
     auto* search_bar = new modules::searchbar::SearchBar(query_engine_,
                                                          action_pipeline_, generic_panel);
     generic_panel->setSearchBar(search_bar);
+    bindShortcut(this, "search.focus", [search_bar]() { search_bar->focusSearch(); });
     populateGenericTopPanel(generic_panel);
     generic_panel->makeCompact();
     // TI05: one specific top panel per tab, switched with the ribbon.

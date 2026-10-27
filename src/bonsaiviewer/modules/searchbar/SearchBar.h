@@ -49,6 +49,9 @@ public:
               bonsaiviewer::services::ActionPipeline* pipeline,
               QWidget* parent = nullptr);
 
+    // BonsaiViewer31: the Search Bar shortcut puts the caret in the field.
+    void focusSearch();
+
 private:
     void runSearch();
 
