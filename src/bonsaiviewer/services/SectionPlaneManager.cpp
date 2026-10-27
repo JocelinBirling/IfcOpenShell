@@ -37,6 +37,29 @@ bool SectionPlaneManager::addPlane(const float point[3], const float normal[3]) 
     return true;
 }
 
+bool SectionPlaneManager::addCutBox(const Eigen::Vector3f& mn, const Eigen::Vector3f& mx) {
+    if (viewport_.sectionPlaneCount() != 0) return false;
+    const Eigen::Vector3f centre = 0.5f * (mn + mx);
+    for (int axis = 0; axis < 3; ++axis) {
+        Eigen::Vector3f unit = Eigen::Vector3f::Zero();
+        unit[axis] = 1.0f;
+        // Face centres: the plane passes through the middle of each face.
+        Eigen::Vector3f max_face = centre;
+        max_face[axis] = mx[axis];
+        Eigen::Vector3f min_face = centre;
+        min_face[axis] = mn[axis];
+        // The clip removes the positive side, so the normals point outwards.
+        if (!viewport_.addSectionPlaneFacing(max_face, unit)
+            || !viewport_.addSectionPlaneFacing(min_face, -unit)) {
+            viewport_.clearSectionPlanes();
+            emit planesChanged();
+            return false;
+        }
+    }
+    emit planesChanged();
+    return true;
+}
+
 void SectionPlaneManager::removePlaneAt(int index) {
     viewport_.removeSectionPlane(index);
     emit planesChanged();

@@ -534,6 +534,24 @@ void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
     connect(suspend_action, &QAction::toggled, this, [this](bool checked) {
         section_manager_->setSuspended(checked);
     });
+    // BonsaiViewer02 Cut Box: six section cuts on the box of the selected object.
+    modify_menu->addAction(QStringLiteral("Cut Box"), this, [this]() {
+        const auto ids = selection_service_->selectionIdsAsVector();
+        if (ids.size() != 1) {
+            session_state_->setStatusMessage("Section", "Select one object to cut its box");
+            return;
+        }
+        Eigen::Vector3f mn, mx;
+        if (!viewport_widget_->viewport()->computeObjectAabb(ids.front(), mn, mx)) {
+            session_state_->setStatusMessage("Section", "The object has no geometry");
+            return;
+        }
+        if (!section_manager_->addCutBox(mn, mx)) {
+            session_state_->setStatusMessage("Section", "Remove the section planes before a cut box");
+            return;
+        }
+        session_state_->setStatusMessage("Section", "Cut box added");
+    });
     modify_section->setMenu(modify_menu);
 
     components::buttons::addButtonGroups(row, {

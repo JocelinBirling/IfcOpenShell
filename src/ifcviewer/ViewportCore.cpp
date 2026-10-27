@@ -8464,6 +8464,25 @@ bool ViewportCore::addSectionPlaneAtSurface(const Eigen::Vector3f& point,
     return true;
 }
 
+bool ViewportCore::addSectionPlaneFacing(const Eigen::Vector3f& point,
+                                         const Eigen::Vector3f& normal) {
+    if (int(section_planes_.size()) >= kMaxSectionPlanes) {
+        Log::warn() << "[wgpu section] cap reached (" << kMaxSectionPlanes
+                    << " planes)";
+        return false;
+    }
+    if (normal.squaredNorm() < 1e-8f) return false;
+    SectionPlane p;
+    p.n             = normal.normalized();
+    p.origin        = point;
+    p.d             = -p.n.dot(point);
+    p.visual_radius = 1.0f;
+    section_planes_.push_back(p);
+    section_selected_index_ = int(section_planes_.size()) - 1;
+    host_->requestFrame();
+    return true;
+}
+
 void ViewportCore::setSelectedSectionPlane(int index) {
     const int clamped = (index >= 0 && index < int(section_planes_.size())) ? index : -1;
     if (clamped == section_selected_index_) return;

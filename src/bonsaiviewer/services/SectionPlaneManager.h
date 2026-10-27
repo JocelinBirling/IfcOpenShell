@@ -23,6 +23,8 @@
 
 #include <QObject>
 
+#include <Eigen/Dense>
+
 #include <cstdint>
 
 class ViewportWindow;
@@ -46,6 +48,10 @@ public:
     // The viewport flips the normal toward the camera so the first cut
     // reveals the clicked surface; false when the plane cap is reached.
     bool addPlane(const float point[3], const float normal[3]);
+    // Cut Box (BonsaiViewer02): six planes on the faces of the box [mn, mx],
+    // normals pointing out, so only the box content stays visible. Needs an
+    // empty plane list (six free slots); false, and nothing changes, otherwise.
+    bool addCutBox(const Eigen::Vector3f& mn, const Eigen::Vector3f& mx);
     void removePlaneAt(int index);
     void clear();
     int count() const;

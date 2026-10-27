@@ -674,6 +674,11 @@ public:
     bool addSectionPlaneAtSurface(const Eigen::Vector3f& point,
                                   const Eigen::Vector3f& normal,
                                   float visual_radius);
+    // Cut Box (BonsaiViewer02): a plane with exactly `normal`, no camera
+    // flip. The clip removes the positive side, so the normal points out of
+    // the region to keep. Same cap as addSectionPlaneAtSurface.
+    bool addSectionPlaneFacing(const Eigen::Vector3f& point,
+                               const Eigen::Vector3f& normal);
 
     // Remove a single section plane by index (no-op when out of range).
     void removeSectionPlane(int index);

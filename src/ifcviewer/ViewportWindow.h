@@ -421,6 +421,11 @@ public:
     bool  addSectionPlaneAtSurface(const Eigen::Vector3f& point,
                                    const Eigen::Vector3f& normal,
                                    float visual_radius = 0.0f);
+    // Cut Box: the plane keeps the exact normal (see ViewportCore).
+    bool  addSectionPlaneFacing(const Eigen::Vector3f& point,
+                                const Eigen::Vector3f& normal) {
+        return core_.addSectionPlaneFacing(point, normal);
+    }
     void  removeSectionPlane(int index);
     void  clearSectionPlanes();
     int   sectionPlaneCount() const { return int(section_planes_.size()); }

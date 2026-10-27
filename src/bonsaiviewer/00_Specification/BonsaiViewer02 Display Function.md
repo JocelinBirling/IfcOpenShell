@@ -16,15 +16,20 @@ On the next left click, the normal of the surface just clicked is read.
 A section plane is created, perpendicular to that normal and facing the same way.
 After the cut is created, the tool deactivates and the cursor returns to its normal selection behaviour and shape.
 
-#### Add Cut Box
-On the selection of an object, the cut box creates 6 section cuts covering every side of the bounding OBB.
-
 #### Modify (menu)
-The "Modify" button groups the three section maintenance functions in one dropdown, so the section group stays compact:
+The "Modify" button groups the four section maintenance functions in one dropdown, so the section group stays compact:
 
 - **Remove Section**: deletes all section planes in the view, whether hidden or not.
 - **Hide Section**: a toggle that hides the section plane objects. The cut stays active, but the planes are not visible. The checked state of the menu item shows the active state: 1st activation hides the planes, 2nd activation shows them again.
 - **Suspend Section**: a toggle that suspends the section planes. The planes are hidden and the cut is stopped. The checked state shows the active state: 1st activation suspends the cuts, 2nd activation reactivates the planes.
+- **Cut Box**: creates a box of section cuts around the selected object (see below).
+
+#### Cut Box
+On click, the cut box creates 6 section cuts on the faces of the axis-aligned bounding box (AABB) of the selected object. The normals point outwards: the cuts remove everything outside the box, and only the content of the box stays visible.
+
+- It works on exactly one selected object. With no selection, or several, nothing is created and a message asks to select one object.
+- The view must have no section plane, since six planes is the maximum. With planes present, a message asks to remove them first (Remove Section).
+- It is not a toggle: Remove Section deletes the six cuts like any other plane.
 
 #### Move a plane
 The section plane can be translated by clicking on it and holding the button. The plane then moves in either direction.
@@ -84,4 +89,4 @@ After the view plane is moved, the function deactivates and the cursor returns t
 
 ## Open Subject
 
-@todo Repair Transparency methdo
+- Color the whole model from the Models panel.
