@@ -233,7 +233,6 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
     }
     if (object_ids.empty()) return;
     actioned_elements_ += static_cast<int>(object_ids.size());
-    target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
     for (const auto& action : layer.actions) {
         switch (action.type) {
         case FilterAction::Type::Isolate: {
@@ -244,17 +243,26 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
             std::sort(isolated.begin(), isolated.end());
             isolated.erase(std::unique(isolated.begin(), isolated.end()), isolated.end());
             pipeline_.run(isolated, ActionPipeline::Action::Isolate);
+            target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
             break;
         }
         case FilterAction::Type::AddToView:
             pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
+            target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
             break;
         case FilterAction::Type::RemoveFromView:
             pipeline_.run(object_ids, ActionPipeline::Action::RemoveFromView);
+            target_shown_.erase(std::remove_if(target_shown_.begin(), target_shown_.end(),
+                                               [&object_ids](uint32_t id) {
+                                                   return std::find(object_ids.begin(),
+                                                                    object_ids.end(), id)
+                                                       != object_ids.end();
+                                               }),
+                                target_shown_.end());
             break;
         case FilterAction::Type::Colour:
-            // Show the elements, then paint them (like the Paint bucket).
-            pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
+            // Colour only: the elements are not shown or hidden by this action.
+            // They must be added with an Add to the view action to be displayed.
             pipeline_.colour(object_ids, action.colour);
             break;
         case FilterAction::Type::Transparency:
@@ -263,6 +271,7 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
         case FilterAction::Type::AutoColourByProperty:
             // Show the elements, then colour them.
             pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
+            target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
             pipeline_.autoColourByProperty(object_ids,
                                            action.pset.toStdString(),
                                            action.property.toStdString());

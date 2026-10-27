@@ -87,11 +87,11 @@ QString actionLabel(const FilterAction& action) {
     case FilterAction::Type::Isolate: return "Isolate in the view";
     case FilterAction::Type::AddToView: return "Add to the view";
     case FilterAction::Type::RemoveFromView: return "Remove from the view";
-    case FilterAction::Type::Colour: return QString("Add to the view and colour %1").arg(action.colour.name());
+    case FilterAction::Type::Colour: return QString("Apply Color %1").arg(action.colour.name());
     case FilterAction::Type::Transparency:
         return QString("Transparency %1%").arg(action.transparency_percent);
     case FilterAction::Type::AutoColourByProperty:
-        return QString("Add to the view and auto colour by %1.%2").arg(action.pset, action.property);
+        return QString("Automatic Color by %1.%2").arg(action.pset, action.property);
     }
     return {};
 }
@@ -260,8 +260,8 @@ FilterCreationDialog::FilterCreationDialog(const FilterDocument& document,
     action_type_combo_ = new QComboBox(action_params_);
     // Same order as FilterAction::Type.
     action_type_combo_->addItems({"Isolate in the view", "Add to the view", "Remove from the view",
-                                  "Add to the view and colour", "Change the transparency",
-                                  "Add to the view and automatic colour by property"});
+                                  "Apply Color", "Change the transparency",
+                                  "Automatic Color"});
     params_form->addRow("Action", action_type_combo_);
 
     auto* params_stack = new QStackedWidget(action_params_);
