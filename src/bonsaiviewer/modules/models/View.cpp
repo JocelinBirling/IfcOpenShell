@@ -26,7 +26,9 @@
 #include "../../ElementRegistry.h"
 #include "../../ViewerSettings.h"
 #include "../../SessionState.h"
+#include "../../services/ActiveView.h"
 #include "../../services/AppearanceService.h"
+#include "../../services/SelectionService.h"
 #include "../../../ifcviewer/Federation.h"
 #include "../../../ifcviewer/ViewportWindow.h"
 
@@ -62,13 +64,15 @@ void ModelsPanelView::setAppearanceService(bonsaiviewer::services::AppearanceSer
     appearance_ = service;
 }
 
-void ModelsPanelView::colourModels(const QStringList& model_ids) {
-    if (appearance_ == nullptr || session_state_->elementRegistry() == nullptr) return;
-    const QColor colour = QColorDialog::getColor(Qt::white, widget_, "Colour Model");
-    if (!colour.isValid()) return;
+void ModelsPanelView::setModelServices(bonsaiviewer::services::ActiveView* active_view,
+                                       bonsaiviewer::services::SelectionService* selection) {
+    active_view_ = active_view;
+    selection_ = selection;
+}
 
-    // Every element of the chosen models, hidden ones included.
+std::vector<uint32_t> ModelsPanelView::objectIdsOf(const QStringList& model_ids) const {
     std::vector<uint32_t> object_ids;
+    if (session_state_->elementRegistry() == nullptr) return object_ids;
     for (const QString& model_id : model_ids) {
         const uint32_t session_model_id = session_state_->sessionModelIdForModelId(model_id);
         if (session_model_id == 0) continue;
@@ -76,8 +80,35 @@ void ModelsPanelView::colourModels(const QStringList& model_ids) {
             object_ids.push_back(info.object_id);
         }
     }
+    return object_ids;
+}
+
+void ModelsPanelView::colourModels(const QStringList& model_ids) {
+    if (appearance_ == nullptr) return;
+    const QColor colour = QColorDialog::getColor(Qt::white, widget_, "Colour Model");
+    if (!colour.isValid()) return;
+    const auto object_ids = objectIdsOf(model_ids);
     if (object_ids.empty()) return;
     appearance_->setColour(object_ids, colour, bonsaiviewer::services::AppearanceService::Layer::UserPaint);
+}
+
+void ModelsPanelView::isolateModels(const QStringList& model_ids) {
+    // Category filters still apply: ActiveView re-applies them after isolate.
+    if (active_view_ == nullptr) return;
+    const auto object_ids = objectIdsOf(model_ids);
+    if (object_ids.empty()) return;
+    active_view_->isolate(object_ids);
+}
+
+void ModelsPanelView::selectModels(const QStringList& model_ids) {
+    // Only the visible elements are selected (hidden ones are skipped).
+    if (selection_ == nullptr || active_view_ == nullptr) return;
+    std::vector<uint32_t> visible;
+    for (uint32_t object_id : objectIdsOf(model_ids)) {
+        if (active_view_->isVisible(object_id)) visible.push_back(object_id);
+    }
+    selection_->setSelection(visible, bonsaiviewer::services::SelectionSource::Tree,
+                             bonsaiviewer::services::SelectionMode::Replace);
 }
 
 ModelsPanelView::ModelsPanelView(ModelsPanel* widget,
@@ -92,6 +123,8 @@ ModelsPanelView::ModelsPanelView(ModelsPanel* widget,
 {
     widget_->setModel(model_);
     widget_->setColourModelsHandler([this](const QStringList& model_ids) { colourModels(model_ids); });
+    widget_->setIsolateModelsHandler([this](const QStringList& model_ids) { isolateModels(model_ids); });
+    widget_->setSelectModelsHandler([this](const QStringList& model_ids) { selectModels(model_ids); });
 
     // Coarse signals: full rebuild + re-style. The granular Federation
     // signals are handled inside FederationItemModel and don't reach here.

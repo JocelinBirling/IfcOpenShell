@@ -26,10 +26,17 @@
 #include <QObject>
 #include <QStringList>
 
+#include <cstdint>
+#include <vector>
+
 class Federation;
 class ViewportWindow;
 namespace bonsaiviewer { class SessionState; }
-namespace bonsaiviewer::services { class AppearanceService; }
+namespace bonsaiviewer::services {
+class ActiveView;
+class AppearanceService;
+class SelectionService;
+}
 
 namespace bonsaiviewer::modules::models {
 
@@ -63,17 +70,27 @@ public:
 
     // Set once the colour service exists (created after the panels).
     void setAppearanceService(bonsaiviewer::services::AppearanceService* service);
+    // Set once the view and selection services exist (BonsaiViewer29).
+    void setModelServices(bonsaiviewer::services::ActiveView* active_view,
+                          bonsaiviewer::services::SelectionService* selection);
 
 private:
     void refreshResidency();
     // Colours every element of the given models with a colour picked by the user.
     void colourModels(const QStringList& model_ids);
+    // Element ids of the given models (hidden ones included).
+    std::vector<uint32_t> objectIdsOf(const QStringList& model_ids) const;
+    void isolateModels(const QStringList& model_ids);
+    // Selects the visible elements of the given models.
+    void selectModels(const QStringList& model_ids);
 
     ModelsPanel* widget_ = nullptr;
     bonsaiviewer::SessionState* session_state_ = nullptr;
     ViewportWindow* viewport_ = nullptr;
     FederationItemModel* model_ = nullptr;
     bonsaiviewer::services::AppearanceService* appearance_ = nullptr;
+    bonsaiviewer::services::ActiveView* active_view_ = nullptr;
+    bonsaiviewer::services::SelectionService* selection_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::models

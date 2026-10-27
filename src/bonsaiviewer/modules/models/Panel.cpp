@@ -360,6 +360,20 @@ ModelsPanel::ModelsPanel(bonsaiviewer::SessionState* session_state,
                 if (colour_models_handler_) colour_models_handler_(selected_model_ids);
             });
 
+            // BonsaiViewer29: show only these models, or select their visible elements.
+            QAction* isolate_models = menu.addAction(
+                components::icons::makeSvgIcon(":/icons/box-eye.svg"),
+                selected_model_ids.size() > 1 ? "Isolate Selected Models" : "Isolate Model");
+            connect(isolate_models, &QAction::triggered, this, [this, selected_model_ids]() {
+                if (isolate_models_handler_) isolate_models_handler_(selected_model_ids);
+            });
+            QAction* select_models = menu.addAction(
+                components::icons::makeSvgIcon(":/icons/select-face3d.svg"),
+                selected_model_ids.size() > 1 ? "Select Selected Models" : "Select Model");
+            connect(select_models, &QAction::triggered, this, [this, selected_model_ids]() {
+                if (select_models_handler_) select_models_handler_(selected_model_ids);
+            });
+
             QAction* rename = menu.addAction(
                 components::icons::makeSvgIcon(":/icons/cube.svg"), "Rename");
             connect(rename, &QAction::triggered, this, [this, id]() {

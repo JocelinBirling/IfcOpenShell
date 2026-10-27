@@ -63,6 +63,13 @@ public:
     void setColourModelsHandler(std::function<void(const QStringList&)> handler) {
         colour_models_handler_ = std::move(handler);
     }
+    // "Isolate Model" and "Select Model" (BonsaiViewer29).
+    void setIsolateModelsHandler(std::function<void(const QStringList&)> handler) {
+        isolate_models_handler_ = std::move(handler);
+    }
+    void setSelectModelsHandler(std::function<void(const QStringList&)> handler) {
+        select_models_handler_ = std::move(handler);
+    }
 
 private:
     void applyColumnLayout();
@@ -71,6 +78,8 @@ private:
     ViewportWindow* viewport_ = nullptr;
     QTreeView* tree_ = nullptr;
     std::function<void(const QStringList&)> colour_models_handler_;
+    std::function<void(const QStringList&)> isolate_models_handler_;
+    std::function<void(const QStringList&)> select_models_handler_;
     FederationItemModel* model_ = nullptr;
 };
 
