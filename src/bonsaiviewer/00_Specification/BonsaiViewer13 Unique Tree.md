@@ -59,3 +59,7 @@ A Settings button opens the choice of the two reference models (levels and rooms
 ## Open Subject
 - Definition of "the slab below the room" for the implementation: a slab whose top face is at or below the room's floor elevation and whose box overlaps the room's box. To be confirmed when the code is written.
 - Diagnostics (duplicate names, missing elevations, invalid data): shown where, and how (status bar, dialog, or list in the panel). To be decided.
+
+
+- Once it has been created, why not allow to change the tree, move some element, remove some, check wich one is out,etc, fuse two elements from the tree. 
+If we create 80% of it, we could ease the work to clean it. 

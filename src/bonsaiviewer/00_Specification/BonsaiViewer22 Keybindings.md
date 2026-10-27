@@ -12,12 +12,47 @@ The shortcuts can be exported and imported, to deploy the same configuration on 
 - A default list of shortcuts is provided with the software.
 - The editor offers a reset of a shortcut (or of all shortcuts) to its default value.
 
+
+
+Enter the search Bar: CTRL+SPACE
+Hide: H
+Show: S
+Show All : ALT+S
+Invert View : CTRL+I
+Restore View: CTRL+R
+
+Section Plane: CTRL+S
+Remove Section: No Default Shortcut
+Hide Section: No Default Shortcut
+Suspend Section: CTRL+D
+
+Select Everything : CTRL+A
+Toggle Visibility
+
+
+Color: C
+Remove Color: No Default Shortcut
+Transparency: T
+
+The three Box Function
+Set Box : CTRL+B
+Add to Box : CTRL+N
+Remove From Box : CTRL+,
+Isolate Box : CTRL+J
+Hide Box : CTRL+K
+
+Fit View : CTRL+F
+Perpendicular: CTRL+P
+
+
+
 ### Shortcut Editor
 In the Settings, the shortcut editor offers:
 - The list of the functions with their current shortcut.
 - Click on a shortcut, then type the new key combination to record it.
 - A search box and a filter on the function list.
 - A conflict detection: a combination already used by another function triggers a warning.
+
 
 ### Export/Import
 - The export saves the keybindings only, in a file.

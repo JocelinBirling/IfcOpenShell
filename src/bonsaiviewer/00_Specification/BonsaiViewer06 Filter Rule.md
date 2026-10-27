@@ -141,6 +141,11 @@ Example (the view starts empty):
 - **Add to the view and colour** — adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
 - **Change the transparency** — a percentage of transparency: 0 % = opaque, 100 % = invisible (30 % leaves the elements 70 % opaque).
 - **Add to the view and automatic colour by property** — adds the elements to the view, then each distinct value of the chosen property gets its own colour (elements without the property are grey). The property can be chosen with **Browse properties…**, on all the products of the active model.
+- **Activate/Deactivate** One it's activate, it will always be displayed. The color and the selection of object cannot be modifier. 
+
+
+
+
 
 ### Filter file format
 
@@ -160,3 +165,20 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 - Property set / property completion on all the loaded models (BonsaiViewer26 Property Selection).
 - Reusable named lists of values.
 - Importing third-party IDS files as filter layers (BonsaiViewer24 IDS).
+- TODO : Filter need to apply to every model loaded
+
+
+I need to change the way filter work. 
+How to impose a set of color without imposing a set of visible elemnts ?
+How to impose a set of visible elements ?
+
+
+I need to switch back to: 
+Color
+Automatic Color
+We can add several action to each Layout, so it's easy to do Add Object and Color Object. 
+
+If the object has a base transparency, it need to be keep. For windows.
+
+
+When you open a filter, it complete some text. Auto-completion need to be clicked not done alone.

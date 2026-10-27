@@ -188,3 +188,4 @@ Phase 3:
 
 - Relations (spatial relation).
 - Calculated columns (BonsaiViewer23).
+- Trier les colonnes Alphabétiques

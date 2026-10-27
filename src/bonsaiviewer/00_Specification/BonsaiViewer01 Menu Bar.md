@@ -38,8 +38,14 @@ This part must contain the viewer's graphical customisation options.
 - **Window** — Window: enables or disables the viewer panels.
 It must contains every panel that can be added to the tabs. 
 Each button will be a toggle button, to display or hide the panel in the current tabs. 
+
+
+
+
+
 ### Help
 - **Documentation** — Help > Documentation: opens the documentation.
 - **About** — Help > About: shows the licence information.
 
 # Open Subject
+Make the window button specific to each tabs.

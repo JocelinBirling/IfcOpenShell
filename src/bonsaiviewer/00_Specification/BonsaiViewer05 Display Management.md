@@ -51,6 +51,11 @@ Current panels:
 - Clash
 - Issues
 
+
+By default, the following panels will always be opened in a precise prosition. They can moved afterward.
+
+
+
 ## Open Subject
 
 - Content of the specific function panel for each tab.

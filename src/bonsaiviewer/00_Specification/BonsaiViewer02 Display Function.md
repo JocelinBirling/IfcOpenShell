@@ -16,6 +16,9 @@ On the next left click, the normal of the surface just clicked is looked up.
 A section plane is produced, perpendicular to the normal of the surface, facing the same way as the normal.
 After the creation of a cut, the tool deactivates and the cursor returns to its initial selection functionality and its original shape.
 
+#### Add Cut Box
+On the selection of object, the cut box create 6 section cut to create of box, to cover every side of the bouding OBB. 
+
 #### Modify (menu)
 The "Modify" button gathers the three section maintenance functions in one dropdown, so the section group stays compact:
 
@@ -70,3 +73,4 @@ After the move of the view plane, the function deactivates and the cursor return
 
 
 # Open Subject
+- Color whole model from the models panel

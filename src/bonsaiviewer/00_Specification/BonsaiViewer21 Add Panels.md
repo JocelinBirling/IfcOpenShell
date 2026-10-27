@@ -3,7 +3,39 @@
 ## Introduction
 The previous specs define the base tabs of the viewer. It must be possible to add new pages, each one being a complete workspace: a layout of the window with the 3D panel in the center, composed by the user.
 
-## Specification
+## Specification Phase 1
+By default, we will display the following set of panels.
+
+### "Home" 
+
+Models Panel in Top Left
+Spatial Hierarchy in the Bottom Left
+Properties in the Whole Right
+3D view in the center
+
+### "Filter" 
+Models Panel in Top Left
+Spatial Hierarchy in Top Left
+Class Hierarchy in Top Left
+
+Filters in the Bottom Left
+Properties in the Whole Right
+3D view in the center
+
+
+### "Table" 
+Models Panel in Top Left
+Spatial Hierarchy in Top Left
+Class Hierarchy in Top Left
+
+Tables in the Bottom Left
+Properties in the Whole Right
+Table in the Whole Bottom
+3D view in the center
+
+
+## Specification Phase 2
+
 
 ### Add a Tab
 - In the ribbon tabs, the last tab is a small "+".

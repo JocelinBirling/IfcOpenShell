@@ -65,3 +65,5 @@ A "root" is the parent folder of a loaded file. The viewer counts the most frequ
 ### Open points
 - Drops on the 3D view: the viewport may sit in a window container that does not receive drops. To check at the first test.
 - Keybindings is also numbered 22 (`BonsaiViewer22 Keybindings.md`): two specs share the number. To renumber.
+
+-If a models has not already be converted, it need to be added to the file.
