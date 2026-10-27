@@ -592,6 +592,7 @@ void MainWindow::setupRibbon() {
                                                          action_pipeline_, generic_panel);
     generic_panel->setSearchBar(search_bar);
     populateGenericTopPanel(generic_panel);
+    generic_panel->makeCompact();
     // TI05: one specific top panel per tab, switched with the ribbon.
     // Empty until a feature registers its content.
     auto* specific_panel = new components::SpecificTopPanel(shell);
@@ -601,16 +602,12 @@ void MainWindow::setupRibbon() {
     specific_panel->addTab(QStringLiteral("Inspect"));
     connect(ribbon_tabs_, &components::TabBar::currentChanged,
             specific_panel, &components::SpecificTopPanel::setCurrentIndex);
-    // Order below the tabs: the tab ribbon, the specific panel, then the
-    // generic panel (Selection, Categories, Section, Box, Zoom, Colour).
+    // Order below the tabs: the tab ribbon, then the specific panel.
     shell_layout->addWidget(ribbon_band);
     shell_layout->addWidget(specific_panel);
-    // Thin grey line between the two ribbons.
-    auto* ribbon_separator = new QFrame(shell);
-    ribbon_separator->setFixedHeight(1);
-    ribbon_separator->setStyleSheet(QStringLiteral("background-color: #B4B4B4;"));
-    shell_layout->addWidget(ribbon_separator);
-    shell_layout->addWidget(generic_panel);
+    // Spec 05: the generic panel (Selection, Categories, Section, Box,
+    // Zoom, Colour) sits at the top of the 3D view, always reachable.
+    viewport_area_layout_->insertWidget(0, generic_panel);
 
     connect(ribbon_tabs_, &components::TabBar::currentChanged,
             ribbon_pages_, &QStackedWidget::setCurrentIndex);
@@ -677,8 +674,15 @@ void MainWindow::applyWorkspaceDefaults(int index) {
 }
 
 void MainWindow::setupViewport() {
-    viewport_widget_ = new modules::viewport::ViewportPanel(this);
-    setCentralWidget(viewport_widget_);
+    // The central area holds the generic panel (added by setupRibbon) above
+    // the 3D view. Not an overlay: the viewport is a native window.
+    auto* area = new QWidget(this);
+    viewport_area_layout_ = new QVBoxLayout(area);
+    viewport_area_layout_->setContentsMargins(0, 0, 0, 0);
+    viewport_area_layout_->setSpacing(0);
+    viewport_widget_ = new modules::viewport::ViewportPanel(area);
+    viewport_area_layout_->addWidget(viewport_widget_, 1);
+    setCentralWidget(area);
 }
 
 void MainWindow::setupPanels() {

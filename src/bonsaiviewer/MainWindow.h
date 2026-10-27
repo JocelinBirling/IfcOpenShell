@@ -32,6 +32,7 @@ class QMenu;
 class QProgressBar;
 class QStackedWidget;
 class QToolButton;
+class QVBoxLayout;
 namespace bonsaiviewer { class SessionState; }
 namespace bonsaiviewer::components { class TabBar; }
 namespace bonsaiviewer::components { class GenericTopPanel; }
@@ -120,6 +121,8 @@ private:
     // TI21 phase 1: the PanelManager tab id of each workspace (Home, Filter,
     // Table, in ribbon order) and the ones whose default layout is applied.
     QStringList workspace_ids_;
+    // Layout of the central area: generic panel on top, 3D view below.
+    QVBoxLayout* viewport_area_layout_ = nullptr;
     QStringList workspace_defaults_applied_;
     QStackedWidget* ribbon_pages_ = nullptr;
     bonsaiviewer::modules::viewport::ViewportPanel* viewport_widget_ = nullptr;

@@ -29,7 +29,7 @@ class QWidget;
 namespace bonsaiviewer::components {
 
 // TI05 — GenericTopPanel (see 00_Technical_Implementation/
-// BonsaiViewerTI05). A horizontal strip attached below the tabs bar,
+// BonsaiViewerTI05). A horizontal strip at the top of the 3D view,
 // always visible whatever the active tab. Fixed slots: the search bar
 // in the left corner (TI03), then the display functions, the box
 // functions, the zoom functions and the colour functions of TI02/TI04.
@@ -47,6 +47,10 @@ public:
     // The groups are appended left to right; the panel adds the final
     // stretch itself.
     QHBoxLayout* row() const { return row_; }
+    // Spec 05: icon-only buttons (label in the tooltip), no group titles,
+    // and no minimum width, so the strip never squeezes the side panels.
+    // Call once the groups are populated.
+    void makeCompact();
 
 private:
     QHBoxLayout* row_ = nullptr;
