@@ -25,6 +25,7 @@
 #include <QMainWindow>
 #include <QStringList>
 
+class QFrame;
 class QLabel;
 #include <QElapsedTimer>
 class QDockWidget;
@@ -36,6 +37,7 @@ class QVBoxLayout;
 namespace bonsaiviewer { class SessionState; }
 namespace bonsaiviewer::components { class TabBar; }
 namespace bonsaiviewer::components { class GenericTopPanel; }
+namespace bonsaiviewer::components { class SpecificTopPanel; }
 namespace bonsaiviewer::modules::models { class ModelsPanel; }
 namespace bonsaiviewer::modules::models { class ModelsPanelView; }
 namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanel; }
@@ -85,6 +87,12 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
 
+    // TI21 phase 2: Settings > Layouts > Save Layouts. Stores the layout of
+    // every tab (and the user tabs, in ribbon order) as the start-up layout.
+    Q_INVOKABLE void saveLayouts();
+    // Forgets the saved layouts: the next start uses the defaults again.
+    Q_INVOKABLE void forgetSavedLayouts();
+
 private:
     void setupChrome();
     void setupRibbon();
@@ -97,7 +105,13 @@ private:
     // default panel layouts.
     void setupWorkspaces();
     void applyWorkspaceDefaults(int index);
-    void onWorkspaceChanged(int index);
+    // A ribbon tab became current: a workspace (system or user), Inspect,
+    // or the "+" tab, which adds a user tab (TI21 phase 2).
+    void onRibbonTabChanged(int index);
+    QString addUserTab(const QString& name, bool select);
+    void showRibbonTabMenu(const QPoint& pos);
+    void restoreSavedLayouts();
+    int ribbonIndexOf(const QString& key) const;
     // TI05: fill the generic top panel (search bar neighbours: display,
     // box, zoom, colour groups).
     void populateGenericTopPanel(components::GenericTopPanel* panel);
@@ -127,6 +141,12 @@ private:
     // Layout of the central area: generic panel on top, 3D view below.
     QVBoxLayout* viewport_area_layout_ = nullptr;
     QStringList workspace_defaults_applied_;
+    // TI21 phase 2: the ribbon band (Inspect only), the specific panel and
+    // its page of each tab key (PanelManager tab id, or "inspect").
+    QFrame* ribbon_band_ = nullptr;
+    bonsaiviewer::components::SpecificTopPanel* specific_panel_ = nullptr;
+    QHash<QString, int> specific_index_;
+    bool fixing_tab_order_ = false;
     QStackedWidget* ribbon_pages_ = nullptr;
     bonsaiviewer::modules::viewport::ViewportPanel* viewport_widget_ = nullptr;
     // BonsaiViewer22: drag and drop of IFC files onto the viewport panel.

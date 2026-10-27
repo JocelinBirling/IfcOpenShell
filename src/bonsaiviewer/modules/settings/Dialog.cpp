@@ -355,6 +355,7 @@ void SettingsDialog::setupUi() {
 
     addTab("Interface", interface_tab);
     addTab("Keybindings", buildKeybindingsTab());
+    addTab("Layouts", buildLayoutsTab());
     addTab("Graphics", graphics_tab);
     addTab("Connectors", buildConnectorsTab());
     addTab("Filters", buildFiltersTab());
@@ -398,6 +399,49 @@ void SettingsDialog::syncFromSettings() {
     ids_interpreter_edit_->setText(settings.value("filters/interpreter").toString());
     ids_script_edit_->setText(settings.value("filters/script").toString());
     refreshShortcutRows();
+}
+
+QWidget* SettingsDialog::buildLayoutsTab() {
+    auto* tab = new QWidget(this);
+    auto* layout = new QVBoxLayout(tab);
+    auto* section = new components::Section("Tab layouts", components::SectionHeaderMode::Visible, tab);
+    auto* body = new QWidget(section);
+    auto* body_layout = new QVBoxLayout(body);
+    body_layout->setContentsMargins(0, 0, 0, 0);
+    body_layout->setSpacing(8);
+    auto* text = new QLabel("Save the current layout of every tab (panels, positions, user tabs and their "
+                            "order). There is one saved layout: saving again overwrites it. It is used as "
+                            "the default layout at the next start.",
+                            body);
+    text->setWordWrap(true);
+    body_layout->addWidget(text);
+    auto* buttons = new QWidget(body);
+    auto* buttons_layout = new QHBoxLayout(buttons);
+    buttons_layout->setContentsMargins(0, 0, 0, 0);
+    auto* save = new QPushButton("Save Layouts", buttons);
+    auto* forget = new QPushButton("Use the Defaults", buttons);
+    forget->setToolTip("Remove the saved layouts: the next start uses the default layouts");
+    auto* status = new QLabel(buttons);
+    status->setProperty("textRole", "secondary");
+    buttons_layout->addWidget(save);
+    buttons_layout->addWidget(forget);
+    buttons_layout->addWidget(status, 1);
+    body_layout->addWidget(buttons);
+    // The layouts belong to the main window (MainWindow::saveLayouts).
+    connect(save, &QPushButton::clicked, this, [this, status]() {
+        const bool ok = parentWidget()
+            && QMetaObject::invokeMethod(parentWidget(), "saveLayouts", Qt::DirectConnection);
+        status->setText(ok ? "Saved." : "The layouts could not be saved.");
+    });
+    connect(forget, &QPushButton::clicked, this, [this, status]() {
+        const bool ok = parentWidget()
+            && QMetaObject::invokeMethod(parentWidget(), "forgetSavedLayouts", Qt::DirectConnection);
+        status->setText(ok ? "The defaults will be used at the next start." : "Not available.");
+    });
+    section->addBodyWidget(body);
+    layout->addWidget(section);
+    layout->addStretch(1);
+    return tab;
 }
 
 QWidget* SettingsDialog::buildKeybindingsTab() {

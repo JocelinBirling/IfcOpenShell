@@ -84,6 +84,14 @@ public:
     void switchTab(const QString& tab_id);
     QString currentTab() const { return current_tab_; }
 
+    // TI21 phase 2 (Save Layouts): the dock layout stored for a tab, empty
+    // when the tab has none yet. snapshotCurrentTab stores the live layout
+    // of the current tab first; reloadCurrentTab applies its stored layout.
+    QByteArray tabLayout(const QString& tab_id) const;
+    void setTabLayout(const QString& tab_id, const QByteArray& layout);
+    void snapshotCurrentTab();
+    void reloadCurrentTab();
+
 signals:
     void panelRegistered(const QString& id);
     void tabsChanged();

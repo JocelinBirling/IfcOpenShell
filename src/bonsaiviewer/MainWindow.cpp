@@ -60,6 +60,11 @@
 #include "services/ShortcutStore.h"
 
 #include <functional>
+#include <QSettings>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QInputDialog>
 #include "services/CameraService.h"
 #include "services/CategoryOverrideFilter.h"
 #include "services/ContextMenuBuilder.h"
@@ -651,9 +656,17 @@ void MainWindow::setupRibbon() {
     ribbon_tabs_->addTab("Filter");
     ribbon_tabs_->addTab("Table");
     ribbon_tabs_->addTab("Inspect");
+    // TI21 phase 2: the last tab adds a user tab; tabs can be reordered.
+    ribbon_tabs_->addTab("+");
+    ribbon_tabs_->setTabToolTip(4, "Add a tab");
+    ribbon_tabs_->setTabData(3, QStringLiteral("inspect"));
+    ribbon_tabs_->setTabData(4, QStringLiteral("add"));
+    ribbon_tabs_->setMovable(true);
+    ribbon_tabs_->setContextMenuPolicy(Qt::CustomContextMenu);
     ribbon_tabs_->setCurrentIndex(0);
 
     auto* ribbon_band = new QFrame(shell);
+    ribbon_band_ = ribbon_band;
     ribbon_band->setObjectName("ribbonBand");
     auto* band_layout = new QVBoxLayout(ribbon_band);
     band_layout->setContentsMargins(0, 0, 0, 0);
@@ -685,12 +698,11 @@ void MainWindow::setupRibbon() {
     // TI05: one specific top panel per tab, switched with the ribbon.
     // Empty until a feature registers its content.
     auto* specific_panel = new components::SpecificTopPanel(shell);
+    specific_panel_ = specific_panel;
     specific_panel->addTab(QStringLiteral("Home"));
     specific_panel->addTab(QStringLiteral("Filter"));
     specific_panel->addTab(QStringLiteral("Table"));
-    specific_panel->addTab(QStringLiteral("Inspect"));
-    connect(ribbon_tabs_, &components::TabBar::currentChanged,
-            specific_panel, &components::SpecificTopPanel::setCurrentIndex);
+    specific_index_.insert(QStringLiteral("inspect"), specific_panel->addTab(QStringLiteral("Inspect")));
     // Order below the tabs: the tab ribbon, then the specific panel.
     shell_layout->addWidget(ribbon_band);
     shell_layout->addWidget(specific_panel);
@@ -698,43 +710,195 @@ void MainWindow::setupRibbon() {
     // Zoom, Colour) sits at the top of the 3D view, always reachable.
     viewport_area_layout_->insertWidget(0, generic_panel);
 
-    connect(ribbon_tabs_, &components::TabBar::currentChanged,
-            ribbon_pages_, &QStackedWidget::setCurrentIndex);
-    // The ribbon band is shown on Inspect only (index 3).
-    connect(ribbon_tabs_, &components::TabBar::currentChanged, ribbon_band,
-            [ribbon_band](int index) { ribbon_band->setVisible(index == 3); });
+    // The ribbon band is shown on Inspect only (onRibbonTabChanged).
     ribbon_band->setVisible(false); // Home is the first tab, shown at start-up
 
     setMenuWidget(shell);
     setupWorkspaces();
 }
 
-// TI21 phase 1: three workspaces, each one a PanelManager tab with its own
-// dock layout. The default layout of a workspace is applied on its first
-// visit; afterwards PanelManager restores what the user left.
+// TI21: the workspaces, each one a PanelManager tab with its own dock layout.
+// Phase 1: Home, Filter and Table, whose default layout is applied on the
+// first visit; afterwards PanelManager restores what the user left. Phase 2:
+// user tabs ("+"), rename / delete / reorder, and the saved layouts.
 void MainWindow::setupWorkspaces() {
-    for (const QString& name : QStringList{QStringLiteral("Home"),
-                                           QStringLiteral("Filter"),
-                                           QStringLiteral("Table")}) {
-        workspace_ids_.append(panel_manager_->addTab(name));
+    const QStringList names{QStringLiteral("Home"), QStringLiteral("Filter"), QStringLiteral("Table")};
+    for (int i = 0; i < names.size(); ++i) {
+        const QString id = panel_manager_->addTab(names.at(i));
+        workspace_ids_.append(id);
+        ribbon_tabs_->setTabData(i, id);
+        specific_index_.insert(id, i);
     }
     // Home is the start-up workspace: the shell already placed its panels,
     // so its defaults are applied in place.
     panel_manager_->switchTab(workspace_ids_.at(0));
     applyWorkspaceDefaults(0);
     workspace_defaults_applied_.append(workspace_ids_.at(0));
-    connect(ribbon_tabs_, &components::TabBar::currentChanged,
-            this, &MainWindow::onWorkspaceChanged);
+    restoreSavedLayouts();
+
+    connect(ribbon_tabs_, &components::TabBar::currentChanged, this, &MainWindow::onRibbonTabChanged);
+    // The "+" tab stays the last one, whatever the drag and drop.
+    connect(ribbon_tabs_, &QTabBar::tabMoved, this, [this](int, int) {
+        if (fixing_tab_order_) return;
+        const int add = ribbonIndexOf(QStringLiteral("add"));
+        if (add >= 0 && add != ribbon_tabs_->count() - 1) {
+            fixing_tab_order_ = true;
+            ribbon_tabs_->moveTab(add, ribbon_tabs_->count() - 1);
+            fixing_tab_order_ = false;
+        }
+    });
+    connect(ribbon_tabs_, &QWidget::customContextMenuRequested, this, &MainWindow::showRibbonTabMenu);
 }
 
-void MainWindow::onWorkspaceChanged(int index) {
-    if (index < 0 || index >= workspace_ids_.size()) return;
-    const QString tab_id = workspace_ids_.at(index);
-    panel_manager_->switchTab(tab_id);
-    if (!workspace_defaults_applied_.contains(tab_id)) {
-        applyWorkspaceDefaults(index);
-        workspace_defaults_applied_.append(tab_id);
+int MainWindow::ribbonIndexOf(const QString& key) const {
+    for (int i = 0; i < ribbon_tabs_->count(); ++i) {
+        if (ribbon_tabs_->tabData(i).toString() == key) return i;
     }
+    return -1;
+}
+
+void MainWindow::onRibbonTabChanged(int index) {
+    if (index < 0) return;
+    const QString key = ribbon_tabs_->tabData(index).toString();
+    if (key == QLatin1String("add")) {
+        QStringList names;
+        for (int i = 0; i < ribbon_tabs_->count(); ++i) names << ribbon_tabs_->tabText(i);
+        int number = 1;
+        while (names.contains(QStringLiteral("Tab %1").arg(number))) ++number;
+        addUserTab(QStringLiteral("Tab %1").arg(number), true);
+        return;
+    }
+    const bool inspect = key == QLatin1String("inspect");
+    ribbon_band_->setVisible(inspect);
+    ribbon_pages_->setCurrentIndex(inspect ? 3 : 0);
+    specific_panel_->setCurrentIndex(specific_index_.value(key, 0));
+    // Inspect keeps the panels of the workspace it was opened from.
+    if (inspect || key.isEmpty()) return;
+    panel_manager_->switchTab(key);
+    if (!workspace_defaults_applied_.contains(key)) {
+        // A user tab without a layout starts with the 3D view only (switchTab).
+        const int workspace = workspace_ids_.indexOf(key);
+        if (workspace >= 0) applyWorkspaceDefaults(workspace);
+        workspace_defaults_applied_.append(key);
+    }
+}
+
+QString MainWindow::addUserTab(const QString& name, bool select) {
+    const QString id = panel_manager_->addTab(name);
+    const int at = ribbonIndexOf(QStringLiteral("add"));
+    const int index = ribbon_tabs_->insertTab(at, name);
+    ribbon_tabs_->setTabData(index, id);
+    specific_index_.insert(id, specific_panel_->addTab(name));
+    if (select) ribbon_tabs_->setCurrentIndex(index);
+    return id;
+}
+
+void MainWindow::showRibbonTabMenu(const QPoint& pos) {
+    const int index = ribbon_tabs_->tabAt(pos);
+    if (index < 0) return;
+    const QString key = ribbon_tabs_->tabData(index).toString();
+    const bool user_tab = !key.isEmpty() && key != QLatin1String("inspect") && key != QLatin1String("add")
+        && !workspace_ids_.contains(key);
+    QMenu menu(ribbon_tabs_);
+    QAction* rename = menu.addAction("Rename");
+    QAction* remove = menu.addAction("Delete");
+    rename->setEnabled(user_tab);
+    remove->setEnabled(user_tab);
+    QAction* chosen = menu.exec(ribbon_tabs_->mapToGlobal(pos));
+    if (chosen == rename) {
+        bool ok = false;
+        const QString name = QInputDialog::getText(this, "Rename Tab", "Name:", QLineEdit::Normal,
+                                                   ribbon_tabs_->tabText(index), &ok).trimmed();
+        if (!ok || name.isEmpty()) return;
+        ribbon_tabs_->setTabText(index, name);
+        panel_manager_->renameTab(key, name);
+    } else if (chosen == remove) {
+        if (!bonsaiviewer::services::popup::confirmation(
+                this, QString("Delete the tab \"%1\" and its layout?").arg(ribbon_tabs_->tabText(index)))) {
+            return;
+        }
+        // Leave the tab first, so that PanelManager never removes the current one.
+        if (ribbon_tabs_->currentIndex() == index) ribbon_tabs_->setCurrentIndex(0);
+        ribbon_tabs_->removeTab(ribbonIndexOf(key));
+        panel_manager_->removeTab(key);
+        workspace_defaults_applied_.removeAll(key);
+    }
+}
+
+// Saved layouts: one JSON array in QSettings, in ribbon order. A workspace
+// entry is {"kind": "workspace", "index": 0..2, "layout": base64}, a user tab
+// {"kind": "user", "name", "layout"}, Inspect {"kind": "inspect"}.
+namespace {
+const char* kSavedLayoutsKey = "layouts/tabs";
+}
+
+void MainWindow::saveLayouts() {
+    panel_manager_->snapshotCurrentTab();
+    QJsonArray tabs;
+    for (int i = 0; i < ribbon_tabs_->count(); ++i) {
+        const QString key = ribbon_tabs_->tabData(i).toString();
+        if (key == QLatin1String("add")) continue;
+        QJsonObject tab;
+        if (key == QLatin1String("inspect")) {
+            tab["kind"] = "inspect";
+        } else {
+            const int workspace = workspace_ids_.indexOf(key);
+            if (workspace >= 0) {
+                tab["kind"] = "workspace";
+                tab["index"] = workspace;
+            } else {
+                tab["kind"] = "user";
+                tab["name"] = ribbon_tabs_->tabText(i);
+            }
+            tab["layout"] = QString::fromLatin1(panel_manager_->tabLayout(key).toBase64());
+        }
+        tabs.append(tab);
+    }
+    QSettings().setValue(kSavedLayoutsKey, QJsonDocument(tabs).toJson(QJsonDocument::Compact));
+    session_state_->setStatusMessage("Layouts", "Saved: used at the next start");
+}
+
+void MainWindow::forgetSavedLayouts() {
+    QSettings().remove(kSavedLayoutsKey);
+    session_state_->setStatusMessage("Layouts", "Saved layouts removed: the defaults are used at the next start");
+}
+
+void MainWindow::restoreSavedLayouts() {
+    const QByteArray stored = QSettings().value(kSavedLayoutsKey).toByteArray();
+    if (stored.isEmpty()) return;
+    const QJsonArray tabs = QJsonDocument::fromJson(stored).array();
+    QStringList order;  // tab keys in the saved ribbon order
+    for (const QJsonValue& value : tabs) {
+        const QJsonObject tab = value.toObject();
+        const QString kind = tab["kind"].toString();
+        const QByteArray layout = QByteArray::fromBase64(tab["layout"].toString().toLatin1());
+        QString key;
+        if (kind == QLatin1String("inspect")) {
+            key = QStringLiteral("inspect");
+        } else if (kind == QLatin1String("workspace")) {
+            const int workspace = tab["index"].toInt(-1);
+            if (workspace < 0 || workspace >= workspace_ids_.size()) continue;
+            key = workspace_ids_.at(workspace);
+        } else if (kind == QLatin1String("user")) {
+            key = addUserTab(tab["name"].toString(QStringLiteral("Tab")), false);
+        } else {
+            continue;
+        }
+        if (!layout.isEmpty()) {
+            panel_manager_->setTabLayout(key, layout);
+            if (!workspace_defaults_applied_.contains(key)) workspace_defaults_applied_.append(key);
+        }
+        order << key;
+    }
+    // Ribbon order, "+" kept last.
+    for (int target = 0; target < order.size(); ++target) {
+        const int from = ribbonIndexOf(order.at(target));
+        if (from >= 0 && from != target) ribbon_tabs_->moveTab(from, target);
+    }
+    // The start-up tab is the first one: Home keeps its place in the ribbon
+    // state, its saved layout replaces the defaults.
+    panel_manager_->reloadCurrentTab();
+    ribbon_tabs_->setCurrentIndex(ribbonIndexOf(workspace_ids_.at(0)));
 }
 
 // Default panels of each workspace (BonsaiViewer21, phase 1).

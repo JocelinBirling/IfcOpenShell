@@ -56,5 +56,13 @@ Table in the Whole Bottom
 - There is one single saved layout: the button overwrites it.
 - At the next opening of the software, the saved layout is used as the default layout.
 
+### Implementation rules (phase 2)
+- **System tabs**: Home, Filter, Table and Inspect cannot be renamed or deleted. Inspect is not a workspace: it keeps the panels of the tab it was opened from.
+- **New tab**: named "Tab N" (first free number), inserted just before "+", and selected. It starts with the 3D view only.
+- **Compose**: the panels are added or removed with the Window menu (BonsaiViewer01), whose check marks follow the current tab.
+- **Rename / Delete**: right click on a user tab. Delete asks for confirmation; deleting the current tab goes back to Home.
+- **Reorder**: every tab can be dragged; "+" always stays the last one.
+- **Save Layouts**: Settings > Layouts. Saves every tab: its panels and positions, the user tabs with their names, and the ribbon order. "Use the Defaults" removes the saved layout (the next start uses the defaults of phase 1). At start-up, Home is shown with its saved layout.
+
 ## Open Subject
 The docking mechanics of the panels in a workspace (dock positions, sizes, floating windows) need to be defined.

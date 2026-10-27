@@ -172,6 +172,27 @@ void PanelManager::switchTab(const QString& tab_id) {
     emit currentTabChanged(tab_id);
 }
 
+QByteArray PanelManager::tabLayout(const QString& tab_id) const {
+    const auto it = tabs_.find(tab_id);
+    return it != tabs_.end() && it->second.has_layout ? it->second.layout : QByteArray();
+}
+
+void PanelManager::setTabLayout(const QString& tab_id, const QByteArray& layout) {
+    const auto it = tabs_.find(tab_id);
+    if (it == tabs_.end() || layout.isEmpty()) return;
+    it->second.layout = layout;
+    it->second.has_layout = true;
+}
+
+void PanelManager::snapshotCurrentTab() {
+    saveCurrentTabState();
+}
+
+void PanelManager::reloadCurrentTab() {
+    const auto it = tabs_.find(current_tab_);
+    if (it != tabs_.end() && it->second.has_layout) main_window_->restoreState(it->second.layout);
+}
+
 void PanelManager::saveCurrentTabState() {
     if (current_tab_.isEmpty()) return;
     const auto it = tabs_.find(current_tab_);

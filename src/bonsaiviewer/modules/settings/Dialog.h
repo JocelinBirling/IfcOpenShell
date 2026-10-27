@@ -63,6 +63,8 @@ private:
 
     // BonsaiViewer31: the Keybindings tab (ShortcutStore).
     QWidget* buildKeybindingsTab();
+    // TI21 phase 2: Save Layouts (the start-up layout of every tab).
+    QWidget* buildLayoutsTab();
     void refreshShortcutRows();
     void applyShortcutFilter(const QString& text);
     void onShortcutEdited(const QString& id, const QKeySequence& sequence);
