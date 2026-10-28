@@ -1,76 +1,89 @@
+# Bonsai Viewer PLUS
 
-IfcOpenShell 
-============
+
+Welcome to **Bonsai Viewer PLUS**, it's a community build from **Bonsai Viewer**.
+
 
 <p align="center">
-<img src="https://github.com/IfcOpenShell/IfcOpenShell/assets/88302/34901387-e2dd-4a0c-8e38-9ffc32a66cde">
+<img src="./src/bonsaiviewer/00_Images/BonsaiViewerCommunity.png">
 </p>
 
+It opens IFC models in seconds, federates several models in one view, and offers the tools of a coordination meeting — without any authoring environment. PLUS ships with **Filters and Tables as default features**, on top of the common display tools.
 
-IfcOpenShell is an open source ([LGPL]) software library for working with Industry Foundation Classes ([IFC]). Complete
-parsing support is provided for [IFC2x3 TC1], [IFC4 Add2 TC1], IFC4x1, IFC4x2, and [IFC4x3 Add2]. Extensive geometric support
-is implemented for the IFC releases [IFC2x3 TC1] and [IFC4 Add2 TC1]. Extending with support for arbitrary IFC schemas
-is possible at compile-time when using C++ and at run-time when using Python.
+![](./src/bonsaiviewer/00_Images/BasicView.png)
 
-In addition to a C++ and Python API, IfcOpenShell comes with an ecosystem of tools, notably including IfcConvert (an application
-to convert IFC models to other formats), Bonsai (an add-on to Blender providing a graphical IFC authoring platform),
-and many other libraries, CLI apps, and more. Support is also provided for auxiliary standards such as BCF and IDS.
+## Features
 
-For more information, see:
+### Common Display
 
-* [IfcOpenShell Website](https://ifcopenshell.org)
-* [IfcOpenShell Documentation](https://docs.ifcopenshell.org)
-  * [IfcOpenShell C++ Installation](https://docs.ifcopenshell.org/ifcopenshell/installation.html)
-  * [IfcOpenShell Python Installation](https://docs.ifcopenshell.org/ifcopenshell-python/installation.html)
-  * [IfcOpenShell Python Hello World Tutorial](https://docs.ifcopenshell.org/ifcopenshell-python/hello_world.html)
-* [Bonsai Website](https://bonsaibim.org)
-* [Bonsai Documentation](https://docs.bonsaibim.org/index.html)
-  * [Add-on Installation](https://docs.bonsaibim.org/quickstart/installation.html)
-  * [Exploring an IFC model](https://docs.bonsaibim.org/quickstart/explore_model.html)
- 
-Development is sponsored through your generous donations!
+These features are **always present in the display**: they are the base of every model modification. All of them are exposed in the **Menu Bar** (the ribbon), one button group per family.
 
-[![Open Collective Contributors](https://img.shields.io/opencollective/all/opensourcebim?label=Sponsors&color=22ce5f)](https://opencollective.com/opensourcebim/)
+- **Hide, Show and Isolate**: driven by the selection — hide the selected elements, isolate them (hide everything else), show everything again, invert the visibility.
+- **Cut plane**: section planes to cut the model open and inspect what is inside.
+- **Box**: This allow to save some objects to construct complex gathering of objects.
+- **Color**: paint elements with a colour, or restore their original style.
 
-Contents
---------
+### A Search bar
+You don't know where to search, and you don't know exactly what you are looking for ! That's the perfect place.
+It allows to dig in the models and find your interessting data. 
 
-| Name                      | Description                                                           | License             | Service |
-| ------------------------- | --------------------------------------------------------------------- | ------------------- | ------- |
-| [bcf](https://docs.ifcopenshell.org/bcf.html)                       | Library to read and write BCF-XML and query OpenCDE BCF-API modules   | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/bcf-client?label=PyPI&color=006dad)](https://pypi.org/project/bcf-client/) [![Anaconda-Server Badge](https://anaconda.org/conda-forge/bcf-client/badges/version.svg)](https://anaconda.org/conda-forge/bcf-client) |
-| [bonsai](https://docs.ifcopenshell.org/bonsai.html)                    | Add-on to Blender providing a graphical native IFC authoring platform | GPL-3.0-or-later    | [![Official](https://img.shields.io/badge/BonsaiBIM.org-Download-70ba35)](https://bonsaibim.org/studio.html) [![GitHub Unstable](https://img.shields.io/github/v/release/ifcopenshell/ifcopenshell?filter=bonsai-*&label=GitHub-Unstable&color=f6f8fa)](https://github.com/IfcOpenShell/IfcOpenShell/releases?q=bonsai&expanded=true) |
-| [bsdd](https://docs.ifcopenshell.org/bsdd.html)                      | Library to query the bSDD API                                         | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/bsdd?label=PyPI&color=006dad)](https://pypi.org/project/bsdd/) |
-| [ifc2ca](https://docs.ifcopenshell.org/ifc2ca.html)                    | Utility to convert IFC structural analysis models to Code_Aster       | LGPL-3.0-or-later   |
-| [ifc4d](https://docs.ifcopenshell.org/ifc4d.html)                     | Convert to and from IFC and project management software               | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifc4d?label=PyPI&color=006dad)](https://pypi.org/project/ifc4d/) |
-| [ifc5d](https://docs.ifcopenshell.org/ifc5d.html)                     | Report and optimise cost information from IFC                         | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifc5d?label=PyPI&color=006dad)](https://pypi.org/project/ifc5d/) |
-| ifcblender                | Historic Blender IFC import add-on                                    | LGPL-3.0-or-later\* |
-| [ifccityjson](https://docs.ifcopenshell.org/ifccityjson.html)               | Convert CityJSON to IFC                                               | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifccityjson?label=PyPI&color=006dad)](https://pypi.org/project/ifccityjson/) |
-| [ifcclash](https://docs.ifcopenshell.org/ifcclash.html)                  | Clash detection library and CLI app                                   | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifcclash?label=PyPI&color=006dad)](https://pypi.org/project/ifcclash/) |
-| [ifcconvert](https://docs.ifcopenshell.org/ifcconvert.html)                | CLI app to convert IFC to many other formats                          | LGPL-3.0-or-later\* | [![Official](https://img.shields.io/badge/IfcOpenShell.org-Download-70ba35)](https://docs.ifcopenshell.org/ifcconvert/installation.html) [![GitHub](https://img.shields.io/github/v/release/ifcopenshell/ifcopenshell?filter=ifcconvert-*&label=GitHub&color=f6f8fa)](https://github.com/IfcOpenShell/IfcOpenShell/releases?q=ifcconvert&expanded=true)
-| [ifccsv](https://docs.ifcopenshell.org/ifccsv.html)                    | Library and CLI app to export and import schedules from IFC           | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifccsv?label=PyPI&color=006dad)](https://pypi.org/project/ifccsv/) |
-| [ifcdiff](https://docs.ifcopenshell.org/ifcdiff.html)                   | Compare changes between IFC models                                    | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifcdiff?label=PyPI&color=006dad)](https://pypi.org/project/ifcdiff/) |
-| [ifcedit](https://docs.ifcopenshell.org/ifcedit.html)                   | CLI wrapper for ifcopenshell.api IFC model mutation functions         | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifcedit?label=PyPI&color=006dad)](https://pypi.org/project/ifcedit/) |
-| [ifcfm](https://docs.ifcopenshell.org/ifcfm.html)                     | Extract IFC data for FM handover requirements                         | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifcfm?label=PyPI&color=006dad)](https://pypi.org/project/ifcfm/) |
-| [ifcmax](https://docs.ifcopenshell.org/ifcmax.html)                    | Historic extension for IFC support in 3DS Max                         | LGPL-3.0-or-later\* | [![Official](https://img.shields.io/badge/IfcOpenShell.org-Download-70ba35)](https://docs.ifcopenshell.org/ifcmax.html)
-| [ifcmcp](https://docs.ifcopenshell.org/ifcmcp.html)                    | MCP server for querying and editing IFC building models               | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifcopenshell-mcp?label=PyPI&color=006dad)](https://pypi.org/project/ifcopenshell-mcp/) |
-| [ifcopenshell-python](https://docs.ifcopenshell.org/ifcopenshell-python.html)       | Python library for IFC manipulation                                   | LGPL-3.0-or-later\* | [![Official](https://img.shields.io/badge/IfcOpenShell.org-Download-70ba35)](https://docs.ifcopenshell.org/ifcopenshell-python/installation.html) [![GitHub](https://img.shields.io/github/v/release/ifcopenshell/ifcopenshell?filter=ifcopenshell-python-*&label=GitHub&color=f6f8fa)](https://github.com/IfcOpenShell/IfcOpenShell/releases?q=ifcopenshell-python&expanded=true) [![PyPI](https://img.shields.io/pypi/v/ifcopenshell?label=PyPI&color=006dad)](https://pypi.org/project/ifcopenshell/) [![Anaconda](https://img.shields.io/conda/vn/conda-forge/ifcopenshell?label=Anaconda&color=43b02a)](https://anaconda.org/conda-forge/ifcopenshell) [![Anaconda](https://img.shields.io/conda/vn/ifcopenshell/ifcopenshell?label=Anaconda-Unstable&color=43b02a)](https://anaconda.org/ifcopenshell/ifcopenshell) [![Docker](https://img.shields.io/docker/pulls/aecgeeks/ifcopenshell?label=Docker&color=1D63ED)](https://hub.docker.com/r/aecgeeks/ifcopenshell) [![AUR](https://img.shields.io/aur/version/ifcopenshell?label=AUR&color=1793d1)](https://aur.archlinux.org/packages/ifcopenshell) [![AUR Unstable](https://img.shields.io/aur/version/ifcopenshell-git?label=AUR-Unstable&color=1793d1)](https://aur.archlinux.org/packages/ifcopenshell-git) [![Pyodide WASM Wheels tag](https://img.shields.io/github/v/tag/ifcopenshell/wasm-wheels?sort=semver&label=pyodide-wasm-wheels)](https://github.com/IfcOpenShell/wasm-wheels) |
-| [ifcpatch](https://docs.ifcopenshell.org/ifcpatch.html)                  | Utility to run pre-packaged scripts to manipulate IFCs                | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifcpatch?label=PyPI&color=006dad)](https://pypi.org/project/ifcpatch/) |
-| [ifcquery](https://docs.ifcopenshell.org/ifcquery.html)                  | CLI tool for querying and inspecting IFC building models              | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifcquery?label=PyPI&color=006dad)](https://pypi.org/project/ifcquery/) |
-| [ifcsverchok](https://docs.ifcopenshell.org/ifcsverchok.html)               | Blender Add-on for visual node programming with IFC                   | GPL-3.0-or-later    | [![GitHub](https://img.shields.io/github/v/release/ifcopenshell/ifcopenshell?filter=ifcsverchok-*.*.*&label=GitHub&color=f6f8fa)](https://github.com/IfcOpenShell/IfcOpenShell/releases?q=ifcsverchok&expanded=true)
-| [ifctester](https://docs.ifcopenshell.org/ifctester.html)                 | Library, CLI and webapp for IDS model auditing                        | LGPL-3.0-or-later   | [![PyPI](https://img.shields.io/pypi/v/ifctester?label=PyPI&color=006dad)](https://pypi.org/project/ifctester/) |
 
-The IfcOpenShell C++ codebase is split into multiple interal libraries:
+### Filters
 
-| Name                      | Description                                                           | License             |
-| ------------------------- | --------------------------------------------------------------------- | ------------------- |
-| ifcgeom                   | Internal library for IfcOpenShell                                     | LGPL-3.0-or-later\* |
-| ifcgeomserver             | Internal library for IfcOpenShell                                     | LGPL-3.0-or-later\* |
-| ifcparse                  | Internal library for IfcOpenShell                                     | LGPL-3.0-or-later\* |
-| ifcwrap                   | Internal library for IfcOpenShell                                     | LGPL-3.0-or-later\* |
-| serializers               | Internal library for IfcOpenShell                                     | LGPL-3.0-or-later\* |
+Filter rules to analyse the model: selections built from **IDS facets** (class, property, attribute, classification, material, part of), organized in **layers**, and **actions** applied to the result — isolate, add to or remove from the view, colour, transparency, automatic colour, activate/deactivate. Filters are saved between sessions and can be imported and exported as JSON files.
 
-[LGPL]: https://github.com/IfcOpenShell/IfcOpenShell/tree/master/COPYING.LESSER "LGPL-3.0-or-later"
-[IFC]: https://technical.buildingsmart.org/standards/ifc/ "IFC"
-[IFC2x3 TC1]: https://standards.buildingsmart.org/IFC/RELEASE/IFC2x3/TC1/HTML/ "IFC2x3 TC1"
-[IFC4 Add2 TC1]: https://standards.buildingsmart.org/IFC/RELEASE/IFC4/ADD2_TC1/HTML/ "IFC4 Add2 TC1"
-[IFC4x3 Add2]: https://standards.buildingsmart.org/IFC/RELEASE/IFC4_3/ "IFC4x3 Add2"
+![](./src/bonsaiviewer/00_Images/Filter.png)
+
+You can display data as a color. It allow a better vizualisation of data.
+
+![](./src/bonsaiviewer/00_Images/AutomaticFilterByColor.png)
+
+### Tables
+
+Tables of elements, opened by the tools that produce them: values and counts of a property, colours of an automatic colour, results of a filter. The Table panel shows them even when hidden, and they can be browsed and exported.
+
+![](./src/bonsaiviewer/00_Images/Export_Table.png)
+
+You can do small pivot table that can interact with the 3D viewer.
+
+![](./src/bonsaiviewer/00_Images/Table_Gather_Elements.png)
+
+### Ifc Digger
+
+A microscope on the IFC file itself: explore the raw structure of the model — the spatial hierarchy, the entities, their attributes, relationships and properties. For exploring and learn the Ifc file with a graphic views. 
+
+![](./src/bonsaiviewer/00_Images/Ifc_Digger.png)
+
+### Custom Layer
+You can create your own custom windows, to display it as you like.
+
+![](./src/bonsaiviewer/00_Images/Custom_Layer.png)
+
+
+
+### IDS
+It can create an IDS specification, modify it, and launch it on the loaded models.
+The results drive both the view and the Properties panel: colour the objects by IDS result, colour the properties in the panel by their result, and filter the properties to keep only the ones the IDS selects.
+
+![](./src/bonsaiviewer/00_Images/IDS_Validation.png)
+
+## What's Next
+
+### BCF
+I plan to introduce BCF management. 
+
+### A better tree management system
+There are a lot of tree in the Ifc Schema, IfcGroup, IfcSystem, IfcZone, etc...
+I plan to standardize a view to allow for a quick acces to it.
+
+### Clash Management tools
+My main part was to create a clash management tools. I have already build it in Pyhon, it need to be cleaned and exported there.
+
+### Calculation in table
+We could do some small calculation in the viewer, multiply, add to value together. Nothing to fancy, but it could save a small step from going to excel. 
+
+### Draw small chart
+After the table, i could create a smalls charts about the models.
+
+### BSDD Manage
+There is probably something to do with the BSDD in here.
