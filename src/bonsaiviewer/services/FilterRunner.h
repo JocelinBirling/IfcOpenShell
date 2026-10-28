@@ -95,7 +95,9 @@ signals:
     void progress(const QString& stage);
     void finished(bool ok, const QString& summary);
     // An Automatic Color action ran (B06): the shell shows its temporary table.
-    void autoColoured(const QString& pset, const QString& property,
+    // `relation` is set when the colour follows a relation (pset and
+    // property are then empty).
+    void autoColoured(const QString& pset, const QString& property, const QString& relation,
                       const std::vector<std::uint32_t>& ids,
                       const std::unordered_map<std::uint32_t, QColor>& colours);
 
@@ -117,12 +119,17 @@ private:
     struct AutoColourRun {
         QString pset;
         QString property;
+        QString relation;
         ActionPipeline::ElementValues values;
     };
     std::vector<AutoColourRun> auto_colour_runs_;
     QString colourAutoColourRuns();
     // Automatic Color: pset.property of each selected element, read in the
     // selection's file. nullopt when that file is not available.
+    // Automatic Color by relation: the related names of each element (see
+    // RelationValues), read in the selection's file.
+    std::optional<ActionPipeline::ElementValues> relationValues(const std::vector<int>& express_ids,
+                                                                const QString& relation);
     std::optional<ActionPipeline::ElementValues> propertyValues(const std::vector<int>& express_ids,
                                                                 const std::string& pset,
                                                                 const std::string& property);

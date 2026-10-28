@@ -43,6 +43,9 @@ struct FilterAction {
     int transparency_percent = 0; // Transparency
     QString pset;                 // AutoColourByProperty
     QString property;            // AutoColourByProperty
+    // AutoColourByProperty: colour by a relation instead of pset.property
+    // (a key of RelationValues: "storey", "material"...); empty = property.
+    QString relation;
 };
 
 struct FilterLayer {

@@ -373,6 +373,7 @@ FilterAction FilterStore::actionFromJson(const QJsonObject& json) {
     action.transparency_percent = json["percent"].toInt();
     action.pset = json["pset"].toString();
     action.property = json["property"].toString();
+    action.relation = json["relation"].toString();
     return action;
 }
 
@@ -387,8 +388,12 @@ QJsonObject FilterStore::actionToJson(const FilterAction& action) {
         json["percent"] = action.transparency_percent;
         break;
     case FilterAction::Type::AutoColourByProperty:
-        json["pset"] = action.pset;
-        json["property"] = action.property;
+        if (action.relation.isEmpty()) {
+            json["pset"] = action.pset;
+            json["property"] = action.property;
+        } else {
+            json["relation"] = action.relation;
+        }
         break;
     case FilterAction::Type::Isolate:
     case FilterAction::Type::AddToView:
@@ -426,7 +431,7 @@ void FilterStore::load() {
 // remembers it, so deleted examples do not come back until they change).
 // A new version replaces the "Examples" folder.
 void FilterStore::seedExamples() {
-    constexpr int kExamplesVersion = 2;
+    constexpr int kExamplesVersion = 3;
     QSettings settings;
     const bool outdated =
         settings.value(QStringLiteral("examples/filters_version"), 0).toInt() < kExamplesVersion;

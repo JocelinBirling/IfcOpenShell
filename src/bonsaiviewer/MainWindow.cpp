@@ -73,6 +73,7 @@
 #include "services/ContextMenuBuilder.h"
 #include "services/EntitySetStore.h"
 #include "services/FilterRunner.h"
+#include "services/RelationValues.h"
 #include "services/FilterStore.h"
 #include "services/TreePanelFramework.h"
 #include "modules/class_tree/ClassTreeDataSource.h"
@@ -1210,18 +1211,22 @@ void MainWindow::setupLoader() {
     // B06 Automatic Color: the values, counts and colours in a temporary table,
     // as "Colour by property" does in the Properties panel.
     connect(filter_runner_, &bonsaiviewer::services::FilterRunner::autoColoured, this,
-            [this](const QString& pset, const QString& property, const std::vector<std::uint32_t>& ids,
+            [this](const QString& pset, const QString& property, const QString& relation,
+                   const std::vector<std::uint32_t>& ids,
                    const std::unordered_map<std::uint32_t, QColor>& colours) {
+                // The grouping column: the property, or the relation (level, material...).
                 modules::table::TableColumn value_column;
-                value_column.kind = modules::table::TableColumn::Kind::Property;
+                value_column.kind = relation.isEmpty() ? modules::table::TableColumn::Kind::Property
+                                                       : modules::table::TableColumn::Kind::Relation;
                 value_column.pset = pset;
-                value_column.property = property;
+                value_column.property = relation.isEmpty() ? property : relation;
+                if (!relation.isEmpty()) value_column.title = bonsaiviewer::services::relations::label(relation);
                 value_column.group_key = true;
                 modules::table::TableColumn count_column;
                 count_column.kind = modules::table::TableColumn::Kind::Count;
                 modules::table::TableColumn color_column;
                 color_column.kind = modules::table::TableColumn::Kind::Color;
-                table_view_->showTemporaryTable(QString("Colour by %1").arg(property),
+                table_view_->showTemporaryTable(QString("Colour by %1").arg(value_column.displayTitle()),
                                                 {value_column, count_column, color_column}, ids, colours);
                 // The Table panel is hidden in the Filter workspace: show it.
                 panel_manager_->setPanelVisible(QStringLiteral("sheets"), true);

@@ -165,6 +165,16 @@ std::vector<FilterDocument> exampleFilters(const QString& folder_id) {
         {selectionLayer("Walls", {IdsFacet::entity("IfcWall")},
                         {action(Type::Isolate), autoColour("Pset_WallCommon", "LoadBearing")})}));
 
+    FilterAction by_level = action(Type::AutoColourByProperty);
+    by_level.relation = "storey";
+    filters.push_back(document(
+        folder_id, "8. Colour by level",
+        "Automatic Color by relation: the colour follows what the element is related to, here its "
+        "level (IfcBuildingStorey). Other relations: model, building, space, system, zone, group, "
+        "material, type, classification, class. An element with several relations (two systems, a "
+        "layered material) gets the names joined.",
+        {selectionLayer("Elements", {IdsFacet::entity("IfcElement")}, {by_level})}));
+
     return filters;
 }
 

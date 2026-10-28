@@ -31,6 +31,10 @@ struct TableColumn {
         Model,
         Count, // number of elements of the row (1 until grouping)
         Color, // a random colour per row, shown in the cell and in the viewer
+        // What the element is related to (level, material...): `property`
+        // holds the relation key of RelationValues. Used by the temporary
+        // table of an Automatic Color by relation.
+        Relation,
     };
 
     // How the values of the elements of a group are combined (TI07 part C).
@@ -79,6 +83,7 @@ inline QString TableColumn::kindLabel(Kind kind) {
     case Kind::Model: return "Model";
     case Kind::Count: return "Count";
     case Kind::Color: return "Color";
+    case Kind::Relation: return "Relation";
     }
     return {};
 }

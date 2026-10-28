@@ -41,6 +41,7 @@ QString kindToString(TableColumn::Kind kind) {
     case TableColumn::Kind::Model: return "model";
     case TableColumn::Kind::Count: return "count";
     case TableColumn::Kind::Color: return "color";
+    case TableColumn::Kind::Relation: return "relation";
     }
     return "property";
 }
@@ -52,6 +53,7 @@ TableColumn::Kind kindFromString(const QString& value) {
     if (value == "model") return TableColumn::Kind::Model;
     if (value == "count") return TableColumn::Kind::Count;
     if (value == "color") return TableColumn::Kind::Color;
+    if (value == "relation") return TableColumn::Kind::Relation;
     return TableColumn::Kind::Property;
 }
 

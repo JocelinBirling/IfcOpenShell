@@ -59,6 +59,8 @@ private:
     void renameFolder(const QString& folder_id);
     void deleteFolder(const QString& folder_id);
     void deleteTable(const QString& table_id);
+    // A copy "<name> (copy)" in the same folder.
+    void duplicateTable(const QString& table_id);
     void exportTable(const QString& table_id);
     void importTable(const QString& folder_id);
 

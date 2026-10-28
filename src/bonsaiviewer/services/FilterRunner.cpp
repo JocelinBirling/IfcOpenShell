@@ -16,6 +16,7 @@
 #include "../ElementRegistry.h"
 #include "EntitySetStore.h"
 #include "IdsBridge.h"
+#include "RelationValues.h"
 #include "UndoStack.h"
 #include "../SessionState.h"
 
@@ -240,14 +241,39 @@ QString FilterRunner::colourAutoColourRuns() {
             ids.push_back(id);
             if (value) ++found;
         }
-        emit autoColoured(run.pset, run.property, ids, colours);
-        summary += QString("; Automatic Color %1.%2: %3 of %4 element(s) with a value")
-                       .arg(run.pset, run.property)
+        emit autoColoured(run.pset, run.property, run.relation, ids, colours);
+        const QString source = run.relation.isEmpty() ? QString("%1.%2").arg(run.pset, run.property)
+                                                      : relations::label(run.relation);
+        summary += QString("; Automatic Color %1: %2 of %3 element(s) with a value")
+                       .arg(source)
                        .arg(static_cast<qulonglong>(found))
                        .arg(static_cast<qulonglong>(ids.size()));
     }
     auto_colour_runs_.clear();
     return summary;
+}
+
+std::optional<ActionPipeline::ElementValues> FilterRunner::relationValues(
+    const std::vector<int>& express_ids, const QString& relation) {
+    if (target_index_ >= targets_.size()) return std::nullopt;
+    const QString path = targets_[target_index_].ifc_path;
+    ifcopenshell::file* file = ids_bridge_.file(path);
+    if (file == nullptr) return std::nullopt;
+    const QString model_name = QFileInfo(path).fileName();
+    ActionPipeline::ElementValues values;
+    values.reserve(express_ids.size());
+    for (int express_id : express_ids) {
+        const auto object = object_id_by_ifc_id_.find(express_id);
+        if (object == object_id_by_ifc_id_.end()) continue;
+        std::optional<std::string> value;
+        try {
+            const QString text = relations::value(file->instance_by_id(express_id), relation, model_name);
+            if (!text.isEmpty()) value = text.toStdString();
+        } catch (...) {
+        }
+        values.emplace_back(object->second, std::move(value));
+    }
+    return values;
 }
 
 std::optional<ActionPipeline::ElementValues> FilterRunner::propertyValues(
@@ -343,16 +369,24 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
             // open), else in the viewer's file. The colours are given at the
             // end of the run, on every model at once, so that one value has
             // one colour across the models (see colourAutoColourRuns).
-            const std::string pset = action.pset.toStdString();
-            const std::string property = action.property.toStdString();
-            auto values = propertyValues(express_ids, pset, property);
-            if (!values) values = pipeline_.readValues(object_ids, pset, property);
+            // A relation (level, material...) or pset.property.
+            std::optional<ActionPipeline::ElementValues> values;
+            if (!action.relation.isEmpty()) {
+                values = relationValues(express_ids, action.relation);
+                if (!values) values = ActionPipeline::ElementValues{};
+            } else {
+                const std::string pset = action.pset.toStdString();
+                const std::string property = action.property.toStdString();
+                values = propertyValues(express_ids, pset, property);
+                if (!values) values = pipeline_.readValues(object_ids, pset, property);
+            }
             auto run = std::find_if(auto_colour_runs_.begin(), auto_colour_runs_.end(),
                                     [&action](const AutoColourRun& r) {
-                                        return r.pset == action.pset && r.property == action.property;
+                                        return r.relation == action.relation && r.pset == action.pset &&
+                                               r.property == action.property;
                                     });
             if (run == auto_colour_runs_.end()) {
-                auto_colour_runs_.push_back({action.pset, action.property, {}});
+                auto_colour_runs_.push_back({action.pset, action.property, action.relation, {}});
                 run = std::prev(auto_colour_runs_.end());
             }
             run->values.insert(run->values.end(), values->begin(), values->end());

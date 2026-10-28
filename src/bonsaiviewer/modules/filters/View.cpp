@@ -167,6 +167,15 @@ std::vector<TreeNode> FiltersPanelView::childrenOf(const QString& key) {
     return nodes;
 }
 
+void FiltersPanelView::duplicateFilter(const QString& filter_id) {
+    const auto document = store_.filter(filter_id);
+    if (!document) return;
+    bonsaiviewer::services::FilterDocument copy = *document;
+    copy.id.clear(); // a new id
+    copy.name = QString("%1 (copy)").arg(document->name);
+    store_.addFilter(copy, document->folder_id);
+}
+
 void FiltersPanelView::populateContextMenu(const QString& key, ContextMenuBuilder& menu) {
     if (key.isEmpty()) {
         menu.addItem("add-folder",
@@ -219,6 +228,9 @@ void FiltersPanelView::populateContextMenu(const QString& key, ContextMenuBuilde
     menu.addItem("modify",
                  "Modify…",
                  [this, key]() { modifyFilter(key); });
+    menu.addItem("duplicate",
+                 "Duplicate",
+                 [this, key]() { duplicateFilter(key); });
     menu.addItem("export",
                  "Export…",
                  [this, key]() { exportFilter(key); });

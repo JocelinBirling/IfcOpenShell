@@ -156,6 +156,19 @@ Example (the view starts empty):
 - **Apply Color**: adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
 - **Change the transparency**: a percentage of transparency: 0 % = opaque, 100 % = invisible (30 % leaves the elements 70 % opaque). A base transparency of the model (for example windows) is kept.
 - **Automatic Color**: adds the elements to the view, then each distinct value of the chosen property gets its own colour (elements without the property are grey). The property can be chosen with **Browse properties…**, on all the loaded models. A temporary table "Colour by <property>" opens in the Table panel (shown if hidden) with the values, their counts and their colours, as « Colour by property » of the Properties panel (BonsaiViewer14).
+- **Automatic Color by relation**: instead of a property, the colour follows what the element is related to. The **Colour by** list of the action: Property, or a relation:
+  - **Model** — the IFC file name;
+  - **Level** — the IfcBuildingStorey containing the element (walking up the aggregation; IFC4: also the storeys it is referenced in);
+  - **Building**, **Space** — the same for IfcBuilding and IfcSpace;
+  - **System** — the IfcSystem the element is assigned to (IfcRelAssignsToGroup), zones excluded;
+  - **Zone** — the IfcZone of the element, else of its space;
+  - **Group** — the other IfcGroup;
+  - **Material** — the material, or the materials of a set (layers, profiles, constituents, list); a usage counts as its set;
+  - **Type** — the element type;
+  - **Classification** — the classification references (Identification, else Name);
+  - **Class** — the IFC class.
+
+  An element with several relations (two systems, a layered material, two referenced storeys) gets the **names of all of them, sorted and joined with ", "** (for instance "HVAC, Plumbing"): that combination is one value, with its own colour. Elements without the relation are grey. The temporary table is "Colour by <relation>", its first column the relation. Stored in the filter file as `"relation": "storey"` (keys: model, storey, building, space, system, zone, group, material, type, classification, class).
 - **Activate/Deactivate**: once activated, the elements are always displayed. Their colour and selection cannot be modified.
 
 ### Filter file format
@@ -192,6 +205,7 @@ At the first start of a version with examples, the Filters panel gets (once, nex
 5. **Doors and windows through the walls** — an AND layer (Transparency 70 % on the walls), then Add to the view.
 6. **Colour the walls by type** — Automatic Color on Pset_WallCommon.Reference (the wall type).
 7. **Load-bearing and partition walls** — Automatic Color on a true / false property, Pset_WallCommon.LoadBearing.
+8. **Colour by level** — Automatic Color by relation (the level of each element).
 
 The examples are ordinary filters: they can be modified, moved or deleted. They are added when the store holds no filter at all (for instance after deleting every filter), and once per examples version (setting `examples/filters_version`): deleted examples do not come back while other filters remain. A new version replaces the "Examples" folder at the root.
 

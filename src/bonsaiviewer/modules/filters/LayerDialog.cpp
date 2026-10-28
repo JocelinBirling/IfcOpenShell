@@ -15,9 +15,11 @@
 #include "../property_selection/PropertyPicker.h"
 
 #include "../../services/PopupService.h"
+#include "../../services/RelationValues.h"
 
 #include <QButtonGroup>
 #include <QColorDialog>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QGroupBox>
 #include <QGuiApplication>
@@ -92,6 +94,9 @@ QString LayerDialog::actionLabel(const FilterAction& action) {
     case FilterAction::Type::Colour: return QString("Colour %1").arg(action.colour.name());
     case FilterAction::Type::Transparency: return QString("Transparency %1%").arg(action.transparency_percent);
     case FilterAction::Type::AutoColourByProperty:
+        if (!action.relation.isEmpty()) {
+            return QString("Automatic Color (%1)").arg(services::relations::label(action.relation));
+        }
         return QString("Automatic Color (%1.%2)").arg(action.pset, action.property);
     }
     return {};
@@ -102,7 +107,7 @@ QString LayerDialog::validationError(const FilterEditLayer& layer) {
         if (const QString error = SelectionEditor::validationError(layer.fields); !error.isEmpty()) return error;
     }
     for (const auto& action : layer.actions) {
-        if (action.type == FilterAction::Type::AutoColourByProperty &&
+        if (action.type == FilterAction::Type::AutoColourByProperty && action.relation.isEmpty() &&
             (action.pset.isEmpty() || action.property.isEmpty())) {
             return "the automatic colour needs a property set and a property";
         }
@@ -265,6 +270,19 @@ QWidget* LayerDialog::actionRow(int index) {
         break;
     }
     case FilterAction::Type::AutoColourByProperty: {
+        // Colour by: a property (pset.property), or a relation of the
+        // element (model, level, system, material...; RelationValues).
+        auto* source = new QComboBox(row);
+        source->addItem("Property", QString());
+        for (const auto& relation : services::relations::all()) source->addItem(relation.label, relation.key);
+        source->setToolTip("What gives the colour: a property, or what the element is related to.\n"
+                           "An element with several relations (two systems, a layered material...)\n"
+                           "gets the names of all of them, joined.");
+        source->setCurrentIndex(std::max(0, source->findData(action.relation)));
+        layout->addWidget(source);
+        auto* property_box = new QWidget(row);
+        auto* property_layout = new QHBoxLayout(property_box);
+        property_layout->setContentsMargins(0, 0, 0, 0);
         auto* pset = new QLineEdit(action.pset, row);
         pset->setPlaceholderText("Pset_WallCommon");
         auto* property = new QLineEdit(action.property, row);
@@ -321,10 +339,17 @@ QWidget* LayerDialog::actionRow(int index) {
                 picker->open();
             });
         });
-        layout->addWidget(pset, 2);
-        layout->addWidget(new QLabel(".", row));
-        layout->addWidget(property, 2);
-        layout->addWidget(browse);
+        property_layout->addWidget(pset, 2);
+        property_layout->addWidget(new QLabel(".", row));
+        property_layout->addWidget(property, 2);
+        property_layout->addWidget(browse);
+        layout->addWidget(property_box, 4);
+        property_box->setVisible(action.relation.isEmpty());
+        connect(source, &QComboBox::currentIndexChanged, this, [this, index, source, property_box](int) {
+            const QString relation = source->currentData().toString();
+            layer_.actions[static_cast<size_t>(index)].relation = relation;
+            property_box->setVisible(relation.isEmpty());
+        });
         break;
     }
     case FilterAction::Type::Isolate:

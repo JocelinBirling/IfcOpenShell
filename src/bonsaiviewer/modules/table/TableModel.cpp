@@ -12,6 +12,8 @@
 
 #include "TableModel.h"
 
+#include "../../services/RelationValues.h"
+
 #include "../../ElementRegistry.h"
 #include "../../services/IfcDataAccess.h"
 
@@ -159,6 +161,13 @@ std::vector<QVariant> TableModel::elementValues(std::uint32_t object_id) const {
         case TableColumn::Kind::Color:
             values.emplace_back(QString());
             break;
+        case TableColumn::Kind::Relation: {
+            const auto entity = data_access_.entity(object_id);
+            const QString model = info && model_name_ ? model_name_(info->session_model_id) : QString();
+            values.emplace_back(entity ? services::relations::value(*entity, column.property, model)
+                                       : (column.property == QLatin1String("model") ? model : QString()));
+            break;
+        }
         case TableColumn::Kind::Property: {
             if (!sets_read) {
                 psets = data_access_.propertySets(object_id);

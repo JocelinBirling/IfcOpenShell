@@ -71,6 +71,8 @@ private:
     void modifyFilter(const QString& filter_id);
     void runFilter(const QString& filter_id, bool on_box);
     void deleteFilter(const QString& filter_id);
+    // A copy "<name> (copy)" in the same folder.
+    void duplicateFilter(const QString& filter_id);
     void renameFolder(const QString& folder_id);
     void deleteFolder(const QString& folder_id);
     void exportFilter(const QString& filter_id);

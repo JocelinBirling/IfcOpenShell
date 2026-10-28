@@ -166,6 +166,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterExamples.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterExamples.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/RelationValues.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/RelationValues.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.cpp

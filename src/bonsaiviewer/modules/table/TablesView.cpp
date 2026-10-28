@@ -106,6 +106,14 @@ std::vector<TreeNode> TablesView::childrenOf(const QString& key) {
     return nodes;
 }
 
+void TablesView::duplicateTable(const QString& table_id) {
+    const auto document = store_.table(table_id);
+    if (!document) return;
+    TableDocument copy = *document;
+    copy.definition.name = QString("%1 (copy)").arg(document->definition.name);
+    store_.addTable(copy, document->folder_id); // a new id
+}
+
 void TablesView::populateContextMenu(const QString& key, ContextMenuBuilder& menu) {
     if (key.isEmpty()) {
         menu.addItem("new-table",
@@ -148,6 +156,9 @@ void TablesView::populateContextMenu(const QString& key, ContextMenuBuilder& men
                  "Run on the Box",
                  [this, key]() { emit openRequested(key, true); });
     menu.addSeparator();
+    menu.addItem("duplicate",
+                 "Duplicate",
+                 [this, key]() { duplicateTable(key); });
     menu.addItem("export",
                  "Export…",
                  [this, key]() { exportTable(key); });
