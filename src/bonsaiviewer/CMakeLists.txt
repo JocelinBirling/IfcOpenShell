@@ -117,6 +117,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/CreationDialog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetPages.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetPages.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetClipboard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetClipboard.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/SelectionEditor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/SelectionEditor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/ValueEditor.cpp
@@ -162,6 +164,25 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.h
+    # C++ ports of ifcopenshell.util and IfcTester (BonsaiViewer24 IDS).
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Classification.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Classification.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Element.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Element.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Unit.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Unit.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/PyValue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/PyValue.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Restriction.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Restriction.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Facets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Facets.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Ids.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Ids.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDataAccess.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PersistenceService.cpp
@@ -207,6 +228,12 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/Editor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/Editor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/IdsDocument.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/IdsDocument.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/text_digger/View.cpp

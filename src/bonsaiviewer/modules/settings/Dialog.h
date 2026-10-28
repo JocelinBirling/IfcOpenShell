@@ -54,7 +54,6 @@ protected:
 private:
     void setupUi();
     QWidget* buildConnectorsTab();
-    QWidget* buildFiltersTab();
     void syncFromSettings();
     void syncThemeSettings();
     void updateThemeEditorEnabled();
@@ -96,9 +95,6 @@ private:
     QComboBox* theme_mode_combo_ = nullptr;
     QWidget* theme_custom_body_ = nullptr;
     std::vector<ThemeColorEditor> theme_color_editors_;
-    // TI06 filters: the IfcTester IDS worker's interpreter and script.
-    QLineEdit* ids_interpreter_edit_ = nullptr;
-    QLineEdit* ids_script_edit_ = nullptr;
     // BonsaiViewer31: the shortcut filter, table and conflict message.
     QLineEdit* shortcut_filter_ = nullptr;
     QTableWidget* shortcut_table_ = nullptr;

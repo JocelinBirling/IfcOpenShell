@@ -35,7 +35,8 @@ namespace bonsaiviewer { class SessionState; }
 
 // B04 — AppearanceService (see 00_Technical_Implementation/
 // BonsaiViewerTI00). Per-object colour and opacity overrides with priority
-// layers: user paint > table colour > filter action > clash run. The
+// layers: user paint > table colour > IDS result > filter action > clash
+// run. The
 // effective override is the RGB of the highest-priority layer plus the
 // opacity byte; an opacity without any colour layer keeps the baked vertex
 // colour through the viewport's alpha-only flag. Removing the user paint
@@ -55,10 +56,11 @@ public:
     enum class Layer {
         UserPaint = 0,
         TableColour = 1,
-        FilterAction = 2,
-        ClashRun = 3,
+        IdsResult = 2, // BonsaiViewer24: passing green, failing red
+        FilterAction = 3,
+        ClashRun = 4,
     };
-    static constexpr int kLayerCount = 4;
+    static constexpr int kLayerCount = 5;
 
     AppearanceService(bonsaiviewer::SessionState& session,
                       ViewportWindow& viewport,

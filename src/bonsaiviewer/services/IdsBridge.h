@@ -24,17 +24,18 @@
 #include <QStringList>
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
-class QProcess;
+namespace ifcopenshell { class file; }
 
 namespace bonsaiviewer::services {
 
 // One IDS field value: no constraint, a simple value, or one of the XSD
 // restrictions the editor supports. Any IDS field that accepts a
-// restriction (class, PredefinedType, property set, property, value) uses
-// this. Mirrors the worker's VALUE payload.
+// restriction (class, PredefinedType, property set, property, value...)
+// uses this.
 struct IdsValue {
     enum class Kind {
         Any,
@@ -63,51 +64,66 @@ struct IdsValue {
     static IdsValue fromJson(const QJsonValue& json);
 };
 
-// One IDS facet of a selection. v1 supports the entity and the property
-// facets; the other IDS facets (attribute, classification, material,
-// partOf) slot in as new types with their own editor page.
+// One IDS facet of a selection. The six facets of IDS 1.0; each type only
+// uses its own fields:
+//   Entity          name (+ include_subtypes), predefined_type
+//   Property        pset, property, value, data_type, cardinality
+//   Attribute       property (the attribute name), value, cardinality
+//   Classification  system, value, cardinality
+//   Material        value, cardinality
+//   PartOf          relation, name (+ include_subtypes), predefined_type, cardinality
 struct IdsFacet {
     enum class Type {
         Entity,
         Property,
+        Attribute,
+        Classification,
+        Material,
+        PartOf,
     };
     Type type = Type::Entity;
 
-    // Entity facet. IDS matches the class exactly; include_subtypes widens
-    // it to the subtypes (IfcWall + IfcWallStandardCase in IFC2x3).
-    IdsValue name; // the class: one (simple), several (enumeration) or a pattern
+    // Entity / PartOf: the class. IDS matches the class exactly;
+    // include_subtypes widens it to the subtypes (IfcWall +
+    // IfcWallStandardCase in IFC2x3).
+    IdsValue name; // one class (simple), several (enumeration) or a pattern
     bool include_subtypes = true;
     IdsValue predefined_type;
 
-    // Property facet.
     IdsValue pset;
     IdsValue property;
     IdsValue value;
+    IdsValue system;
+    QString data_type; // Property: IFC measure (IFCLABEL...), empty = any
+    QString relation;  // PartOf: IFCRELAGGREGATES..., empty = any relation
     QString cardinality = "required"; // required / optional / prohibited
+    // IDS metadata, kept for the IDS panel: the facet's URI (bSDD...) and
+    // its instructions to the author of the model. Empty when unset.
+    QString uri;
+    QString instructions;
 
     static IdsFacet entity(const QString& ifc_class);
     static IdsFacet propertyFacet();
+    static IdsFacet ofType(Type type);
+    static QString typeLabel(Type type); // "Entity", "Property", "Part of"...
     QString summary() const;
 
     QJsonObject toJson() const;
     static IdsFacet fromJson(const QJsonObject& json);
 };
 
-// B06 filters — the IDS engine bridge. All IDS work (selection, canonical
-// serialisation, parsing, schema and model introspection) is delegated to
-// IfcTester through a long-lived JSON Lines worker process
-// (src/ifctester/ifctester_ipc.py, same protocol pattern as the
-// IfcClash_Plus ipc). The interpreter and script paths come from the
-// settings keys "filters/interpreter" and "filters/script"; when they are
-// not configured every request fails cleanly and the UI shows a popup
-// instead of a half-working feature.
+// B06 filters / B24 IDS — the IDS engine bridge. All IDS work (selection,
+// canonical serialisation, parsing, schema and model introspection) runs
+// in-process on the C++ port of IfcTester (ports/ifctester, through
+// IdsEngine), on the IFC files the viewer already has open. The requests
+// keep their asynchronous form: every callback runs from the event loop,
+// in request order.
 class IdsBridge : public QObject {
     Q_OBJECT
 
 public:
-    // The facets of one selection layer, as edited by the creation window:
-    // exactly one entity facet and any number of property facets, all of
-    // which must pass.
+    // The facets of one selection: exactly one entity facet and any number
+    // of other facets, all of which must pass.
     struct SelectionFields {
         std::vector<IdsFacet> facets;
     };
@@ -130,6 +146,9 @@ public:
     // pset -> property -> up to three of its values, for the picker.
     using SampleMap = QMap<QString, QMap<QString, QStringList>>;
 
+    // The open IFC file of a model path (nullptr when not loaded).
+    using FileProvider = std::function<ifcopenshell::file*(const QString& ifc_path)>;
+
     using SelectionResult = std::function<void(bool ok, std::vector<int> express_ids, const QString& error)>;
     using XmlResult = std::function<void(bool ok, const QString& ids_xml, const QString& error)>;
     using FieldsResult = std::function<void(bool ok, const SelectionFields& fields, const QString& error)>;
@@ -140,10 +159,14 @@ public:
     using ValuesResult = std::function<void(bool ok, const ValueStats& stats, const QString& error)>;
 
     explicit IdsBridge(QObject* parent = nullptr);
+    ~IdsBridge() override;
 
-    // True when the script exists and the interpreter imports
-    // ifcopenshell + ifctester. Blocks up to 10 s: settings only.
-    static bool isConfigured();
+    // Set by the shell: the files of the loaded models. A path the provider
+    // does not know is opened by the bridge itself (kept open while
+    // unchanged on disk).
+    void setFileProvider(FileProvider provider) { file_provider_ = std::move(provider); }
+    // The open file of `ifc_path` (provider, then the bridge's own cache).
+    ifcopenshell::file* file(const QString& ifc_path, QString* error = nullptr);
 
     // The EXPRESS ids of the entities passing the specification. No limit
     // evaluates the whole model; otherwise the candidates are restricted
@@ -154,7 +177,7 @@ public:
                 const std::optional<std::vector<int>>& limit_ids,
                 SelectionResult callback);
 
-    // Facets -> canonical IDS XML, built by IfcTester itself.
+    // Facets -> canonical IDS XML.
     void build(const QString& name, const SelectionFields& fields, XmlResult callback);
 
     // IDS XML -> facets, for reopening a layer in the creation window.
@@ -173,23 +196,12 @@ public:
                 const QString& property, ValuesResult callback);
 
 private:
-    static QJsonObject entityJson(const IdsFacet& entity);
-    static QJsonArray facetsJson(const SelectionFields& fields);
-    static void selectionReply(const QJsonObject& reply, const SelectionResult& callback);
+    // Runs `work` from the event loop, after the requests already queued.
+    void post(std::function<void()> work);
 
-    void ensureStarted();
-    void dropProcess();
-    void send(const QJsonObject& request,
-              const std::function<void(const QJsonObject&)>& handler);
-    void failPending(const QString& error);
-    void readReply();
-
-    QProcess* process_ = nullptr;
-    QByteArray buffer_;
-    int next_request_id_ = 1;
-    int pending_requests_ = 0;
-    // The completion handlers of the requests in flight, by request id.
-    std::vector<std::pair<int, std::function<void(const QJsonObject&)>>> handlers_;
+    struct OwnFile;
+    FileProvider file_provider_;
+    std::vector<std::unique_ptr<OwnFile>> own_files_;
 };
 
 } // namespace bonsaiviewer::services

@@ -46,6 +46,7 @@ namespace bonsaiviewer::modules::unified_tree { class UnifiedTreePanel; }
 namespace bonsaiviewer::modules::unified_tree { class UnifiedTreeView; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
+namespace bonsaiviewer::modules::ids { class IdsPanelView; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
@@ -118,6 +119,8 @@ private:
     // TI02: viewport-level interactions the shell owns — the Perpendicular
     // View right click and the section gizmo right-click delete menu.
     bool eventFilter(QObject* watched, QEvent* event) override;
+    // BonsaiViewer24: offers to save a modified IDS file before quitting.
+    void closeEvent(QCloseEvent* event) override;
     QWidget* buildInspectRibbonPage();
     void updateWindowTitle();
     QToolButton* makePanelToggle(const QString& text, QDockWidget* dock);
@@ -208,6 +211,9 @@ private:
     bonsaiviewer::modules::properties::PropertiesPanelView* properties_view_ = nullptr;
     bonsaiviewer::modules::text_digger::TextDiggerPanel* text_digger_panel_ = nullptr;
     bonsaiviewer::modules::text_digger::TextDiggerView* text_digger_view_ = nullptr;
+    // BonsaiViewer24: the IDS panel (bottom, tabbed with the Table).
+    components::Panel* ids_panel_ = nullptr;
+    bonsaiviewer::modules::ids::IdsPanelView* ids_view_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
     bonsaiviewer::services::PropertyCatalog* property_catalog_ = nullptr;
     bonsaiviewer::modules::table::TablePanelView* table_view_ = nullptr;

@@ -12,11 +12,15 @@
 
 #include "SelectionEditor.h"
 
+#include "FacetClipboard.h"
+
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
+#include <QShortcut>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
@@ -42,11 +46,26 @@ enum FacetPage {
     kNoFacetPage = 0,
     kEntityPage,
     kPropertyPage,
+    kAttributePage,
+    kClassificationPage,
+    kMaterialPage,
+    kPartOfPage,
 };
 
+FacetPage pageOf(IdsFacet::Type type) {
+    switch (type) {
+    case IdsFacet::Type::Entity: return kEntityPage;
+    case IdsFacet::Type::Property: return kPropertyPage;
+    case IdsFacet::Type::Attribute: return kAttributePage;
+    case IdsFacet::Type::Classification: return kClassificationPage;
+    case IdsFacet::Type::Material: return kMaterialPage;
+    case IdsFacet::Type::PartOf: return kPartOfPage;
+    }
+    return kNoFacetPage;
+}
+
 QString facetLabel(const IdsFacet& facet) {
-    return QString("%1  %2").arg(facet.type == IdsFacet::Type::Entity ? "Entity" : "Property",
-                                 facet.summary());
+    return QString("%1  %2").arg(IdsFacet::typeLabel(facet.type), facet.summary());
 }
 
 bool valueIsComplete(const IdsValue& value) {
@@ -63,10 +82,11 @@ bool valueIsComplete(const IdsValue& value) {
 
 } // namespace
 
-SelectionEditor::SelectionEditor(IdsBridge& bridge, IfcPathProvider ifc_path, QWidget* parent)
+SelectionEditor::SelectionEditor(IdsBridge& bridge, IfcPathProvider ifc_path, QWidget* parent, Mode mode)
     : QWidget(parent),
       bridge_(bridge),
-      ifc_path_(std::move(ifc_path))
+      ifc_path_(std::move(ifc_path)),
+      mode_(mode)
 {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -78,7 +98,8 @@ SelectionEditor::SelectionEditor(IdsBridge& bridge, IfcPathProvider ifc_path, QW
     // The facet buttons sit above the list so a short window never hides
     // them.
     auto* facet_buttons = new QHBoxLayout();
-    facet_buttons->addWidget(new QLabel("Facets (all must pass)", facets_side), 1);
+    title_label_ = new QLabel("Facets (all must pass)", facets_side);
+    facet_buttons->addWidget(title_label_, 1);
     add_facet_button_ = new QToolButton(facets_side);
     add_facet_button_->setText("+ Add");
     add_facet_button_->setToolTip("Add a facet (entity, property…)");
@@ -101,13 +122,18 @@ SelectionEditor::SelectionEditor(IdsBridge& bridge, IfcPathProvider ifc_path, QW
     entity_page_ = new EntityFacetPage(bridge_, ifc_path_, facet_pages_);
     property_page_ = new PropertyFacetPage(bridge_, ifc_path_, [this]() { return entityFacet(); },
                                            facet_pages_);
-    for (QWidget* page : {static_cast<QWidget*>(entity_page_), static_cast<QWidget*>(property_page_)}) {
+    attribute_page_ = new SimpleFacetPage(IdsFacet::Type::Attribute, facet_pages_);
+    classification_page_ = new SimpleFacetPage(IdsFacet::Type::Classification, facet_pages_);
+    material_page_ = new SimpleFacetPage(IdsFacet::Type::Material, facet_pages_);
+    part_of_page_ = new PartOfFacetPage(bridge_, ifc_path_, facet_pages_);
+    for (QWidget* page : std::initializer_list<QWidget*>{entity_page_, property_page_, attribute_page_,
+                                                         classification_page_, material_page_, part_of_page_}) {
         auto* scroll = new QScrollArea(facet_pages_);
         scroll->setWidgetResizable(true);
         scroll->setFrameShape(QFrame::NoFrame);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // the page follows the width
         scroll->setWidget(page);
-        facet_pages_->addWidget(scroll); // kEntityPage, kPropertyPage
+        facet_pages_->addWidget(scroll); // in the FacetPage order
     }
     splitter->addWidget(facets_side);
     splitter->addWidget(facet_pages_);
@@ -131,6 +157,12 @@ SelectionEditor::SelectionEditor(IdsBridge& bridge, IfcPathProvider ifc_path, QW
     preview_row->addWidget(preview_button_);
     preview_row->addWidget(isolate_button_);
     layout->addLayout(preview_row);
+    if (mode_ == Mode::Clause) {
+        for (QWidget* widget : std::initializer_list<QWidget*>{preview_label_, preview_button_, isolate_button_}) {
+            widget->hide();
+        }
+        preview_row->itemAt(0)->widget()->hide();
+    }
 
     preview_timer_ = new QTimer(this);
     preview_timer_->setSingleShot(true);
@@ -166,6 +198,20 @@ SelectionEditor::SelectionEditor(IdsBridge& bridge, IfcPathProvider ifc_path, QW
     };
     connect(entity_page_, &EntityFacetPage::changed, this, on_page_changed);
     connect(property_page_, &PropertyFacetPage::changed, this, on_page_changed);
+    for (SimpleFacetPage* page : {attribute_page_, classification_page_, material_page_}) {
+        connect(page, &SimpleFacetPage::changed, this, on_page_changed);
+    }
+    connect(part_of_page_, &PartOfFacetPage::changed, this, on_page_changed);
+
+    // Copy / paste of facets (IDS XML on the clipboard).
+    facet_list_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(facet_list_, &QListWidget::customContextMenuRequested, this, &SelectionEditor::showFacetMenu);
+    auto* copy_shortcut = new QShortcut(QKeySequence::Copy, facet_list_);
+    copy_shortcut->setContext(Qt::WidgetShortcut);
+    connect(copy_shortcut, &QShortcut::activated, this, [this]() { copyFacets(false); });
+    auto* paste_shortcut = new QShortcut(QKeySequence::Paste, facet_list_);
+    paste_shortcut->setContext(Qt::WidgetShortcut);
+    connect(paste_shortcut, &QShortcut::activated, this, &SelectionEditor::pasteFacets);
 }
 
 IdsBridge::SelectionFields SelectionEditor::defaultFields() {
@@ -181,15 +227,25 @@ QString SelectionEditor::validationError(const IdsBridge::SelectionFields& field
             ++entities;
             if (facet.name.isAny() || !valueIsComplete(facet.name)) return "the entity facet needs an IFC class";
             if (!valueIsComplete(facet.predefined_type)) return "the PredefinedType is incomplete";
-        } else {
-            if (facet.pset.isAny() || !valueIsComplete(facet.pset) || facet.property.isAny() ||
-                !valueIsComplete(facet.property)) {
-                return "a property facet needs its property set and its property";
-            }
-            if (facet.cardinality != "prohibited" && !valueIsComplete(facet.value)) {
-                return QString("the value of %1 is incomplete (empty list, pattern, range or length)")
-                    .arg(facet.summary());
-            }
+            continue;
+        }
+        if (facet.type == IdsFacet::Type::Property &&
+            (facet.pset.isAny() || !valueIsComplete(facet.pset) || facet.property.isAny() ||
+             !valueIsComplete(facet.property))) {
+            return "a property facet needs its property set and its property";
+        }
+        if (facet.type == IdsFacet::Type::Attribute && (facet.property.isAny() || !valueIsComplete(facet.property))) {
+            return "an attribute facet needs the attribute name";
+        }
+        if (facet.type == IdsFacet::Type::PartOf && (facet.name.isAny() || !valueIsComplete(facet.name))) {
+            return "a part of facet needs the parent class";
+        }
+        if (!valueIsComplete(facet.system) || !valueIsComplete(facet.predefined_type)) {
+            return QString("%1 is incomplete (empty list, pattern, range or length)").arg(facet.summary());
+        }
+        if (facet.cardinality != "prohibited" && !valueIsComplete(facet.value)) {
+            return QString("the value of %1 is incomplete (empty list, pattern, range or length)")
+                .arg(facet.summary());
         }
     }
     if (entities != 1) return "the selection needs exactly one entity facet";
@@ -238,13 +294,15 @@ void SelectionEditor::showFacet(int index) {
         return;
     }
     const IdsFacet& facet = fields_.facets[index];
-    if (facet.type == IdsFacet::Type::Entity) {
-        entity_page_->setFacet(facet);
-        facet_pages_->setCurrentIndex(kEntityPage);
-    } else {
-        property_page_->setFacet(facet);
-        facet_pages_->setCurrentIndex(kPropertyPage);
+    switch (facet.type) {
+    case IdsFacet::Type::Entity: entity_page_->setFacet(facet); break;
+    case IdsFacet::Type::Property: property_page_->setFacet(facet); break;
+    case IdsFacet::Type::Attribute: attribute_page_->setFacet(facet); break;
+    case IdsFacet::Type::Classification: classification_page_->setFacet(facet); break;
+    case IdsFacet::Type::Material: material_page_->setFacet(facet); break;
+    case IdsFacet::Type::PartOf: part_of_page_->setFacet(facet); break;
     }
+    facet_pages_->setCurrentIndex(pageOf(facet.type));
     current_facet_ = index;
     remove_facet_button_->setEnabled(true);
 }
@@ -252,24 +310,43 @@ void SelectionEditor::showFacet(int index) {
 void SelectionEditor::storeFacetFromPage() {
     if (current_facet_ < 0 || current_facet_ >= static_cast<int>(fields_.facets.size())) return;
     auto& facet = fields_.facets[current_facet_];
-    facet = facet.type == IdsFacet::Type::Entity ? entity_page_->facet() : property_page_->facet();
+    switch (facet.type) {
+    case IdsFacet::Type::Entity: facet = entity_page_->facet(); break;
+    case IdsFacet::Type::Property: facet = property_page_->facet(); break;
+    case IdsFacet::Type::Attribute: facet = attribute_page_->facet(); break;
+    case IdsFacet::Type::Classification: facet = classification_page_->facet(); break;
+    case IdsFacet::Type::Material: facet = material_page_->facet(); break;
+    case IdsFacet::Type::PartOf: facet = part_of_page_->facet(); break;
+    }
 }
 
 void SelectionEditor::addFacet(IdsFacet::Type type) {
     storeFacetFromPage();
     auto& facets = fields_.facets;
-    if (type == IdsFacet::Type::Entity) {
-        const bool has_entity = std::any_of(facets.begin(), facets.end(), [](const IdsFacet& f) {
-            return f.type == IdsFacet::Type::Entity;
-        });
-        if (has_entity) return;
+    const bool has_entity = std::any_of(facets.begin(), facets.end(), [](const IdsFacet& f) {
+        return f.type == IdsFacet::Type::Entity;
+    });
+    if (type == IdsFacet::Type::Entity && !has_entity) {
         facets.insert(facets.begin(), IdsFacet::entity("IfcWall")); // the entity stays first
         syncFacetList();
         selectFacet(0);
+    } else if (type == IdsFacet::Type::Entity && mode_ == Mode::Selection) {
+        return;
+    } else if (type == IdsFacet::Type::Entity) {
+        facets.push_back(IdsFacet::entity("IfcWall"));
+        syncFacetList();
+        selectFacet(facet_list_->count() - 1);
     } else {
-        IdsFacet facet = IdsFacet::propertyFacet();
-        facet.pset = IdsValue::simpleValue({});
-        facet.property = IdsValue::simpleValue({});
+        IdsFacet facet = IdsFacet::ofType(type);
+        if (type == IdsFacet::Type::Property) {
+            facet.pset = IdsValue::simpleValue({});
+            facet.property = IdsValue::simpleValue({});
+        }
+        if (type == IdsFacet::Type::Attribute) facet.property = IdsValue::simpleValue("Name");
+        if (type == IdsFacet::Type::PartOf) {
+            facet.name = IdsValue::simpleValue("IfcBuildingStorey");
+            facet.include_subtypes = false;
+        }
         facets.push_back(facet);
         syncFacetList();
         selectFacet(facet_list_->count() - 1);
@@ -289,11 +366,81 @@ void SelectionEditor::removeFacet(int index) {
     emit changed();
 }
 
+void SelectionEditor::copyFacets(bool all) {
+    storeFacetFromPage();
+    std::vector<IdsFacet> facets;
+    if (all) {
+        facets = fields_.facets;
+    } else if (current_facet_ >= 0 && current_facet_ < static_cast<int>(fields_.facets.size())) {
+        facets.push_back(fields_.facets[current_facet_]);
+    }
+    facet_clipboard::copy(this, facets);
+}
+
+void SelectionEditor::pasteFacets() {
+    std::vector<IdsFacet> pasted = facet_clipboard::paste(this);
+    if (pasted.empty()) return;
+    storeFacetFromPage();
+    auto& facets = fields_.facets;
+    bool has_entity = std::any_of(facets.begin(), facets.end(), [](const IdsFacet& f) {
+        return f.type == IdsFacet::Type::Entity;
+    });
+    int skipped = 0;
+    int added = 0;
+    for (const IdsFacet& facet : pasted) {
+        if (facet.type == IdsFacet::Type::Entity) {
+            if (has_entity && mode_ == Mode::Selection) {
+                ++skipped; // a selection has one entity facet
+                continue;
+            }
+            facets.insert(facets.begin(), facet);
+            has_entity = true;
+        } else {
+            facets.push_back(facet);
+        }
+        ++added;
+    }
+    if (skipped > 0) {
+        QMessageBox::information(this, "Paste facets",
+                                 "The selection already has an entity facet: the pasted entity facet was "
+                                 "left out. Remove the current one first to replace it.");
+    }
+    if (added == 0) return;
+    syncFacetList();
+    selectFacet(facet_list_->count() - 1);
+    schedulePreview();
+    emit changed();
+}
+
+void SelectionEditor::showFacetMenu(const QPoint& position) {
+    QMenu menu(this);
+    QAction* copy = menu.addAction("Copy facet");
+    copy->setShortcut(QKeySequence::Copy);
+    copy->setEnabled(current_facet_ >= 0);
+    QAction* copy_all = menu.addAction("Copy all the facets");
+    copy_all->setEnabled(!fields_.facets.empty());
+    QAction* paste = menu.addAction("Paste facets");
+    paste->setShortcut(QKeySequence::Paste);
+    paste->setEnabled(facet_clipboard::canPaste());
+    QAction* chosen = menu.exec(facet_list_->viewport()->mapToGlobal(position));
+    if (chosen == copy) copyFacets(false);
+    else if (chosen == copy_all) copyFacets(true);
+    else if (chosen == paste) pasteFacets();
+}
+
 IdsFacet SelectionEditor::entityFacet() const {
     for (const auto& facet : fields_.facets) {
         if (facet.type == IdsFacet::Type::Entity) return facet;
     }
-    return {};
+    return entity_source_ ? entity_source_() : IdsFacet();
+}
+
+void SelectionEditor::setTitle(const QString& title) {
+    title_label_->setText(title);
+}
+
+void SelectionEditor::setEntitySource(std::function<IdsFacet()> source) {
+    entity_source_ = std::move(source);
 }
 
 void SelectionEditor::updateAddFacetMenu() {
@@ -304,12 +451,12 @@ void SelectionEditor::updateAddFacetMenu() {
     const auto actions = add_facet_button_->menu()->actions();
     for (int i = 0; i < actions.size() && i < static_cast<int>(entries.size()); ++i) {
         const bool entity = entries[i].available && entries[i].type == IdsFacet::Type::Entity;
-        actions[i]->setEnabled(entries[i].available && !(entity && has_entity));
+        actions[i]->setEnabled(entries[i].available && !(entity && has_entity && mode_ == Mode::Selection));
     }
 }
 
 void SelectionEditor::schedulePreview() {
-    preview_timer_->start();
+    if (mode_ == Mode::Selection) preview_timer_->start();
 }
 
 void SelectionEditor::runPreview() {

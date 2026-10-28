@@ -31,6 +31,18 @@
 
 namespace {
 
+// The members of a mandatory aggregate attribute (HasProperties,
+// Quantities...), empty when the file leaves it unset ($): the typed
+// accessor throws on a null aggregate.
+template <typename Get>
+auto members_or_empty(Get get) -> decltype(get()) {
+    try {
+        return get();
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
 template <typename T>
 struct is_optional : std::false_type {};
 
@@ -245,7 +257,7 @@ std::optional<property_value> property_value_s(const typename Schema::IfcPropert
             {"id", complex.id()},
             {"type", complex.declaration().name()},
             {"UsageName", complex.UsageName()},
-            {"properties", get_properties_s<Schema>(complex.HasProperties(), verbose)},
+            {"properties", get_properties_s<Schema>(members_or_empty([&] { return complex.HasProperties(); }), verbose)},
         };
     } else {
         return std::nullopt;
@@ -291,7 +303,7 @@ std::optional<property_value> quantity_value_s(const typename Schema::IfcPhysica
             {"id", complex.id()},
             {"type", complex.declaration().name()},
             {"Discrimination", complex.Discrimination()},
-            {"properties", get_quantities_s<Schema>(complex.HasQuantities(), verbose)},
+            {"properties", get_quantities_s<Schema>(members_or_empty([&] { return complex.HasQuantities(); }), verbose)},
         };
     } else {
         return std::nullopt;
@@ -363,35 +375,35 @@ std::optional<property_value> get_property_definition_s(
     }
     if (auto quantity = definition.template as<typename Schema::IfcElementQuantity>()) {
         if (property_name) {
-            return get_quantity_s<Schema>(quantity.Quantities(), *property_name, verbose);
+            return get_quantity_s<Schema>(members_or_empty([&] { return quantity.Quantities(); }), *property_name, verbose);
         }
-        auto result = get_quantities_s<Schema>(quantity.Quantities(), verbose);
+        auto result = get_quantities_s<Schema>(members_or_empty([&] { return quantity.Quantities(); }), verbose);
         result["id"] = definition.id();
         return result;
     }
     if (auto pset = definition.template as<typename Schema::IfcPropertySet>()) {
         if (property_name) {
-            return get_property_s<Schema>(pset.HasProperties(), *property_name, verbose);
+            return get_property_s<Schema>(members_or_empty([&] { return pset.HasProperties(); }), *property_name, verbose);
         }
-        auto result = get_properties_s<Schema>(pset.HasProperties(), verbose);
+        auto result = get_properties_s<Schema>(members_or_empty([&] { return pset.HasProperties(); }), verbose);
         result["id"] = definition.id();
         return result;
     }
     if constexpr (is_ifc4_or_higher<Schema>::value) {
         if (auto extended = definition.template as<typename Schema::IfcExtendedProperties>()) {
             if (property_name) {
-                return get_property_s<Schema>(extended.Properties(), *property_name, verbose);
+                return get_property_s<Schema>(members_or_empty([&] { return extended.Properties(); }), *property_name, verbose);
             }
-            auto result = get_properties_s<Schema>(extended.Properties(), verbose);
+            auto result = get_properties_s<Schema>(members_or_empty([&] { return extended.Properties(); }), verbose);
             result["id"] = definition.id();
             return result;
         }
     } else {
         if (auto extended = definition.template as<typename Schema::IfcExtendedMaterialProperties>()) {
             if (property_name) {
-                return get_property_s<Schema>(extended.ExtendedProperties(), *property_name, verbose);
+                return get_property_s<Schema>(members_or_empty([&] { return extended.ExtendedProperties(); }), *property_name, verbose);
             }
-            auto result = get_properties_s<Schema>(extended.ExtendedProperties(), verbose);
+            auto result = get_properties_s<Schema>(members_or_empty([&] { return extended.ExtendedProperties(); }), verbose);
             result["id"] = definition.id();
             return result;
         }
@@ -571,6 +583,20 @@ element_properties get_psets_s(const express::base& element,
                                            psets_only,
                                            qtos_only,
                                            verbose);
+            }
+        }
+    }
+    if constexpr (is_ifc4_or_higher<Schema>::value) {
+        // IfcContext (IfcProject, IfcProjectLibrary) is defined by property sets too.
+        if (auto context = element.template as<typename Schema::IfcContext>()) {
+            for (const auto& relationship : context.IsDefinedBy()) {
+                if (auto by_properties = relationship.template as<typename Schema::IfcRelDefinesByProperties>()) {
+                    merge_definition_s<Schema>(result,
+                                               concrete_definition(by_properties.RelatingPropertyDefinition()),
+                                               psets_only,
+                                               qtos_only,
+                                               verbose);
+                }
             }
         }
     }

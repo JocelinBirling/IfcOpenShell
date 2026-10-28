@@ -22,6 +22,7 @@
 
 #include "../ifcviewer/AppSettings.h"
 #include "../ifcviewer/Federation.h"
+#include "../ifcviewer/SceneLoader.h"
 #include "../ifcviewer/ViewportWindow.h"
 #include "SessionState.h"
 #include "components/Buttons.h"
@@ -51,6 +52,8 @@
 #include "modules/table/TablesPanel.h"
 #include "modules/table/TablesView.h"
 #include "modules/table/View.h"
+#include "modules/ids/Editor.h"
+#include "modules/ids/View.h"
 #include "modules/text_digger/Panel.h"
 #include "modules/text_digger/View.h"
 #include "services/ActionPipeline.h"
@@ -91,6 +94,7 @@
 #include "modules/easy_load/View.h"
 
 #include <QAction>
+#include <QCloseEvent>
 #include <QDockWidget>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -926,6 +930,14 @@ void MainWindow::applyWorkspaceDefaults(int index) {
     }
 }
 
+void MainWindow::closeEvent(QCloseEvent* event) {
+    if (ids_view_ != nullptr && !ids_view_->editor()->confirmDiscard()) {
+        event->ignore();
+        return;
+    }
+    QMainWindow::closeEvent(event);
+}
+
 void MainWindow::setupViewport() {
     // The central area holds the generic panel (added by setupRibbon) above
     // the 3D view. Not an overlay: the viewport is a native window.
@@ -957,6 +969,7 @@ void MainWindow::setupPanels() {
     filters_panel_ = new modules::filters::FiltersPanel(this);
     table_panel_ = new modules::table::TablePanel(this);
     text_digger_panel_ = new modules::text_digger::TextDiggerPanel(this);
+    ids_panel_ = new components::Panel("IDS", nullptr, this);
     tables_panel_ = new modules::table::TablesPanel(this);
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
@@ -987,6 +1000,9 @@ void MainWindow::setupPanels() {
     // BonsaiViewer16: the Ifc Text Digger, in the bottom tabs with the Table.
     addDockWidget(Qt::BottomDockWidgetArea, text_digger_panel_);
     tabifyDockWidget(table_panel_, text_digger_panel_);
+    // BonsaiViewer24: the IDS panel, in the same bottom tabs.
+    addDockWidget(Qt::BottomDockWidgetArea, ids_panel_);
+    tabifyDockWidget(text_digger_panel_, ids_panel_);
     // Tables: on the left, tabbed with Models, and shown at start-up.
     addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
     tabifyDockWidget(models_panel_, tables_panel_);
@@ -1006,6 +1022,7 @@ void MainWindow::setupPanels() {
     filters_panel_->hide();
     table_panel_->hide();
     text_digger_panel_->hide();
+    ids_panel_->hide();
     tables_panel_->raise();
     audit_panel_->hide();
     clash_panel_->hide();
@@ -1140,6 +1157,15 @@ void MainWindow::setupLoader() {
     // TI06 filter rules: the IfcTester IDS bridge, the persisted filter
     // tree (loads filters.json through B14) and the layer-semantics runner.
     ids_bridge_ = new bonsaiviewer::services::IdsBridge(this);
+    // The IDS engine reads the files the viewer already has open.
+    ids_bridge_->setFileProvider([this](const QString& ifc_path) -> ifcopenshell::file* {
+        auto* loader = session_state_->loader();
+        if (loader == nullptr) return nullptr;
+        for (uint32_t session_model_id : session_state_->sessionModelIds()) {
+            if (loader->filePath(session_model_id) == ifc_path) return loader->ifcFile(session_model_id);
+        }
+        return nullptr;
+    });
     filter_store_ = new bonsaiviewer::services::FilterStore(this);
     filter_runner_ = new bonsaiviewer::services::FilterRunner(
         *session_state_, *ids_bridge_, *action_pipeline_, *entity_set_store_, this);
@@ -1172,6 +1198,9 @@ void MainWindow::setupLoader() {
     // BonsaiViewer16: the Ifc Text Digger reads the selection and the IFC text files.
     text_digger_view_ = new modules::text_digger::TextDiggerView(
         text_digger_panel_, *session_state_, *selection_service_, this);
+    // BonsaiViewer24: the IDS panel, run on the C++ IDS engine.
+    ids_view_ = new modules::ids::IdsPanelView(ids_panel_, *session_state_, *ids_bridge_, *action_pipeline_,
+                                               *appearance_service_, this);
     // TI12: the Ifc Class Tree (B12 tree over the open models' IFC classes).
     auto* class_tree_data = new modules::class_tree::ClassTreeDataSource(
         *session_state_, *selection_service_, *action_pipeline_, this);
@@ -1350,6 +1379,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Table"), table_panel_);
     panel_manager_->adoptPanel(QStringLiteral("text_digger"),
                                QStringLiteral("Ifc Text Digger"), text_digger_panel_);
+    panel_manager_->adoptPanel(QStringLiteral("ids"),
+                               QStringLiteral("IDS"), ids_panel_);
     panel_manager_->adoptPanel(QStringLiteral("tables"),
                                QStringLiteral("Tables"), tables_panel_);
     panel_manager_->adoptPanel(QStringLiteral("audit"),

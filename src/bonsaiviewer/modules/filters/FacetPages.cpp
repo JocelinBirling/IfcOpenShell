@@ -66,16 +66,61 @@ bool hasClass(const IdsFacet& entity) {
     }
 }
 
+QComboBox* cardinalityCombo(QWidget* parent) {
+    auto* combo = new QComboBox(parent);
+    combo->addItem("Required", "required");
+    combo->addItem("Optional", "optional");
+    combo->addItem("Prohibited", "prohibited");
+    return combo;
+}
+
+void setCardinality(QComboBox* combo, const QString& cardinality) {
+    const int index = combo->findData(cardinality);
+    combo->setCurrentIndex(index < 0 ? 0 : index);
+}
+
+// The help under a cardinality combo; `what` names the information
+// ("the attribute", "a classification"...).
+QString cardinalityHelp(const QString& cardinality, const QString& what) {
+    if (cardinality == "optional") {
+        return QString("Elements without %1 are selected too; when present, it must match.").arg(what);
+    }
+    if (cardinality == "prohibited") {
+        return QString("Only the elements WITHOUT %1 (matching the values) are selected.").arg(what);
+    }
+    return QString("%1 must exist and match.").arg(what.left(1).toUpper() + what.mid(1));
+}
+
+// The attribute names most IDS checks use, for the completion.
+const QStringList& commonAttributes() {
+    static const QStringList names = {"Name", "Description", "ObjectType", "Tag", "GlobalId", "LongName",
+                                      "PredefinedType", "Elevation", "Identification", "LongDescription",
+                                      "OperationType", "UserDefinedOperationType", "ElementType"};
+    return names;
+}
+
+// IFC measure types for the data type of a property facet.
+const QStringList& commonDataTypes() {
+    static const QStringList names = {"IFCLABEL", "IFCTEXT", "IFCIDENTIFIER", "IFCBOOLEAN", "IFCLOGICAL",
+                                      "IFCINTEGER", "IFCREAL", "IFCCOUNTMEASURE", "IFCLENGTHMEASURE",
+                                      "IFCPOSITIVELENGTHMEASURE", "IFCAREAMEASURE", "IFCVOLUMEMEASURE",
+                                      "IFCMASSMEASURE", "IFCPLANEANGLEMEASURE", "IFCRATIOMEASURE",
+                                      "IFCPOSITIVERATIOMEASURE", "IFCTHERMALTRANSMITTANCEMEASURE",
+                                      "IFCTHERMODYNAMICTEMPERATUREMEASURE", "IFCPOWERMEASURE",
+                                      "IFCPRESSUREMEASURE", "IFCTIMEMEASURE", "IFCDATE", "IFCDATETIME"};
+    return names;
+}
+
 } // namespace
 
 const std::vector<FacetTypeEntry>& facetTypes() {
     static const std::vector<FacetTypeEntry> entries = {
         {"Entity (IFC class)", true, IdsFacet::Type::Entity},
         {"Property", true, IdsFacet::Type::Property},
-        {"Attribute (coming)", false, IdsFacet::Type::Property},
-        {"Classification (coming)", false, IdsFacet::Type::Property},
-        {"Material (coming)", false, IdsFacet::Type::Property},
-        {"Part of (coming)", false, IdsFacet::Type::Property},
+        {"Attribute", true, IdsFacet::Type::Attribute},
+        {"Classification", true, IdsFacet::Type::Classification},
+        {"Material", true, IdsFacet::Type::Material},
+        {"Part of", true, IdsFacet::Type::PartOf},
     };
     return entries;
 }
@@ -150,6 +195,7 @@ EntityFacetPage::EntityFacetPage(IdsBridge& bridge, IfcPathProvider ifc_path, QW
 }
 
 void EntityFacetPage::setFacet(const IdsFacet& facet) {
+    base_ = facet;
     loading_ = true;
     class_editor_->setValue(facet.name);
     subtypes_check_->setChecked(facet.include_subtypes);
@@ -165,7 +211,8 @@ void EntityFacetPage::setFacet(const IdsFacet& facet) {
 }
 
 IdsFacet EntityFacetPage::facet() const {
-    IdsFacet facet = IdsFacet::entity({});
+    IdsFacet facet = base_; // keeps what the page does not show (URI, instructions)
+    facet.type = IdsFacet::Type::Entity;
     facet.name = class_editor_->value();
     facet.include_subtypes = subtypes_check_->isChecked();
     facet.predefined_type = predefined_editor_->value();
@@ -285,10 +332,13 @@ PropertyFacetPage::PropertyFacetPage(IdsBridge& bridge,
     property_editor_ = new ValueEditor(ValueEditor::AllowText, this);
     property_editor_->setPlaceholder("FireRating");
     form->addRow("Property", property_editor_);
-    cardinality_combo_ = new QComboBox(this);
-    cardinality_combo_->addItem("Required", "required");
-    cardinality_combo_->addItem("Optional", "optional");
-    cardinality_combo_->addItem("Prohibited", "prohibited");
+    data_type_combo_ = new QComboBox(this);
+    data_type_combo_->setEditable(true);
+    data_type_combo_->addItem(QString());
+    data_type_combo_->addItems(commonDataTypes());
+    data_type_combo_->setToolTip("The IFC data type the value must have (e.g. IFCLABEL); empty = any type");
+    form->addRow("Data type", data_type_combo_);
+    cardinality_combo_ = cardinalityCombo(this);
     form->addRow("Cardinality", cardinality_combo_);
     cardinality_help_ = secondaryLabel(this);
     form->addRow("", cardinality_help_);
@@ -327,9 +377,13 @@ PropertyFacetPage::PropertyFacetPage(IdsBridge& bridge,
         updateCardinalityHelp();
         if (!loading_) emit changed();
     });
+    connect(data_type_combo_, &QComboBox::currentTextChanged, this, [this](const QString&) {
+        if (!loading_) emit changed();
+    });
 }
 
 void PropertyFacetPage::setFacet(const IdsFacet& facet) {
+    base_ = facet;
     loading_ = true;
     pset_editor_->clearSuggestions();
     property_editor_->clearSuggestions();
@@ -337,18 +391,20 @@ void PropertyFacetPage::setFacet(const IdsFacet& facet) {
     pset_editor_->setValue(facet.pset);
     property_editor_->setValue(facet.property);
     value_editor_->setValue(facet.value);
-    const int index = cardinality_combo_->findData(facet.cardinality);
-    cardinality_combo_->setCurrentIndex(index < 0 ? 0 : index);
+    data_type_combo_->setCurrentText(facet.data_type);
+    setCardinality(cardinality_combo_, facet.cardinality);
     loading_ = false;
     updateCardinalityHelp();
     loadProperties();
 }
 
 IdsFacet PropertyFacetPage::facet() const {
-    IdsFacet facet = IdsFacet::propertyFacet();
+    IdsFacet facet = base_; // keeps what the page does not show (URI, instructions)
+    facet.type = IdsFacet::Type::Property;
     facet.pset = pset_editor_->value();
     facet.property = property_editor_->value();
     facet.value = value_editor_->value();
+    facet.data_type = data_type_combo_->currentText().trimmed().toUpper();
     facet.cardinality = cardinality_combo_->currentData().toString();
     return facet;
 }
@@ -463,6 +519,201 @@ void PropertyFacetPage::loadValues() {
             value_editor_->setRangeBase(stats.base);
         }
     });
+}
+
+// ---------------------------------------------------------------------------
+// SimpleFacetPage — attribute, classification, material
+// ---------------------------------------------------------------------------
+
+SimpleFacetPage::SimpleFacetPage(IdsFacet::Type type, QWidget* parent)
+    : QWidget(parent),
+      type_(type)
+{
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto* form = new QFormLayout();
+    QString title;
+    switch (type) {
+    case IdsFacet::Type::Attribute:
+        title = "<b>Attribute</b> — a direct IFC attribute of the elements (Name, Description, Tag…)";
+        name_editor_ = new ValueEditor(ValueEditor::AllowText, this);
+        name_editor_->setPlaceholder("Name");
+        name_editor_->setCompletions(commonAttributes());
+        form->addRow("Attribute", name_editor_);
+        break;
+    case IdsFacet::Type::Classification:
+        title = "<b>Classification</b> — a classification reference of the elements (or of their type)";
+        name_editor_ = new ValueEditor(ValueEditor::AllowText, this);
+        name_editor_->setPlaceholder("any classification system (e.g. Uniclass 2015)");
+        form->addRow("System", name_editor_);
+        break;
+    default:
+        title = "<b>Material</b> — the material of the elements (or of their type): material, layer, "
+                "profile or constituent name or category";
+        break;
+    }
+    auto* title_label = new QLabel(title, this);
+    title_label->setWordWrap(true);
+    layout->addWidget(title_label);
+    value_editor_ = new ValueEditor(type == IdsFacet::Type::Attribute ? ValueEditor::AllowAll : ValueEditor::AllowText,
+                                    this);
+    value_editor_->setPlaceholder(type == IdsFacet::Type::Attribute      ? "any value (the attribute only has to be set)"
+                                  : type == IdsFacet::Type::Classification ? "any reference (e.g. Ss_25_10)"
+                                                                           : "any material (e.g. Concrete)");
+    form->addRow(type == IdsFacet::Type::Classification ? "Reference" : type == IdsFacet::Type::Material ? "Material"
+                                                                                                         : "Value",
+                 value_editor_);
+    cardinality_combo_ = cardinalityCombo(this);
+    form->addRow("Cardinality", cardinality_combo_);
+    cardinality_help_ = secondaryLabel(this);
+    form->addRow("", cardinality_help_);
+    layout->addLayout(form);
+    layout->addStretch(1);
+
+    const auto emit_changed = [this]() {
+        if (!loading_) emit changed();
+    };
+    if (name_editor_) connect(name_editor_, &ValueEditor::changed, this, emit_changed);
+    connect(value_editor_, &ValueEditor::changed, this, emit_changed);
+    connect(cardinality_combo_, &QComboBox::currentIndexChanged, this, [this, emit_changed](int) {
+        updateCardinalityHelp();
+        emit_changed();
+    });
+    updateCardinalityHelp();
+}
+
+void SimpleFacetPage::setFacet(const IdsFacet& facet) {
+    base_ = facet;
+    loading_ = true;
+    if (type_ == IdsFacet::Type::Attribute) name_editor_->setValue(facet.property);
+    if (type_ == IdsFacet::Type::Classification) name_editor_->setValue(facet.system);
+    value_editor_->setValue(facet.value);
+    setCardinality(cardinality_combo_, facet.cardinality);
+    loading_ = false;
+    updateCardinalityHelp();
+}
+
+IdsFacet SimpleFacetPage::facet() const {
+    IdsFacet facet = base_; // keeps what the page does not show (URI, instructions)
+    facet.type = type_;
+    if (type_ == IdsFacet::Type::Attribute) facet.property = name_editor_->value();
+    if (type_ == IdsFacet::Type::Classification) facet.system = name_editor_->value();
+    facet.value = value_editor_->value();
+    facet.cardinality = cardinality_combo_->currentData().toString();
+    return facet;
+}
+
+void SimpleFacetPage::updateCardinalityHelp() {
+    const QString what = type_ == IdsFacet::Type::Attribute        ? "the attribute"
+                         : type_ == IdsFacet::Type::Classification ? "a matching classification"
+                                                                   : "a matching material";
+    cardinality_help_->setText(cardinalityHelp(cardinality_combo_->currentData().toString(), what));
+}
+
+// ---------------------------------------------------------------------------
+// PartOfFacetPage
+// ---------------------------------------------------------------------------
+
+PartOfFacetPage::PartOfFacetPage(IdsBridge& bridge, IfcPathProvider ifc_path, QWidget* parent)
+    : QWidget(parent),
+      bridge_(bridge),
+      ifc_path_(std::move(ifc_path))
+{
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto* title = new QLabel("<b>Part of</b> — the elements must be part of an element of this class "
+                             "(storey, assembly, group, system, host element…)",
+                             this);
+    title->setWordWrap(true);
+    layout->addWidget(title);
+
+    auto* form = new QFormLayout();
+    relation_combo_ = new QComboBox(this);
+    relation_combo_->addItem("Any relation (the whole parent chain)", QString());
+    relation_combo_->addItem("Aggregation (IfcRelAggregates)", "IFCRELAGGREGATES");
+    relation_combo_->addItem("Group / system (IfcRelAssignsToGroup)", "IFCRELASSIGNSTOGROUP");
+    relation_combo_->addItem("Spatial container (IfcRelContainedInSpatialStructure)",
+                             "IFCRELCONTAINEDINSPATIALSTRUCTURE");
+    relation_combo_->addItem("Nesting (IfcRelNests)", "IFCRELNESTS");
+    relation_combo_->addItem("Void / fill (IfcRelVoidsElement, IfcRelFillsElement)",
+                             "IFCRELVOIDSELEMENT IFCRELFILLSELEMENT");
+    form->addRow("Relation", relation_combo_);
+
+    auto* class_cell = new QWidget(this);
+    auto* class_layout = new QVBoxLayout(class_cell);
+    class_layout->setContentsMargins(0, 0, 0, 0);
+    class_layout->setSpacing(2);
+    class_editor_ = new ValueEditor(ValueEditor::AllowSimple | ValueEditor::AllowEnumeration |
+                                        ValueEditor::AllowPattern,
+                                    class_cell);
+    class_editor_->setPlaceholder("IfcBuildingStorey");
+    class_layout->addWidget(class_editor_);
+    subtypes_check_ = new QCheckBox("Include the subtypes", class_cell);
+    class_layout->addWidget(subtypes_check_);
+    form->addRow("Parent class", class_cell);
+    predefined_editor_ = new ValueEditor(ValueEditor::AllowText, this);
+    predefined_editor_->setPlaceholder("any PredefinedType");
+    form->addRow("PredefinedType", predefined_editor_);
+    cardinality_combo_ = cardinalityCombo(this);
+    form->addRow("Cardinality", cardinality_combo_);
+    cardinality_help_ = secondaryLabel(this);
+    form->addRow("", cardinality_help_);
+    layout->addLayout(form);
+    layout->addStretch(1);
+
+    const auto emit_changed = [this]() {
+        if (!loading_) emit changed();
+    };
+    connect(relation_combo_, &QComboBox::currentIndexChanged, this, [emit_changed](int) { emit_changed(); });
+    connect(class_editor_, &ValueEditor::changed, this, emit_changed);
+    connect(subtypes_check_, &QCheckBox::toggled, this, [emit_changed](bool) { emit_changed(); });
+    connect(predefined_editor_, &ValueEditor::changed, this, emit_changed);
+    connect(cardinality_combo_, &QComboBox::currentIndexChanged, this, [this, emit_changed](int) {
+        updateCardinalityHelp();
+        emit_changed();
+    });
+    updateCardinalityHelp();
+}
+
+void PartOfFacetPage::setFacet(const IdsFacet& facet) {
+    base_ = facet;
+    loading_ = true;
+    const int relation = relation_combo_->findData(facet.relation.toUpper());
+    relation_combo_->setCurrentIndex(relation < 0 ? 0 : relation);
+    class_editor_->setValue(facet.name);
+    subtypes_check_->setChecked(facet.include_subtypes);
+    predefined_editor_->setValue(facet.predefined_type);
+    setCardinality(cardinality_combo_, facet.cardinality);
+    loading_ = false;
+    updateCardinalityHelp();
+    loadClasses();
+}
+
+IdsFacet PartOfFacetPage::facet() const {
+    IdsFacet facet = base_; // keeps what the page does not show (URI, instructions)
+    facet.type = IdsFacet::Type::PartOf;
+    facet.relation = relation_combo_->currentData().toString();
+    facet.name = class_editor_->value();
+    facet.include_subtypes = subtypes_check_->isChecked();
+    facet.predefined_type = predefined_editor_->value();
+    facet.cardinality = cardinality_combo_->currentData().toString();
+    return facet;
+}
+
+void PartOfFacetPage::loadClasses() {
+    const QString path = ifc_path_ ? ifc_path_() : QString();
+    if (classes_loaded_ && path == classes_path_) return;
+    classes_path_ = path;
+    QPointer<PartOfFacetPage> guard(this);
+    bridge_.classes(path, [this, guard](bool ok, const QStringList& classes, const QString&) {
+        if (guard.isNull() || !ok) return;
+        classes_loaded_ = true;
+        class_editor_->setCompletions(classes);
+    });
+}
+
+void PartOfFacetPage::updateCardinalityHelp() {
+    cardinality_help_->setText(cardinalityHelp(cardinality_combo_->currentData().toString(), "the relation"));
 }
 
 } // namespace bonsaiviewer::modules::filters

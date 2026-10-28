@@ -63,6 +63,7 @@ private:
     bonsaiviewer::services::IdsBridge& bridge_;
     IfcPathProvider ifc_path_;
     bool loading_ = false;
+    bonsaiviewer::services::IdsFacet base_; // the facet given to setFacet
     QString classes_path_; // the model the class list was loaded for
     bool classes_loaded_ = false;
     QStringList known_classes_;
@@ -107,6 +108,7 @@ private:
     IfcPathProvider ifc_path_;
     std::function<bonsaiviewer::services::IdsFacet()> entity_;
     bool loading_ = false;
+    bonsaiviewer::services::IdsFacet base_; // the facet given to setFacet
     int properties_generation_ = 0;
     int values_generation_ = 0;
     bonsaiviewer::services::IdsBridge::PropertyMap psets_;
@@ -116,14 +118,75 @@ private:
     ValueEditor* pset_editor_ = nullptr;
     ValueEditor* property_editor_ = nullptr;
     ValueEditor* value_editor_ = nullptr;
+    QComboBox* data_type_combo_ = nullptr;
     QComboBox* cardinality_combo_ = nullptr;
     QLabel* cardinality_help_ = nullptr;
     QLabel* status_label_ = nullptr;
     QTimer* values_timer_ = nullptr;
 };
 
-// The facet types offered by the "Add facet" menu. The ones not built yet
-// are listed disabled so the IDS structure stays visible.
+// The attribute, classification and material facets: free entry (with
+// completions for the attribute names), a value and the cardinality.
+class SimpleFacetPage : public QWidget {
+    Q_OBJECT
+
+public:
+    // `type`: Attribute, Classification or Material.
+    SimpleFacetPage(bonsaiviewer::services::IdsFacet::Type type, QWidget* parent = nullptr);
+
+    void setFacet(const bonsaiviewer::services::IdsFacet& facet);
+    bonsaiviewer::services::IdsFacet facet() const;
+
+signals:
+    void changed();
+
+private:
+    void updateCardinalityHelp();
+
+    bonsaiviewer::services::IdsFacet::Type type_;
+    bool loading_ = false;
+    bonsaiviewer::services::IdsFacet base_; // the facet given to setFacet
+    ValueEditor* name_editor_ = nullptr; // attribute name / classification system
+    ValueEditor* value_editor_ = nullptr;
+    QComboBox* cardinality_combo_ = nullptr;
+    QLabel* cardinality_help_ = nullptr;
+};
+
+// The partOf facet: the relation, the related class and its PredefinedType.
+class PartOfFacetPage : public QWidget {
+    Q_OBJECT
+
+public:
+    PartOfFacetPage(bonsaiviewer::services::IdsBridge& bridge,
+                    IfcPathProvider ifc_path,
+                    QWidget* parent = nullptr);
+
+    void setFacet(const bonsaiviewer::services::IdsFacet& facet);
+    bonsaiviewer::services::IdsFacet facet() const;
+
+signals:
+    void changed();
+
+private:
+    void loadClasses();
+    void updateCardinalityHelp();
+
+    bonsaiviewer::services::IdsBridge& bridge_;
+    IfcPathProvider ifc_path_;
+    bool loading_ = false;
+    bonsaiviewer::services::IdsFacet base_; // the facet given to setFacet
+    QString classes_path_;
+    bool classes_loaded_ = false;
+
+    QComboBox* relation_combo_ = nullptr;
+    ValueEditor* class_editor_ = nullptr;
+    QCheckBox* subtypes_check_ = nullptr;
+    ValueEditor* predefined_editor_ = nullptr;
+    QComboBox* cardinality_combo_ = nullptr;
+    QLabel* cardinality_help_ = nullptr;
+};
+
+// The facet types offered by the "Add facet" menu.
 struct FacetTypeEntry {
     QString label;
     bool available;

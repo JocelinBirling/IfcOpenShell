@@ -493,6 +493,8 @@ void ValueEditor::setValue(const IdsValue& value) {
         } else if (pattern.startsWith(any) && (literal = unescapeXsd(pattern.mid(2)))) {
             preset = kEndsWith;
         }
+        // ".*" alone has no literal part: a free expression, not an empty "starts with".
+        if (preset != kFreeExpression && literal->isEmpty()) preset = kFreeExpression;
         pattern_preset_->setCurrentIndex(preset);
         pattern_text_->setText(preset == kFreeExpression ? pattern : *literal);
     }
