@@ -288,7 +288,7 @@ QWidget* LayerDialog::actionRow(int index) {
             all.include_subtypes = true;
             QPointer<QLineEdit> pset_guard(pset);
             QPointer<QLineEdit> property_guard(property);
-            ids_bridge_.properties(path, all, [this, pset_guard, property_guard](
+            ids_bridge_.properties(path, all, [this, path, pset_guard, property_guard](
                                                   bool ok, const IdsBridge::PropertyMap& psets,
                                                   const IdsBridge::SampleMap& samples, const QString& error) {
                 if (pset_guard.isNull() || property_guard.isNull()) return;
@@ -299,6 +299,20 @@ QWidget* LayerDialog::actionRow(int index) {
                 auto* picker = new property_selection::PropertyPicker(
                     psets, samples, "Properties found on the products of the active model.", this);
                 picker->setAttribute(Qt::WA_DeleteOnClose);
+                // "Only the elements of this layer": the elements the selection is about to pick.
+                if (!layer_.is_and) {
+                    const IdsBridge::SelectionFields fields = selection_editor_->fields();
+                    picker->setScopedSource(
+                        "the elements of this layer",
+                        [this, path, fields](std::function<void(const property_selection::PropertyPicker::PropertyMap&,
+                                                                const property_selection::PropertyPicker::SampleMap&)> done) {
+                            ids_bridge_.selectionProperties(path, fields,
+                                [done](bool ok, const IdsBridge::PropertyMap& psets,
+                                       const IdsBridge::SampleMap& samples, const QString&) {
+                                    done(ok ? psets : IdsBridge::PropertyMap{}, ok ? samples : IdsBridge::SampleMap{});
+                                });
+                        });
+                }
                 connect(picker, &property_selection::PropertyPicker::picked, this,
                         [pset_guard, property_guard](const QString& p, const QString& q) {
                             if (pset_guard) pset_guard->setText(p);

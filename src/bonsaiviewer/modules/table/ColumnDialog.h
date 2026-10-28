@@ -22,6 +22,8 @@ class QComboBox;
 class QLineEdit;
 
 namespace bonsaiviewer::services { class PropertyCatalog; }
+#include "../property_selection/PropertyPicker.h"
+
 namespace bonsaiviewer::modules::property_selection { class PropertyField; }
 
 namespace bonsaiviewer::modules::table {
@@ -40,6 +42,8 @@ public:
                  QWidget* parent = nullptr);
 
     TableColumn column() const;
+    // Browse… of the property field: "Only <label>" (the rows of the table).
+    void setScopedSource(const QString& label, property_selection::PropertyPicker::ScopedLoader loader);
 
 public slots:
     void accept() override;

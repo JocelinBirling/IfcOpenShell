@@ -15,7 +15,9 @@
 #include <QDialogButtonBox>
 #include <QHeaderView>
 #include <QLabel>
+#include <QHBoxLayout>
 #include <QLineEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -45,10 +47,19 @@ PropertyPicker::PropertyPicker(const bonsaiviewer::services::PropertyCatalog::Pr
     resize(620, 560);
 
     auto* layout = new QVBoxLayout(this);
-    auto* scope_label = new QLabel(scope, this);
-    scope_label->setProperty("textRole", "secondary");
-    scope_label->setWordWrap(true);
-    layout->addWidget(scope_label);
+    all_psets_ = psets;
+    all_samples_ = samples;
+    scope_text_ = scope;
+    auto* top = new QHBoxLayout();
+    scope_label_ = new QLabel(scope, this);
+    scope_label_->setProperty("textRole", "secondary");
+    scope_label_->setWordWrap(true);
+    top->addWidget(scope_label_, 1);
+    scope_button_ = new QPushButton(this);
+    scope_button_->setCheckable(true);
+    scope_button_->setVisible(false);
+    top->addWidget(scope_button_);
+    layout->addLayout(top);
 
     search_edit_ = new QLineEdit(this);
     search_edit_->setPlaceholderText("Search a property set, a property or a value…");
@@ -64,7 +75,61 @@ PropertyPicker::PropertyPicker(const bonsaiviewer::services::PropertyCatalog::Pr
     tree_->setUniformRowHeights(true);
     tree_->setAlternatingRowColors(true);
     layout->addWidget(tree_, 1);
+    fill(all_psets_, all_samples_);
+    connect(scope_button_, &QPushButton::toggled, this, &PropertyPicker::showScoped);
 
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
+    use_button_ = buttons->addButton("Use", QDialogButtonBox::AcceptRole);
+    use_button_->setEnabled(false);
+    layout->addWidget(buttons);
+
+    connect(search_edit_, &QLineEdit::textChanged, this, &PropertyPicker::applyFilter);
+    connect(tree_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* item, QTreeWidgetItem*) {
+        use_button_->setEnabled(item != nullptr && !item->data(kNameColumn, kPropertyRole).toString().isEmpty());
+    });
+    connect(tree_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
+        if (!item->data(kNameColumn, kPropertyRole).toString().isEmpty()) pickCurrent();
+    });
+    connect(use_button_, &QPushButton::clicked, this, &PropertyPicker::pickCurrent);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    search_edit_->setFocus();
+}
+
+void PropertyPicker::setScopedSource(const QString& label, ScopedLoader loader) {
+    scoped_label_ = label;
+    scoped_loader_ = std::move(loader);
+    scope_button_->setText(QString("Only %1").arg(label));
+    scope_button_->setToolTip("Show only the properties of these elements");
+    scope_button_->setVisible(true);
+    scope_button_->setChecked(true);  // toggled -> showScoped(true)
+}
+
+void PropertyPicker::showScoped(bool scoped) {
+    if (!scoped) {
+        scope_label_->setText(scope_text_);
+        fill(all_psets_, all_samples_);
+        return;
+    }
+    if (scoped_loaded_) {
+        scope_label_->setText(QString("Properties of %1.").arg(scoped_label_));
+        fill(scoped_psets_, scoped_samples_);
+        return;
+    }
+    if (!scoped_loader_) return;
+    scope_label_->setText(QString("Reading the properties of %1…").arg(scoped_label_));
+    tree_->clear();
+    QPointer<PropertyPicker> guard(this);
+    scoped_loader_([this, guard](const PropertyMap& psets, const SampleMap& samples) {
+        if (guard.isNull()) return;
+        scoped_psets_ = psets;
+        scoped_samples_ = samples;
+        scoped_loaded_ = true;
+        if (scope_button_->isChecked()) showScoped(true);
+    });
+}
+
+void PropertyPicker::fill(const PropertyMap& psets, const SampleMap& samples) {
+    tree_->clear();
     // One group per property set, like the Properties panel.
     for (auto pset = psets.begin(); pset != psets.end(); ++pset) {
         auto* group = new QTreeWidgetItem(tree_);
@@ -86,22 +151,7 @@ PropertyPicker::PropertyPicker(const bonsaiviewer::services::PropertyCatalog::Pr
         }
     }
     tree_->expandAll();
-
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
-    use_button_ = buttons->addButton("Use", QDialogButtonBox::AcceptRole);
-    use_button_->setEnabled(false);
-    layout->addWidget(buttons);
-
-    connect(search_edit_, &QLineEdit::textChanged, this, &PropertyPicker::applyFilter);
-    connect(tree_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* item, QTreeWidgetItem*) {
-        use_button_->setEnabled(item != nullptr && !item->data(kNameColumn, kPropertyRole).toString().isEmpty());
-    });
-    connect(tree_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
-        if (!item->data(kNameColumn, kPropertyRole).toString().isEmpty()) pickCurrent();
-    });
-    connect(use_button_, &QPushButton::clicked, this, &PropertyPicker::pickCurrent);
-    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    search_edit_->setFocus();
+    if (search_edit_ != nullptr) applyFilter(search_edit_->text());
 }
 
 void PropertyPicker::applyFilter(const QString& text) {

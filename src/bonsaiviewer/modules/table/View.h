@@ -109,11 +109,13 @@ private:
 
     std::vector<std::uint32_t> objectIds(std::uint32_t session_model_id, const std::vector<int>& express_ids) const;
     std::uint32_t activeSessionModelId() const;
+    void offerTableScope(class ColumnDialog& dialog);
     QString ifcPath(std::uint32_t session_model_id) const;
 
     TablePanel* panel_ = nullptr;
     SessionState& session_;
     bonsaiviewer::services::IdsBridge& bridge_;
+    bonsaiviewer::services::IfcDataAccess& data_access_;
     bonsaiviewer::services::PropertyCatalog& catalog_;
     bonsaiviewer::services::SelectionService& selection_;
     bonsaiviewer::services::ActionPipeline& actions_;

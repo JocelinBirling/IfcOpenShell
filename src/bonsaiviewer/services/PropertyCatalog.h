@@ -55,6 +55,10 @@ public:
     // The property sets, the most used first.
     QStringList propertySets() const;
 
+    // The same maps for some elements only (a table's rows...), read now.
+    static void collect(IfcDataAccess& data_access, const std::vector<std::uint32_t>& object_ids,
+                        PropertyMap& properties, SampleMap& samples);
+
 signals:
     // The scan is complete (or the catalog was emptied).
     void updated();

@@ -13,6 +13,8 @@
 #ifndef IFCINTERFACE_MODULES_PROPERTY_SELECTION_PROPERTYFIELD_H
 #define IFCINTERFACE_MODULES_PROPERTY_SELECTION_PROPERTYFIELD_H
 
+#include "PropertyPicker.h"
+
 #include <QWidget>
 
 class QCompleter;
@@ -38,6 +40,8 @@ public:
     QString propertySet() const;
     QString propertyName() const;
     void setValue(const QString& pset, const QString& property);
+    // "Browse…" offers "Only <label>": the properties of these elements only.
+    void setScopedSource(const QString& label, PropertyPicker::ScopedLoader loader);
 
 signals:
     void changed();
@@ -55,6 +59,8 @@ private:
     QStandardItemModel* property_model_ = nullptr;
     QCompleter* pset_completer_ = nullptr;
     QCompleter* property_completer_ = nullptr;
+    QString scoped_label_;
+    PropertyPicker::ScopedLoader scoped_loader_;
 };
 
 } // namespace bonsaiviewer::modules::property_selection

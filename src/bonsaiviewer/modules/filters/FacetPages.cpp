@@ -57,6 +57,17 @@ QStringList listedClasses(const IdsValue& value) {
     }
 }
 
+bool hasClass(const IdsFacet& entity);
+
+// The elements whose properties are listed: the entity facet's, or every
+// product when no class is chosen yet (a property can be picked first).
+IdsFacet listedEntity(const IdsFacet& entity) {
+    if (hasClass(entity)) return entity;
+    IdsFacet all = IdsFacet::entity("IfcProduct");
+    all.include_subtypes = true;
+    return all;
+}
+
 bool hasClass(const IdsFacet& entity) {
     switch (entity.name.kind) {
     case IdsValue::Kind::Simple: return !entity.name.simple.isEmpty();
@@ -434,11 +445,7 @@ void PropertyFacetPage::loadProperties() {
         status_label_->setText("No model loaded: type the names freely.");
         return;
     }
-    const IdsFacet entity = entity_ ? entity_() : IdsFacet();
-    if (!hasClass(entity)) {
-        status_label_->setText("Choose the entity first to list its properties.");
-        return;
-    }
+    const IdsFacet entity = listedEntity(entity_ ? entity_() : IdsFacet());
     status_label_->setText("Reading the properties of the model…");
     QPointer<PropertyFacetPage> guard(this);
     bridge_.properties(path, entity, [this, guard, generation, entity](bool ok,
@@ -470,7 +477,7 @@ void PropertyFacetPage::loadProperties() {
 }
 
 void PropertyFacetPage::openPicker() {
-    const IdsFacet entity = entity_ ? entity_() : IdsFacet();
+    const IdsFacet entity = listedEntity(entity_ ? entity_() : IdsFacet());
     auto* picker = new property_selection::PropertyPicker(psets_, samples_,
                                       QString("Properties found on the %1 elements of the active model.")
                                           .arg(entity.summary()),
@@ -508,8 +515,7 @@ void PropertyFacetPage::loadValues() {
     if (path.isEmpty() || pset.kind != IdsValue::Kind::Simple || property.kind != IdsValue::Kind::Simple) {
         return;
     }
-    const IdsFacet entity = entity_ ? entity_() : IdsFacet();
-    if (!hasClass(entity)) return;
+    const IdsFacet entity = listedEntity(entity_ ? entity_() : IdsFacet());
     QPointer<PropertyFacetPage> guard(this);
     bridge_.values(path, entity, pset.simple, property.simple,
                    [this, guard, generation](bool ok, const IdsBridge::ValueStats& stats, const QString&) {

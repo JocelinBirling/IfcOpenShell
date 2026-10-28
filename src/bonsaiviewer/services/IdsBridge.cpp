@@ -538,6 +538,23 @@ void IdsBridge::properties(const QString& ifc_path, const IdsFacet& entity, Prop
     });
 }
 
+void IdsBridge::selectionProperties(const QString& ifc_path, const SelectionFields& fields,
+                                    PropertiesResult callback) {
+    post([this, ifc_path, fields, callback = std::move(callback)]() {
+        guarded(
+            [&]() {
+                QString error;
+                auto* ifc = file(ifc_path, &error);
+                if (ifc == nullptr) return callback(false, {}, {}, "no model to read the properties from");
+                PropertyMap psets;
+                SampleMap samples;
+                engine::selectionProperties(*ifc, fields.facets, psets, samples);
+                callback(true, psets, samples, {});
+            },
+            [&](const QString& error) { callback(false, {}, {}, error); });
+    });
+}
+
 void IdsBridge::values(const QString& ifc_path, const IdsFacet& entity, const QString& pset,
                        const QString& property, ValuesResult callback) {
     post([this, ifc_path, entity, pset, property, callback = std::move(callback)]() {

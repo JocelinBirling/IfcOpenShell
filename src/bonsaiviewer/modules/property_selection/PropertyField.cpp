@@ -145,6 +145,11 @@ void PropertyField::rebuildPropertyModel() {
     }
 }
 
+void PropertyField::setScopedSource(const QString& label, PropertyPicker::ScopedLoader loader) {
+    scoped_label_ = label;
+    scoped_loader_ = std::move(loader);
+}
+
 void PropertyField::browse() {
     catalog_.ensureBuilt();
     const QString scope = catalog_.isReady()
@@ -152,6 +157,7 @@ void PropertyField::browse() {
         : "The property sets are still being read: the list may be incomplete.";
     auto* picker = new PropertyPicker(catalog_.properties(), catalog_.samples(), scope, this);
     picker->setAttribute(Qt::WA_DeleteOnClose);
+    if (scoped_loader_) picker->setScopedSource(scoped_label_, scoped_loader_);
     connect(picker, &PropertyPicker::picked, this, [this](const QString& pset, const QString& property) {
         setValue(pset, property);
     });

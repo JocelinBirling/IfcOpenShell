@@ -23,8 +23,10 @@ or quantity set Qto) and the **property** inside it.
 - The proposals come from the property sets and quantity sets found in
   **all the loaded models** (the whole federation, not only the active
   model).
-- The proposals are **not** limited by the context of the function: a
+- The completions are **not** limited by the context of the function: a
   filter layer on IfcWall still proposes every property set of the models.
+  The picker (Browse) can narrow the list to the context: see "Only the
+  elements…" below.
 - Free typing stays possible: a property absent from the models can still
   be entered (for example, to check that it is missing).
 
@@ -58,6 +60,14 @@ The property field is made of two inputs side by side: **Pset** and
   of its values.
 - A search field filters property sets, properties and values.
 - Double-clicking a property fills both inputs.
+- When the function knows the elements it works on, the picker shows a
+  toggle button **"Only <these elements>"**, checked when the picker opens:
+  the list then holds only the properties of those elements, with their
+  counts. Unchecked, the list shows every property again.
+  - Table column (07): the elements of the table.
+  - Automatic Color of a filter layer (06): the elements the layer's
+    selection is about to pick (all its facets, in the active model). Not
+    offered on an AND layer.
 
 ### IDS contexts
 
@@ -78,7 +88,8 @@ proposed the same way, with their element counts.
 - Matching: "contains", case ignored.
 - Completion entries: property name, property set, a few values.
 - Pset already filled: proposals stay inside that set.
-- No context limitation: every property set of the models is proposed.
+- No context limitation in the completions; the picker offers the context
+  with its "Only …" toggle (checked by default).
 - The property sets are read from the application's property index
   (B05 IfcDataAccess / PropertyIndex), not by reopening the IFC files.
 
@@ -90,7 +101,10 @@ proposed the same way, with their element counts.
   responsive, and rebuilt when a model is added or removed.
 - `modules/property_selection/PropertyField`: the Pset and Property inputs
   with their completions, and "Browse…".
-- `modules/property_selection/PropertyPicker`: the Browse window.
+- `modules/property_selection/PropertyPicker`: the Browse window;
+  `setScopedSource(label, loader)` adds the "Only …" toggle, the loader
+  reads the narrower maps (`PropertyCatalog::collect` for object ids,
+  `IdsBridge::selectionProperties` for an IDS selection).
 - Used today by the table columns (07). The filter property facet (06)
   still proposes the property sets of the layer's entity in the active
   model; it moves to the property field in a later step.

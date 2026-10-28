@@ -714,9 +714,31 @@ IdsBridge::ClassInfo classInfo(ifcopenshell::file* file, const IdsValue& name, b
     return info;
 }
 
+namespace {
+
+void collectProperties(const std::vector<express::base>& elements, IdsBridge::PropertyMap& psets,
+                       IdsBridge::SampleMap& samples);
+
+} // namespace
+
 void properties(ifcopenshell::file& file, const IdsFacet& entity, IdsBridge::PropertyMap& psets,
                 IdsBridge::SampleMap& samples) {
-    for (const auto& element : entityElements(file, entity)) {
+    collectProperties(entityElements(file, entity), psets, samples);
+}
+
+void selectionProperties(ifcopenshell::file& file, const std::vector<IdsFacet>& facets,
+                         IdsBridge::PropertyMap& psets, IdsBridge::SampleMap& samples) {
+    const auto spec = buildSpecification("scope", facets, &file);
+    std::vector<express::base> elements;
+    for (int id : select(file, spec)) elements.push_back(file.instance_by_id(id));
+    collectProperties(elements, psets, samples);
+}
+
+namespace {
+
+void collectProperties(const std::vector<express::base>& elements, IdsBridge::PropertyMap& psets,
+                       IdsBridge::SampleMap& samples) {
+    for (const auto& element : elements) {
         for (const auto& [pset_name, pset_properties] : get_psets(element)) {
             auto& target = psets[q(pset_name)];
             auto& target_samples = samples[q(pset_name)];
@@ -730,6 +752,8 @@ void properties(ifcopenshell::file& file, const IdsFacet& entity, IdsBridge::Pro
         }
     }
 }
+
+} // namespace
 
 IdsBridge::ValueStats values(ifcopenshell::file& file, const IdsFacet& entity, const QString& pset,
                              const QString& property) {

@@ -49,6 +49,8 @@ public:
 
     // The elements of a row (one or more).
     const std::vector<std::uint32_t>& objects(int row) const { return groups_.at(static_cast<size_t>(row)); }
+    // Every element of the table, in order.
+    const std::vector<std::uint32_t>& elements() const { return rows_; }
 
     // The value of a cell: a double, a qlonglong or a QString (empty when
     // the element has no such value). "ERROR" when an aggregation cannot apply.

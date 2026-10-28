@@ -79,26 +79,31 @@ void PropertyCatalog::ensureBuilt() {
     timer_->start();
 }
 
-void PropertyCatalog::scanChunk() {
-    const size_t count = std::min<size_t>(kChunkSize, pending_.size());
-    for (size_t i = pending_.size() - count; i < pending_.size(); ++i) {
-        const uint32_t object_id = pending_[i];
-        for (const auto& sets : {data_access_.propertySets(object_id), data_access_.quantitySets(object_id)}) {
+void PropertyCatalog::collect(IfcDataAccess& data_access, const std::vector<std::uint32_t>& object_ids,
+                              PropertyMap& properties, SampleMap& samples) {
+    for (const uint32_t object_id : object_ids) {
+        for (const auto& sets : {data_access.propertySets(object_id), data_access.quantitySets(object_id)}) {
             for (const auto& [set_name, values] : sets) {
                 const QString pset = QString::fromStdString(set_name);
                 for (const auto& [property_name, value] : values) {
                     if (property_name == "id") continue; // the definition's instance id
                     const QString property = QString::fromStdString(property_name);
-                    ++properties_[pset][property];
-                    QStringList& samples = samples_[pset][property];
-                    if (samples.size() < kMaxSamples) {
+                    ++properties[pset][property];
+                    QStringList& shown = samples[pset][property];
+                    if (shown.size() < kMaxSamples) {
                         const QString text = sampleText(value);
-                        if (!text.isEmpty() && !samples.contains(text)) samples.append(text);
+                        if (!text.isEmpty() && !shown.contains(text)) shown.append(text);
                     }
                 }
             }
         }
     }
+}
+
+void PropertyCatalog::scanChunk() {
+    const size_t count = std::min<size_t>(kChunkSize, pending_.size());
+    collect(data_access_, std::vector<std::uint32_t>(pending_.end() - static_cast<std::ptrdiff_t>(count), pending_.end()),
+            properties_, samples_);
     pending_.resize(pending_.size() - count);
     if (pending_.empty()) {
         timer_->stop();

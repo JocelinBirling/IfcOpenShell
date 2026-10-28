@@ -68,6 +68,9 @@ QStringList selectableClasses(ifcopenshell::file* file);
 IdsBridge::ClassInfo classInfo(ifcopenshell::file* file, const IdsValue& name, bool include_subtypes);
 void properties(ifcopenshell::file& file, const IdsFacet& entity, IdsBridge::PropertyMap& psets,
                 IdsBridge::SampleMap& samples);
+// Same, on the elements passing the selection's facets.
+void selectionProperties(ifcopenshell::file& file, const std::vector<IdsFacet>& facets,
+                         IdsBridge::PropertyMap& psets, IdsBridge::SampleMap& samples);
 IdsBridge::ValueStats values(ifcopenshell::file& file, const IdsFacet& entity, const QString& pset,
                              const QString& property);
 

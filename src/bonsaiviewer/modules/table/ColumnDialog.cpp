@@ -100,6 +100,10 @@ void ColumnDialog::updateKind() {
                                              : QString("Automatic (%1)").arg(kind_combo_->currentText()));
 }
 
+void ColumnDialog::setScopedSource(const QString& label, property_selection::PropertyPicker::ScopedLoader loader) {
+    property_field_->setScopedSource(label, std::move(loader));
+}
+
 TableColumn ColumnDialog::column() const {
     TableColumn column;
     column.kind = static_cast<TableColumn::Kind>(kind_combo_->currentData().toInt());

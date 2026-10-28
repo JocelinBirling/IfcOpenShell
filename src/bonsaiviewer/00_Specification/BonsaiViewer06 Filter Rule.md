@@ -60,7 +60,7 @@ A layer is edited in its own window, **Layer N**, opened by Edit… or a double-
 
 1. **Type**: New selection, or AND (reuse the elements of the layers above; not available on the first layer). With AND, the selection shows "uses layers 1–N".
 2. **Selection**: the facets and the live preview (below).
-3. **Actions (run in this order)**: one row per action with its parameters on the row (colour swatch, transparency %, property set . property with Browse…), and ↑ ↓ ✕. **+ Action** adds an action from a menu.
+3. **Actions (run in this order)**: one row per action with its parameters on the row (colour swatch, transparency %, property set . property with Browse…), and ↑ ↓ ✕. **+ Action** adds an action from a menu. Browse… of the Automatic Color offers "Only the elements of this layer" (BonsaiViewer26), checked by default.
 
 OK checks the layer (selection complete, automatic colour with a property); Cancel drops the changes of this layer only. Both windows adapt to the screen size.
 
@@ -80,7 +80,7 @@ An IDS specification is a list of **facets**; an element is selected when it pas
   - the **PredefinedType**, proposed from the schema for the chosen classes;
   - a class unknown to the schema, or a pattern matching no class, only shows a warning.
 - **Property facet** (any number):
-  - the **property set** and the **property** (Psets and quantity sets), proposed from the elements of the entity in the loaded models;
+  - the **property set** and the **property** (Psets and quantity sets), proposed from the elements of the entity in the loaded models; while no IFC class is chosen yet, from every product (IfcProduct and its subtypes), so a property can be chosen first;
   - **Browse properties…** opens a picker laid out like the Properties panel (one group per property set, element counts, a few values, a search field); double-clicking a property fills both fields;
   - the **cardinality**: required (must exist and match), optional (must match when present), prohibited (must not exist);
   - the **value**, with the values found in the model and their element counts.

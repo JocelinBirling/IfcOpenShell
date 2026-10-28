@@ -24,6 +24,7 @@
 #include "../../services/AppearanceService.h"
 #include "../../services/EntitySetStore.h"
 #include "../../services/PopupService.h"
+#include "../../services/PropertyCatalog.h"
 #include "../../services/SelectionService.h"
 #include "../../../ifcviewer/SceneLoader.h"
 
@@ -95,6 +96,7 @@ TablePanelView::TablePanelView(TablePanel* panel,
       panel_(panel),
       session_(session),
       bridge_(bridge),
+      data_access_(data_access),
       catalog_(catalog),
       selection_(selection),
       actions_(actions),
@@ -242,9 +244,25 @@ bool TablePanelView::editTable(TableDefinition& definition) {
     return true;
 }
 
+// Browse… of the column's property: "Only the elements of the table".
+void TablePanelView::offerTableScope(ColumnDialog& dialog) {
+    const std::vector<std::uint32_t> elements = model_->elements();
+    if (elements.empty()) return;
+    dialog.setScopedSource(
+        QString("the %1 element(s) of the table").arg(static_cast<qulonglong>(elements.size())),
+        [this, elements](std::function<void(const property_selection::PropertyPicker::PropertyMap&,
+                                            const property_selection::PropertyPicker::SampleMap&)> done) {
+            property_selection::PropertyPicker::PropertyMap psets;
+            property_selection::PropertyPicker::SampleMap samples;
+            services::PropertyCatalog::collect(data_access_, elements, psets, samples);
+            done(psets, samples);
+        });
+}
+
 void TablePanelView::addColumn(int position) {
     if (!table_) return;
     ColumnDialog dialog(TableColumn{}, catalog_, true, panel_);
+    offerTableScope(dialog);
     if (dialog.exec() != QDialog::Accepted) return;
     position = std::clamp(position, 0, static_cast<int>(table_->columns.size()));
     table_->columns.insert(table_->columns.begin() + position, dialog.column());
@@ -254,6 +272,7 @@ void TablePanelView::addColumn(int position) {
 void TablePanelView::modifyColumn(int index) {
     if (!table_ || index < 0 || index >= static_cast<int>(table_->columns.size())) return;
     ColumnDialog dialog(table_->columns[static_cast<size_t>(index)], catalog_, false, panel_);
+    offerTableScope(dialog);
     if (dialog.exec() != QDialog::Accepted) return;
     table_->columns[static_cast<size_t>(index)] = dialog.column();
     applyColumns();

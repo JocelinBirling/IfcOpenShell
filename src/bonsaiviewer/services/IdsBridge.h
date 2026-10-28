@@ -192,6 +192,8 @@ public:
     void classInfo(const QString& ifc_path, const IdsValue& name, bool include_subtypes,
                    ClassInfoResult callback);
     void properties(const QString& ifc_path, const IdsFacet& entity, PropertiesResult callback);
+    // The same, on the elements of a selection (all its facets).
+    void selectionProperties(const QString& ifc_path, const SelectionFields& fields, PropertiesResult callback);
     void values(const QString& ifc_path, const IdsFacet& entity, const QString& pset,
                 const QString& property, ValuesResult callback);
 
