@@ -164,6 +164,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterRunner.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterStore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterExamples.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/FilterExamples.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.cpp
@@ -223,6 +225,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableProxy.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableStore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableExamples.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableExamples.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesPanel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesPanel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesView.cpp

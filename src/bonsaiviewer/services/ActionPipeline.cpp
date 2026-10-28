@@ -59,6 +59,10 @@ void ActionPipeline::transparency(const std::vector<std::uint32_t>& ids, int per
     appearance_.setOpacity(ids, 100 - std::clamp(percent, 0, 100));
 }
 
+void ActionPipeline::clearAppearance() {
+    appearance_.clearOverrides();
+}
+
 QColor ActionPipeline::generatedColour(int index) {
     // Golden-ratio hue stepping: distinct, stable, and spread however many
     // groups the property produces.

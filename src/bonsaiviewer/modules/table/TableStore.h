@@ -78,6 +78,7 @@ private:
     static TableDocument tableFromJson(const QJsonObject& json);
 
     void load();
+    void seedExamples();
     void save() const;
     bool folderIsInSubtree(const QString& candidate_id, const QString& root_id) const;
 

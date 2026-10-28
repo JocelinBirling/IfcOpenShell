@@ -72,4 +72,3 @@ A "root" is the parent folder of a loaded file. The viewer counts the most frequ
 
 
 ## Open Subject
-Improve the Add IFC Files windows

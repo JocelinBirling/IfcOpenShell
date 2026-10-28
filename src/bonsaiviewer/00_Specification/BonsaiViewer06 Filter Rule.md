@@ -42,7 +42,7 @@ The selections are evaluated in the viewer by the C++ port of IfcTester (`ports/
 
 - **Run** evaluates the filter on **all the loaded models**, by default. The layers run on each model in turn.
 - **Run on the Box** restricts the candidates to the elements of the current box, in every loaded model. An empty box is refused with a message.
-- A filter always starts from an **empty view**: everything is hidden right before its first action, then its actions build the view. A filter that only adds the walls to the view shows the walls only. If a selection fails, the view is left untouched.
+- A filter always starts from an **empty view**: everything is hidden right before its first action, then its actions build the view. A filter that only adds the walls to the view shows the walls only. At the same moment, every colour and transparency already applied (by another filter, Paint, a table or an IDS run) is removed: filters do not stack, each run starts from the model's own colours. If a selection fails, the view and the colours are left untouched.
 - **Isolate in the view** replaces what is visible, but keeps the elements already shown by the previous models of the same run.
 - A run never creates an undo point (CTRL+Z, see BonsaiViewer02).
 - The status bar shows the progress and a summary (layers run, models, elements affected); an error opens a message.
@@ -183,6 +183,18 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 metre
 The Python worker is no longer used; Step A only applied to it.
 
+### Example filters
+At the first start of a version with examples, the Filters panel gets (once, next to the saved filters) an **Examples** folder, open, with filters that show the features. Each description explains what the filter shows:
+1. **Isolate the walls** — one layer, one entity facet, Isolate.
+2. **Hide slabs and roofs** — an entity facet on several classes (IfcSlab, IfcRoof), Remove from the view, to look inside the building.
+3. **External walls in blue** — a property facet (Pset_WallCommon.IsExternal), two layers in order, Colour.
+4. **Load-bearing structure** — no entity facet; the property set is a pattern (Pset_.*Common), LoadBearing = true.
+5. **Doors and windows through the walls** — an AND layer (Transparency 70 % on the walls), then Add to the view.
+6. **Colour the walls by type** — Automatic Color on Pset_WallCommon.Reference (the wall type).
+7. **Load-bearing and partition walls** — Automatic Color on a true / false property, Pset_WallCommon.LoadBearing.
+
+The examples are ordinary filters: they can be modified, moved or deleted. They are added when the store holds no filter at all (for instance after deleting every filter), and once per examples version (setting `examples/filters_version`): deleted examples do not come back while other filters remain. A new version replaces the "Examples" folder at the root.
+
 ## Open Subject
 
 - Property set / property completion on all the loaded models (BonsaiViewer26 Property Selection).
@@ -208,4 +220,3 @@ If the action Add to the view, and isolate are in the filter. We can not activat
 
 @TODO Add Duplicate function in the Filters Panel
 
-@TODO add Default Filter that explains all functionnality

@@ -12,16 +12,20 @@
 
 #include "FilterStore.h"
 
+#include "FilterExamples.h"
 #include "PersistenceService.h"
 
+#include <QDebug>
 #include <QFile>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
 #include <QUuid>
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace bonsaiviewer::services {
 
@@ -398,7 +402,10 @@ void FilterStore::load() {
     folders_.clear();
     filters_.clear();
     const auto loaded = PersistenceService::instance().loadDocument(QLatin1String(kStoreDocument));
-    if (!loaded) return;
+    if (!loaded) {
+        seedExamples();
+        return;
+    }
     const QJsonObject root = loaded->object();
     for (const auto& value : root["folders"].toArray()) {
         const QJsonObject entry = value.toObject();
@@ -411,6 +418,41 @@ void FilterStore::load() {
     for (const auto& value : root["filters"].toArray()) {
         filters_.push_back(documentFromJson(value.toObject()));
     }
+    seedExamples();
+}
+
+// The example filters, in an "Examples" folder at the root. Added when the
+// store holds no filter at all, and once per examples version (a setting
+// remembers it, so deleted examples do not come back until they change).
+// A new version replaces the "Examples" folder.
+void FilterStore::seedExamples() {
+    constexpr int kExamplesVersion = 2;
+    QSettings settings;
+    const bool outdated =
+        settings.value(QStringLiteral("examples/filters_version"), 0).toInt() < kExamplesVersion;
+    if (!filters_.empty() && !outdated) return;
+    FilterFolder examples;
+    examples.id = QUuid::createUuid().toString();
+    examples.name = "Examples";
+    std::vector<FilterDocument> added;
+    try {
+        added = exampleFilters(examples.id);
+    } catch (const std::exception& error) {
+        qWarning() << "[filters] the example filters cannot be built:" << error.what();
+        return;
+    } catch (...) {
+        qWarning() << "[filters] the example filters cannot be built";
+        return;
+    }
+    std::vector<QString> previous;
+    for (const auto& entry : folders_) {
+        if (entry.parent_id.isEmpty() && entry.name == QLatin1String("Examples")) previous.push_back(entry.id);
+    }
+    for (const QString& id : previous) deleteFolder(id);
+    folders_.push_back(examples);
+    filters_.insert(filters_.end(), added.begin(), added.end());
+    save();
+    settings.setValue(QStringLiteral("examples/filters_version"), kExamplesVersion);
 }
 
 void FilterStore::save() const {

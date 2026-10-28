@@ -69,6 +69,8 @@ public:
     // `percent` is a transparency: 0 = opaque, 100 = invisible. (B04 works
     // with an opacity, so the value is inverted here.)
     void transparency(const std::vector<std::uint32_t>& ids, int percent);
+    // Removes every colour and transparency override (B04, all layers).
+    void clearAppearance();
 
     // One generated colour per distinct value of pset.property; groups
     // without the property share a neutral grey. Returns the colour given to

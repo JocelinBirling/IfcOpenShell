@@ -12,11 +12,14 @@
 
 #include "TableStore.h"
 
+#include "TableExamples.h"
+
 #include "../../services/PersistenceService.h"
 
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QSettings>
 #include <QUuid>
 
 #include <algorithm>
@@ -310,7 +313,10 @@ void TableStore::load() {
     folders_.clear();
     tables_.clear();
     const auto loaded = services::PersistenceService::instance().loadDocument(QLatin1String(kStoreDocument));
-    if (!loaded) return;
+    if (!loaded) {
+        seedExamples();
+        return;
+    }
     const QJsonObject root = loaded->object();
     for (const auto& value : root["folders"].toArray()) {
         const QJsonObject entry = value.toObject();
@@ -323,6 +329,37 @@ void TableStore::load() {
     for (const auto& value : root["tables"].toArray()) {
         tables_.push_back(tableFromJson(value.toObject()));
     }
+    seedExamples();
+}
+
+// The example tables, in an "Examples" folder at the root. Added when the
+// store holds no table at all, and once per examples version (a setting
+// remembers it, so deleted examples do not come back until they change).
+// A new version replaces the "Examples" folder.
+void TableStore::seedExamples() {
+    constexpr int kExamplesVersion = 1;
+    QSettings settings;
+    const bool outdated =
+        settings.value(QStringLiteral("examples/tables_version"), 0).toInt() < kExamplesVersion;
+    if (!tables_.empty() && !outdated) return;
+    std::vector<QString> previous;
+    for (const auto& entry : folders_) {
+        if (entry.parent_id.isEmpty() && entry.name == QLatin1String("Examples")) previous.push_back(entry.id);
+    }
+    for (const QString& id : previous) deleteFolder(id);
+    TableFolder examples;
+    examples.id = QUuid::createUuid().toString();
+    examples.name = "Examples";
+    folders_.push_back(examples);
+    for (const TableDefinition& definition : exampleTables()) {
+        TableDocument document;
+        document.id = QUuid::createUuid().toString();
+        document.folder_id = examples.id;
+        document.definition = definition;
+        tables_.push_back(document);
+    }
+    save();
+    settings.setValue(QStringLiteral("examples/tables_version"), kExamplesVersion);
 }
 
 void TableStore::save() const {

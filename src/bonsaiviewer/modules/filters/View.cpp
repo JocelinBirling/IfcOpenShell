@@ -28,6 +28,7 @@
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QTimer>
 #include <QTreeWidget>
 
 #include <memory>
@@ -133,6 +134,11 @@ FiltersPanelView::FiltersPanelView(FiltersPanel* panel,
     update_empty_hint();
 
     emit nodesChanged();
+    // First display: the top-level folders are open, so the examples show.
+    QTimer::singleShot(0, this, [this] {
+        QTreeWidget* tree = panel_->treeWidget();
+        for (int i = 0; i < tree->topLevelItemCount(); ++i) tree->topLevelItem(i)->setExpanded(true);
+    });
 }
 
 std::vector<TreeNode> FiltersPanelView::topLevelNodes() {

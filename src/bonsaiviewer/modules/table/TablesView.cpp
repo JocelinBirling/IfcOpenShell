@@ -23,6 +23,7 @@
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QTimer>
 #include <QTreeWidget>
 
 namespace bonsaiviewer::modules::table {
@@ -76,6 +77,11 @@ TablesView::TablesView(TablesPanel* panel, TableStore& store, QObject* parent)
     });
 
     emit nodesChanged();
+    // First display: the top-level folders are open, so the examples show.
+    QTimer::singleShot(0, this, [this] {
+        QTreeWidget* tree = panel_->treeWidget();
+        for (int i = 0; i < tree->topLevelItemCount(); ++i) tree->topLevelItem(i)->setExpanded(true);
+    });
 }
 
 std::vector<TreeNode> TablesView::topLevelNodes() {

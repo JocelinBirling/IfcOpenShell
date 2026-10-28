@@ -203,6 +203,16 @@ The formulas use Excel-style syntax: standard operator precedence, with parenthe
 
 The first version is strictly arithmetic: `+ - * /` with parentheses and references to other columns; any text value returns "ERROR". The evolution of the calculated columns (conditional logic, comparisons, IF) is specified on its own: BonsaiViewer23 - Table Calculated Columns.
 
+### Example tables
+At the first start of a version with examples, the Tables panel gets (once, next to the saved tables) an **Examples** folder, open, with tables that show the features. Each description explains what the table shows:
+1. **Wall quantities** — one row per wall: Name, Class, Model and quantities; sort, filter, export.
+2. **Elements per class** — a grouped table (Class as key) with Count and Color.
+3. **Wall areas by type** — two grouping keys, Sum and Average aggregations.
+4. **Doors and windows** — an entity facet on two classes; Run on Box.
+5. **Space areas** — sort and filter on the net floor area and the model.
+
+The examples are ordinary tables: they can be modified, moved or deleted. They are added when the store holds no table at all (for instance after deleting every table), and once per examples version (setting `examples/tables_version`): deleted examples do not come back while other tables remain. A new version replaces the "Examples" folder at the root.
+
 ## Open Subject
 
 Phase 3: done (Sort and Filter).
@@ -216,4 +226,3 @@ Phase 4:
 
 
 
-@TODO add Default Filter that explains all functionnality

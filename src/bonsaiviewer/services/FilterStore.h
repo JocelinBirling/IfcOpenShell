@@ -117,6 +117,7 @@ private:
     static QJsonObject actionToJson(const FilterAction& action);
 
     void load();
+    void seedExamples();
     void save() const;
     bool folderIsInSubtree(const QString& candidate_id, const QString& root_id) const;
 

@@ -289,10 +289,12 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
         const auto found = object_id_by_ifc_id_.find(id);
         if (found != object_id_by_ifc_id_.end()) object_ids.push_back(found->second);
     }
-    // A filter starts from an empty view: everything is hidden right before
-    // its first action (not at launch, so a failed selection leaves the
-    // view untouched). Once per run, not once per model.
+    // A filter starts from an empty view without colours: everything is
+    // hidden and every colour / transparency removed right before its first
+    // action (not at launch, so a failed selection leaves the view
+    // untouched). Filters do not stack. Once per run, not once per model.
     if (!view_cleared_) {
+        pipeline_.clearAppearance();
         pipeline_.run({}, ActionPipeline::Action::Isolate);
         view_cleared_ = true;
     }
