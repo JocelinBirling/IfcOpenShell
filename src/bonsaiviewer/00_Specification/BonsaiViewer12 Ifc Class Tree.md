@@ -45,4 +45,4 @@ The standard viewer conventions apply:
 ## Open Subject
 
 - Nesting rule per schema: how to build the hierarchy when IFC2X3 and IFC4 models are open together (one tree, depth depending on each schema).
-- Large classes (tens of thousands of instances): the tree builds the class children at each refresh; a lazy build on expand is still to do.
+

@@ -17,6 +17,10 @@ Depending on the cursor position, the tool highlights the entity that can be pic
 - **Segment** — when hovering an edge; the segment is highlighted in black.
 - **Face** — when hovering a face; a triangle is drawn around the location.
 
+
+A right click will active the actual function of the software (And produce Z Extend and Y Extend)
+A left click will select the point, segment or face.
+
 ### Measuring
 A left click saves the point; a line is then drawn between the mouse cursor and this point. The second point of the measurement must next be determined. The measurement method depends on the types of the two selected entities:
 

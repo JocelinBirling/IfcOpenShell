@@ -1,5 +1,4 @@
 
-Like powerbi, in 
-
+Like table, we could create some charts.
 
 

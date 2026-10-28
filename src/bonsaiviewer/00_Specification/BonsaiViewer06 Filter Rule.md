@@ -202,22 +202,10 @@ Material
 All the things we can found in Relation.
 
 
-@TODO
-Layer 2: unknown IFC class: IFCCABLECARRIERSEGMENT
-It should display if it doesn't know but it should be blocked.
-
-
-@TODO
-The automatic coulour doesn't create a table anymore. It need to be fixed
-
-
 @TODO, Always acivate filter, to color element everytime.
 If the action Add to the view, and isolate are in the filter. We can not activate the filter.
 
 
+@TODO Add Duplicate function in the Filters Panel
 
-@TODO Clean the window, it's not clear enough, and some panel are always showing, it's messy. 
-
-
-
-@TODO Add Duplicate function
+@TODO add Default Filter that explains all functionnality

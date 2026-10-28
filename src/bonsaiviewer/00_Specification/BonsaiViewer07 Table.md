@@ -193,5 +193,5 @@ Phase 4:
 
 
 
-Add the possibility to add the name of the files before the column name in the CSV. (It's weird, but it give the ability to trace data.)
-Add TimeStamp
+
+@TODO add Default Filter that explains all functionnality

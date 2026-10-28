@@ -97,4 +97,3 @@ In the Settings, the Keybindings tab offers:
 
 ## Open Subject
 
-- None.

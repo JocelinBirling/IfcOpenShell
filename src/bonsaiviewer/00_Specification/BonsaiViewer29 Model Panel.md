@@ -23,6 +23,4 @@ Right-click on a model in the Models panel opens the menu:
 
 ## Open Subject
 
-- Show/Hide Model: not in the first version; to decide whether it is needed beside Isolate Model.
-- Select Model with hidden elements of the model: selected or ignored? (see BonsaiViewer28 IfcGroup, which has the same question for groups.)
-- Model functions from the menu bar or the keyboard: no shortcut defined yet (BonsaiViewer31).
+

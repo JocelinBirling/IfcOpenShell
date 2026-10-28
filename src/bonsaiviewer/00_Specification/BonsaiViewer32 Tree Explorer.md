@@ -6,6 +6,13 @@ Status: draft, to validate.
 
 The viewer has several trees: Spatial Hierarchy, IFC Class Tree (BonsaiViewer12), Unified Tree (BonsaiViewer13), and the System Hierarchy to come (BonsaiViewer28). Each one is a separate panel with its own code and its own interactions. The Tree Explorer gathers every tree in **one panel**: a selector chooses the tree, and every tree shares the same interactions. A new tree is a new data source, not a new panel.
 
+
+It's maybe usefull to keep Spatial Tree un USpatial and Class in a specific panel. It's usefull for beginers. The System, Group and Classifications are for advanced users.
+
+The Tree Explorer can be usefull to gain space in the UI, for advance user. From the Tree Explorer, we should be able to display any tree.
+
+
+
 ## Specification
 
 ### Panel
@@ -60,3 +67,6 @@ The panel is built on the existing TreePanelFramework (TreeDataSource): one data
 - Custom tree ("Group by"): the user stacks levels (model, unified level, class, system, Pset.Property...). Proposed, not retained for now.
 - Materials tree: material sets (layers, profiles, constituents) shown as one node or detailed.
 - Manual editing of the Unified tree (BonsaiViewer13, later version).
+
+
+

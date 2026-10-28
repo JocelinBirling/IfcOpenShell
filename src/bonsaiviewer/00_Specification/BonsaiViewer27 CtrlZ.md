@@ -16,5 +16,3 @@ CTRL+Z is a simple step-back on the view. It is not a general undo of the applic
 The full rules are in BonsaiViewer02 (Undo View). The default shortcut is listed in BonsaiViewer31 (Keybindings).
 
 ## Open Subject
-
-- None.

@@ -2,7 +2,7 @@
 
 
 
-#DO NOT IMPLEMENT, A GOOD IDEA ?
+#DO NOT IMPLEMENT
 
 ## Introduction
 The idea is to give the user a choice of viewport backgrounds:

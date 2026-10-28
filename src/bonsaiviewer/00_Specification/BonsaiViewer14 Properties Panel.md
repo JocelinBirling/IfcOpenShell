@@ -122,5 +122,3 @@ The colours follow the element shown (selection, links, Back) and disappear when
 When **Filter Properties** is on in the IDS panel, the panel shows only the rows the last IDS run checks on the shown element (properties, quantities, attributes, and the "missing" rows); the other rows and the empty sets are hidden, and an element no requirement checks shows no property. The Entity and Relationships sections are unchanged. Without Color Properties the kept rows have no colour.
 
 ## Open Subject
-Relation to display
-Unified Data to display

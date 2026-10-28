@@ -69,3 +69,7 @@ A "root" is the parent folder of a loaded file. The viewer counts the most frequ
 - A dropped IFC that has no .ifcview yet is converted: the drop uses the same load path as Add IFC Files (`addModelFromPath` → `SceneLoader`), and the loader always reads and writes the .ifcview cache (`SessionState`: `setShouldReadIfcView(true)`, `setShouldWriteIfcView(true)`).
 - The .ifcview is written next to the IFC (same folder, same name) once the model has finished loading, on a background thread. If it already exists, it is read instead of the IFC geometry.
 - Limit: the write fails silently when the IFC folder is read-only; the model is then streamed from the IFC at each open.
+
+
+## Open Subject
+Improve the Add IFC Files windows
