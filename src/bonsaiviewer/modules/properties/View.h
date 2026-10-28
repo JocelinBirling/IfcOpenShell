@@ -37,6 +37,7 @@ namespace bonsaiviewer { class SessionState; }
 namespace bonsaiviewer::services {
 class ActionPipeline;
 class EntitySetStore;
+class IdsPropertyChecks;
 class IfcDataAccess;
 class SelectionService;
 }
@@ -62,6 +63,8 @@ public:
 
     // "Colour by property" shows its value table in the Table panel.
     void setTableView(table::TablePanelView* table_view) { table_view_ = table_view; }
+    // BonsaiViewer24 "Color Properties": the IDS checks that colour the rows.
+    void setIdsChecks(bonsaiviewer::services::IdsPropertyChecks* checks);
 
 private:
     // The entity shown in the panel: a model entity (session_model_id +
@@ -104,6 +107,7 @@ private:
     bonsaiviewer::services::SelectionService& selection_;
     bonsaiviewer::services::EntitySetStore& box_;
     table::TablePanelView* table_view_ = nullptr;
+    bonsaiviewer::services::IdsPropertyChecks* ids_checks_ = nullptr;
     Shown shown_;
     QList<Shown> history_;
     QList<RelationshipRow> relationships_;  // as rendered, for the link clicks

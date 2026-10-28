@@ -20,11 +20,13 @@
 
 #include "PanelManager.h"
 
+#include <QAction>
 #include <QDockWidget>
 #include <QMainWindow>
 #include <QMenu>
 
 #include <algorithm>
+#include <functional>
 
 namespace bonsaiviewer::services {
 
@@ -42,11 +44,13 @@ void PanelManager::registerPanel(const QString& id, const QString& title,
     emit panelRegistered(id);
 }
 
-void PanelManager::adoptPanel(const QString& id, const QString& title, QDockWidget* dock) {
+void PanelManager::adoptPanel(const QString& id, const QString& title, QDockWidget* dock,
+                              const QString& group) {
     if (!dock) return;
     Panel panel;
     panel.id = id;
     panel.title = title;
+    panel.group = group;
     panel.dock = dock;
     panels_[id] = std::move(panel);
     emit panelRegistered(id);
@@ -92,27 +96,62 @@ void PanelManager::togglePanel(const QString& id) {
     setPanelVisible(id, !isPanelVisible(id));
 }
 
+namespace {
+
+// The Window submenus, in menu order (BonsaiViewer01).
+const QStringList kWindowGroups{QStringLiteral("Trees"), QStringLiteral("Properties"),
+                                QStringLiteral("Analyze")};
+
+// Refreshes the check marks of every panel action, submenus included.
+void refreshChecks(QMenu* menu, const std::function<bool(const QString&)>& visible) {
+    for (QAction* action : menu->actions()) {
+        if (action->menu()) {
+            refreshChecks(action->menu(), visible);
+            continue;
+        }
+        const QString id = action->data().toString();
+        if (!id.isEmpty()) action->setChecked(visible(id));
+    }
+}
+
+} // namespace
+
 void PanelManager::buildWindowMenu(QMenu* menu) {
     if (!menu) return;
     menu->clear();
-    for (const auto& [id, panel] : panels_) {
-        QAction* action = menu->addAction(panel.title);
-        action->setCheckable(true);
-        action->setData(id);
-        action->setChecked(isPanelVisible(id));
-        // The check mark is the wanted state: it follows the click, not a toggle
-        // of a state that may have changed since the menu was built.
-        QObject::connect(action, &QAction::triggered, menu,
-                         [this, id](bool checked) { setPanelVisible(id, checked); });
+    // Adds the panels of `group` (empty: ungrouped) to `target`, sorted by title.
+    auto addPanels = [this, menu](QMenu* target, const QString& group) {
+        QList<QPair<QString, QString>> items;  // (title, id)
+        for (const auto& [id, panel] : panels_) {
+            if (panel.group == group) items.append({panel.title, id});
+        }
+        std::sort(items.begin(), items.end());
+        for (const auto& [title, id] : items) {
+            QAction* action = target->addAction(title);
+            action->setCheckable(true);
+            action->setData(id);
+            action->setChecked(isPanelVisible(id));
+            // The check mark is the wanted state: it follows the click, not a toggle
+            // of a state that may have changed since the menu was built.
+            QObject::connect(action, &QAction::triggered, menu,
+                             [this, id](bool checked) { setPanelVisible(id, checked); });
+        }
+        return items.size();
+    };
+    for (const QString& group : kWindowGroups) {
+        addPanels(menu->addMenu(group), group);
+    }
+    const bool has_ungrouped = std::any_of(panels_.begin(), panels_.end(),
+                                           [](const auto& entry) { return entry.second.group.isEmpty(); });
+    if (has_ungrouped) {
+        menu->addSeparator();
+        addPanels(menu, QString());
     }
     // Panels are also shown / hidden elsewhere (workspaces, Panels ribbon,
     // close button): the check marks are refreshed each time the menu opens.
     QObject::disconnect(menu, &QMenu::aboutToShow, this, nullptr);
     QObject::connect(menu, &QMenu::aboutToShow, this, [this, menu]() {
-        for (QAction* action : menu->actions()) {
-            const QString id = action->data().toString();
-            if (!id.isEmpty()) action->setChecked(isPanelVisible(id));
-        }
+        refreshChecks(menu, [this](const QString& id) { return isPanelVisible(id); });
     });
 }
 

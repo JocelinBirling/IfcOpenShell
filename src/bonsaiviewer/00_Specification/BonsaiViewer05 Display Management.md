@@ -29,7 +29,12 @@ A generic function bar is always attached to the top of the 3D view, inside the 
 
 The groups are arranged along the bar: the search bar in the left corner, then the display and section groups; the box functions are centred; the zoom and colour groups are justified on the right edge.
 
-The bar is deliberately compact so the 3D view keeps the room: 7 pt font, buttons capped at 63 x 58 px, search bar 130 x 30 px.
+The bar is deliberately compact so the 3D view keeps the room:
+
+- icon-only buttons (16 px icons, 24 px high), the label is shown as a tooltip;
+- no group titles;
+- search bar 130 x 30 px;
+- the bar never imposes its width: when the window is narrow, the right-most groups are clipped instead of squeezing the side panels.
 
 The bar is not an overlay: the 3D view is a native window, and a widget drawn over it cannot be transparent. The bar sits above the 3D view and is opaque.
 
@@ -47,7 +52,7 @@ Current panels:
 - Properties
 - Models
 - Spatial Hierarchy
-- Ifc Class Tree
+- Ifc Hierarchy
 - Layers
 - Stored Views
 - Search and Query
@@ -64,4 +69,4 @@ The default panels of each workspace are defined in BonsaiViewer21. They can be 
 ## Open Subject
 
 - Content of the specific function panel for each tab.
-- Smaller buttons for the generic function bar (icons only, tooltips for the labels).
+- Clipped groups on a narrow window: add an overflow menu (») if needed.

@@ -166,6 +166,7 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsPropertyChecks.h
     # C++ ports of ifcopenshell.util and IfcTester (BonsaiViewer24 IDS).
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.h

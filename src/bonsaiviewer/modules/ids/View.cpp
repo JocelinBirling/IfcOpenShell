@@ -23,6 +23,7 @@
 #include "../../services/AppearanceService.h"
 #include "../../services/FilterRunner.h"
 #include "../../services/IdsBridge.h"
+#include "../../services/IdsPropertyChecks.h"
 #include "../../../ifcviewer/SceneLoader.h"
 #include "../../../ifcparse/file.h"
 #include "../../../ifcparse/schema.h"
@@ -69,6 +70,8 @@ IdsPanelView::IdsPanelView(components::Panel* panel,
     });
     connect(editor_, &IdsEditor::isolateRequested, this, &IdsPanelView::isolate);
     connect(editor_, &IdsEditor::colourRequested, this, &IdsPanelView::colour);
+    connect(editor_, &IdsEditor::colorPropertiesToggled, this, &IdsPanelView::publishPropertyChecks);
+    connect(editor_, &IdsEditor::filterPropertiesToggled, this, &IdsPanelView::publishPropertyChecks);
     connect(editor_, &IdsEditor::clearColoursRequested, this, [this]() {
         appearance_.clearLayer(services::AppearanceService::Layer::IdsResult);
     });
@@ -95,6 +98,7 @@ void IdsPanelView::run() {
         for (const it::Facet& requirement : spec.requirements) {
             RequirementResult row;
             row.text = QString::fromStdString(requirement.toString(it::Clause::Requirement, spec.prohibited(), &requirement));
+            row.facet = requirement;
             results[s].requirements.push_back(row);
         }
     }
@@ -159,7 +163,40 @@ void IdsPanelView::run() {
             result.note = "prohibited, but elements are applicable";
         }
     }
+    results_ = results;
     editor_->setResults(results);
+    publishPropertyChecks();
+}
+
+void IdsPanelView::publishPropertyChecks() {
+    if (property_checks_ == nullptr) return;
+    if ((!editor_->colorProperties() && !editor_->filterProperties()) || results_.empty()) {
+        property_checks_->clear();
+        return;
+    }
+    services::IdsPropertyChecks::Checks checks;
+    for (const SpecificationResult& result : results_) {
+        for (const RequirementResult& requirement : result.requirements) {
+            if (!requirement.facet) continue;
+            const auto type = requirement.facet->type;
+            if (type != it::FacetType::Property && type != it::FacetType::Attribute) continue;
+            const QString text = result.name + ": " + requirement.text;
+            std::map<std::pair<uint32_t, int>, QString> failed;
+            for (const FailureRow& failure : requirement.failures) {
+                failed[{failure.element.session_model_id, failure.element.ifc_id}] = failure.reason;
+            }
+            for (const ElementRef& element : result.applicable) {
+                const std::pair<uint32_t, int> key{element.session_model_id, element.ifc_id};
+                const auto failure = failed.find(key);
+                services::IdsPropertyChecks::Check check;
+                check.facet = *requirement.facet;
+                check.passed = failure == failed.end();
+                check.text = check.passed ? text : text + "\n" + failure->second;
+                checks[key].push_back(std::move(check));
+            }
+        }
+    }
+    property_checks_->setChecks(std::move(checks), editor_->colorProperties(), editor_->filterProperties());
 }
 
 std::vector<uint32_t> IdsPanelView::objectIds(const std::vector<ElementRef>& elements) const {

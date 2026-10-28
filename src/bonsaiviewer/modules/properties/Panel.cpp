@@ -37,6 +37,16 @@
 
 namespace {
 
+// BonsaiViewer24 "Color Properties": a checked row in green or red.
+bonsaiviewer::components::KeyValueTableRow tableRow(const bonsaiviewer::modules::properties::KeyValueRow& row) {
+    bonsaiviewer::components::KeyValueTableRow table_row{row.key, row.value, "keyValueValueLabel", "", "", 0};
+    if (row.ids_status != 0) {
+        table_row.status_color = row.ids_status > 0 ? QStringLiteral("#2ea043") : QStringLiteral("#dc322f");
+        table_row.tooltip = row.ids_text;
+    }
+    return table_row;
+}
+
 QWidget* makePropertySetPanel(const bonsaiviewer::modules::properties::PropertySet& property_set,
                               const bonsaiviewer::modules::properties::PropertyContextHandler& on_context,
                               QWidget* parent = nullptr) {
@@ -48,7 +58,7 @@ QWidget* makePropertySetPanel(const bonsaiviewer::modules::properties::PropertyS
 
     QList<bonsaiviewer::components::KeyValueTableRow> rows;
     for (const auto& row : property_set.rows) {
-        rows.append({row.key, row.value, "keyValueValueLabel", "", "", 0});
+        rows.append(tableRow(row));
     }
     auto* table = new bonsaiviewer::components::KeyValueTable(rows, group);
     // The rows of the table are the rows of property_set (as filtered).
@@ -81,7 +91,7 @@ QWidget* makeSetContainer(QWidget* parent) {
 QWidget* makeAttributeList(const QList<bonsaiviewer::modules::properties::KeyValueRow>& rows, QWidget* parent = nullptr) {
     QList<bonsaiviewer::components::KeyValueTableRow> table_rows;
     for (const auto& row : rows) {
-        table_rows.append({row.key, row.value, "keyValueValueLabel", "", "", 0});
+        table_rows.append(tableRow(row));
     }
     return new bonsaiviewer::components::KeyValueTable(table_rows, parent);
 }

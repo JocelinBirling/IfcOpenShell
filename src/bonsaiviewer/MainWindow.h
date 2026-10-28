@@ -63,6 +63,7 @@ namespace bonsaiviewer::services { class FilterStore; }
 namespace bonsaiviewer::services { class IdsBridge; }
 namespace bonsaiviewer::services { class IfcDataAccess; }
 namespace bonsaiviewer::services { class PanelManager; }
+namespace bonsaiviewer::services { class IdsPropertyChecks; }
 namespace bonsaiviewer::services { class PickingService; }
 namespace bonsaiviewer::services { class PropertyCatalog; }
 namespace bonsaiviewer::services { class PropertyIndex; }
@@ -214,6 +215,7 @@ private:
     // BonsaiViewer24: the IDS panel (bottom, tabbed with the Table).
     components::Panel* ids_panel_ = nullptr;
     bonsaiviewer::modules::ids::IdsPanelView* ids_view_ = nullptr;
+    bonsaiviewer::services::IdsPropertyChecks* ids_property_checks_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
     bonsaiviewer::services::PropertyCatalog* property_catalog_ = nullptr;
     bonsaiviewer::modules::table::TablePanelView* table_view_ = nullptr;

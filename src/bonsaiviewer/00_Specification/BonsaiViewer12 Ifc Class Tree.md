@@ -1,4 +1,4 @@
-# BonsaiViewer12 - IFC Class Tree
+# BonsaiViewer12 - IFC Hierarchy
 
 ## Introduction
 
@@ -6,7 +6,7 @@ A class tree complements the existing trees. It lists the IFC classes present in
 
 ## Specification
 
-### IFC Class Tree panel
+### IFC Hierarchy panel
 
 There is **one single tree** for all open models.
 

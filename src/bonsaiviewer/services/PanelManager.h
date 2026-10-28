@@ -59,8 +59,10 @@ public:
                        Qt::DockWidgetArea area = Qt::RightDockWidgetArea);
     // Register a dock widget the shell already created (the hand-rolled
     // panels of MainWindow): same Window menu / visibility treatment,
-    // no lazy factory.
-    void adoptPanel(const QString& id, const QString& title, QDockWidget* dock);
+    // no lazy factory. `group` is the Window submenu it is listed in (one of
+    // Trees, Properties, Analyze); empty keeps it at the top of the menu.
+    void adoptPanel(const QString& id, const QString& title, QDockWidget* dock,
+                    const QString& group = QString());
     QStringList registeredPanels() const;
     QString panelTitle(const QString& id) const;
 
@@ -69,8 +71,9 @@ public:
     bool isPanelVisible(const QString& id) const;
     void togglePanel(const QString& id);
 
-    // Rebuild `menu` with one checkable action per registered panel
-    // (TI01). Call again on panelRegistered.
+    // Rebuild `menu` with one checkable action per registered panel, in
+    // one submenu per group (BonsaiViewer01), sorted by title (TI01).
+    // Call again on panelRegistered.
     void buildWindowMenu(QMenu* menu);
 
     // Tabs. System tabs are declared by the shell at startup; the "+"
@@ -104,6 +107,7 @@ private:
     struct Panel {
         QString id;
         QString title;
+        QString group;
         PanelFactory factory;
         Qt::DockWidgetArea area = Qt::RightDockWidgetArea;
         QDockWidget* dock = nullptr;

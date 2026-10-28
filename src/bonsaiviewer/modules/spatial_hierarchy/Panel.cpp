@@ -46,7 +46,7 @@ void setSubtreeExpanded(QTreeWidgetItem* item, bool expanded) {
 } // namespace
 
 SpatialHierarchyPanel::SpatialHierarchyPanel(QWidget* parent)
-    : components::Panel("Spatial Hierarchy", nullptr, parent)
+    : components::Panel("Spatial Tree", nullptr, parent)
 {
     auto* section = new components::Section("", components::SectionHeaderMode::Hidden, this);
     section->setBodyExpanding(true);  // let the tree fill the panel's height
@@ -54,18 +54,18 @@ SpatialHierarchyPanel::SpatialHierarchyPanel(QWidget* parent)
     tree_ = new QTreeWidget(section);
     tree_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     tree_->setColumnCount(3);
-    tree_->setHeaderLabels({"Name", "Long Name", ""});
+    tree_->setHeaderLabels({"Name", "Info", ""});
     tree_->setIconSize(QSize(16, 16));
     tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     tree_->setUniformRowHeights(true);
-    // Name is drag-resizable, Long Name fills the rest, the eye is pinned to
-    // the right at a fixed width. Header stays visible so the Name/Long-Name
-    // divider can be dragged. Initial 20/80 split applied in showEvent once the
+    // Name is drag-resizable, Info fills the rest, the eye is pinned to
+    // the right at a fixed width. Header stays visible so the Name/Info
+    // divider can be dragged. Initial 60/40 split applied in showEvent once the
     // real width is known.
     tree_->header()->setStretchLastSection(false);
     tree_->header()->setSectionsMovable(false);
     tree_->header()->setSectionResizeMode(0, QHeaderView::Interactive);  // name
-    tree_->header()->setSectionResizeMode(1, QHeaderView::Stretch);      // LongName / elevation
+    tree_->header()->setSectionResizeMode(1, QHeaderView::Stretch);      // Info: elevation / LongName
     tree_->header()->setSectionResizeMode(2, QHeaderView::Fixed);        // visibility
     tree_->header()->resizeSection(2, 28);
     section->addBodyWidget(tree_);
@@ -99,8 +99,8 @@ SpatialHierarchyPanel::SpatialHierarchyPanel(QWidget* parent)
 
 void SpatialHierarchyPanel::showEvent(QShowEvent* event) {
     components::Panel::showEvent(event);
-    // Default the Name column once the panel has a real layout size; Long
-    // Name (stretch) takes the rest. Left interactive after, so the user's
+    // Default the Name column once the panel has a real layout size; Info
+    // (stretch) takes the rest. Left interactive after, so the user's
     // own drag persists.
     if (!column_widths_initialized_) {
         const int available = tree_->viewport()->width();
@@ -110,8 +110,8 @@ void SpatialHierarchyPanel::showEvent(QShowEvent* event) {
             // narrower than an item's indent Qt is left with an empty text
             // rect and the name silently stops rendering. Keep a floor of
             // 130px so Site/Building/Storey names stay visible, but leave
-            // at least 100px for the Long Name / elevation column.
-            const int wanted = std::max(available / 5, 130);
+            // at least 100px for the Info column.
+            const int wanted = std::max(available * 3 / 5, 130);
             const int upper = std::max(130, available - 100);
             tree_->header()->resizeSection(0, std::min(wanted, upper));
             column_widths_initialized_ = true;

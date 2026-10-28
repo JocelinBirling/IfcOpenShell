@@ -34,6 +34,12 @@ namespace bonsaiviewer::modules::properties {
 struct KeyValueRow {
     QString key;
     QString value;
+    // BonsaiViewer24 "Color Properties": 1 = meets the IDS requirements on
+    // this row (green), -1 = fails one (red), 0 = not checked; with the text
+    // of the requirements, shown as a tooltip.
+    int ids_status = 0;
+    QString ids_text;
+    bool ids_checked = false; // checked by an IDS requirement (Filter Properties)
 };
 
 // A row of the Relationships section. A row with an ifc_id is a link to that

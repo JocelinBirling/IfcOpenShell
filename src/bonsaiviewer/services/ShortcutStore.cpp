@@ -86,6 +86,33 @@ ShortcutStore::ShortcutStore() {
     load();
 }
 
+const std::vector<ShortcutStore::FixedShortcut>& ShortcutStore::fixedShortcuts() {
+    // The keys of ViewportWindow::keyPressEvent (3D view focused) and of the
+    // Filters facet list, not yet editable.
+    static const std::vector<FixedShortcut> fixed = {
+        {"Show All (former)", "Alt+H"},
+        {"X-Ray", "Alt+X"},
+        {"Section Tool", "K"},
+        {"Clear Section Planes", "Shift+K"},
+        {"Remove Section Plane (section tool on)", "Del / Backspace"},
+        {"Measure Length", "L"},
+        {"Measure Area", "A"},
+        {"Measure Volume", "V"},
+        {"Remove Last Point (length)", "Del / Backspace"},
+        {"Exit Tool / Fly Mode", "Esc"},
+        {"Focus Selection", "F"},
+        {"View All", "Home"},
+        {"Perspective / Orthographic", "P"},
+        {"Front / Back View", "X / Shift+X"},
+        {"Right / Left View", "Y / Shift+Y"},
+        {"Top / Bottom View", "Z / Shift+Z"},
+        {"Fly: Move", "W A S D, Q E, Shift (faster)"},
+        {"Copy Facets (Filters)", "Ctrl+C"},
+        {"Paste Facets (Filters)", "Ctrl+V"},
+    };
+    return fixed;
+}
+
 const ShortcutStore::Definition* ShortcutStore::definition(const QString& id) const {
     for (const auto& def : definitions_) {
         if (def.id == id) return &def;

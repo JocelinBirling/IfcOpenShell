@@ -33,7 +33,7 @@
 namespace bonsaiviewer::modules::unified_tree {
 
 UnifiedTreePanel::UnifiedTreePanel(QWidget* parent)
-    : components::Panel("Unified Tree (interpreted)", nullptr, parent, /*has_settings=*/true)
+    : components::Panel("USpatial Tree", nullptr, parent, /*has_settings=*/true)
 {
     auto* section = new components::Section("", components::SectionHeaderMode::Hidden, this);
     section->setBodyExpanding(true);
@@ -43,7 +43,7 @@ UnifiedTreePanel::UnifiedTreePanel(QWidget* parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(6);
 
-    auto* banner = new QLabel("Deduced data: not read from the models.", body);
+    auto* banner = new QLabel("USpatial Tree is calculated from the models, not directly in it.", body);
     banner->setObjectName("unifiedTreeBanner");
     banner->setWordWrap(true);
     banner->setStyleSheet("QLabel#unifiedTreeBanner { background: rgba(255, 190, 60, 60);"

@@ -50,7 +50,15 @@ public:
 
     static ShortcutStore& instance();
 
+    // A key handled directly by the 3D view or a panel: shown in the
+    // Keybindings tab for reference, not editable.
+    struct FixedShortcut {
+        QString label;
+        QString keys;
+    };
+
     const std::vector<Definition>& definitions() const { return definitions_; }
+    static const std::vector<FixedShortcut>& fixedShortcuts();
     const Definition* definition(const QString& id) const;
 
     // The shortcut of a function (empty when it has none).

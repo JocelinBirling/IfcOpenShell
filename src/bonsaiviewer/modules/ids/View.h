@@ -25,6 +25,7 @@ namespace bonsaiviewer::services {
 class ActionPipeline;
 class AppearanceService;
 class IdsBridge;
+class IdsPropertyChecks;
 }
 
 namespace bonsaiviewer::modules::ids {
@@ -51,11 +52,16 @@ public:
                  QObject* parent = nullptr);
 
     IdsEditor* editor() const { return editor_; }
+    // Where "Color Properties" publishes the checks for the Properties panel.
+    void setPropertyChecks(bonsaiviewer::services::IdsPropertyChecks* checks) { property_checks_ = checks; }
 
 private:
     void run();
     void isolate(const std::vector<ElementRef>& elements);
     void colour(const std::vector<ElementRef>& passed, const std::vector<ElementRef>& failed);
+    // Publishes (or clears) the property / attribute checks of the last run
+    // for Color Properties and Filter Properties.
+    void publishPropertyChecks();
     // The object ids of the elements that have geometry in the viewer.
     std::vector<uint32_t> objectIds(const std::vector<ElementRef>& elements) const;
 
@@ -64,6 +70,8 @@ private:
     bonsaiviewer::services::ActionPipeline& pipeline_;
     bonsaiviewer::services::AppearanceService& appearance_;
     IdsEditor* editor_ = nullptr;
+    bonsaiviewer::services::IdsPropertyChecks* property_checks_ = nullptr;
+    std::vector<SpecificationResult> results_; // of the last run
 };
 
 } // namespace bonsaiviewer::modules::ids

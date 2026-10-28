@@ -84,8 +84,11 @@ The IDS panel is at the bottom, in the tabs of the Table and the Ifc Text Digger
   - A click on a failing element isolates it.
   - Right-click: on a specification, isolate its applicable, passing or failing elements; on a requirement, isolate its failing elements.
   - Elements without geometry cannot be isolated; the status bar says how many.
-  - **Colour the objects** (check box above the results, off by default): once checked, a double-click on a requirement isolates the applicable elements of its specification and colours them: red when they fail this requirement, green otherwise. Right-click also offers to colour a specification (passing green, failing red) or a requirement, and to remove the IDS colours; unchecking the box removes them.
+  - Three toggle buttons above the results, off by default: **Color Objects**, **Color Properties**, **Filter Properties**.
+  - **Color Objects**: once on, a double-click on a requirement isolates the applicable elements of its specification and colours them: red when they fail this requirement, green otherwise. Right-click also offers to colour a specification (passing green, failing red) or a requirement, and to remove the IDS colours; turning it off removes them.
   - The colours use their own layer of the appearance service (IDS result: below the user paint and the table colours, above the filter colours), so they never erase a colour set by hand.
+- **Color Properties** (button above the results): while it is on, the Properties panel colours the rows of the selected element that a property or attribute requirement of the last run checks: green when the element meets the requirement, red when it fails it. A required property or attribute the element does not have is added as a red "missing" row (in the property set the requirement names). The tooltip of a row lists the specifications and requirements, with the failure reason. Turning it off removes the colours; a new Run refreshes them (BonsaiViewer14).
+- **Filter Properties** (button above the results): while it is on, the Properties panel shows, for the selected element, only the properties, quantities and attributes that a property or attribute requirement of the last run checks on that element (with the "missing" rows of the required ones it does not have); the other rows and the empty sets are hidden. An element no requirement checks shows no property. It works with or without Color Properties; turning it off shows everything again (BonsaiViewer14).
 - **Opened IDS kept exact**: the editor normalises what it shows (class and PredefinedType case, one pattern per field…). While the facets of a specification are not edited, Save and Run use them exactly as read. A specification whose facets the editor cannot show (e.g. a totalDigits restriction) is kept as read, runs, and its facets are read-only, with a note.
 - **Export report**: planned, format to be decided.
 
@@ -139,19 +142,7 @@ The IDS panel is at the bottom, in the tabs of the Table and the Ifc Text Digger
 
 ## Open Subject
 
-- Color Property By IDS: colour elements by the properties checked by an IDS.
-- Filter Property By IDS: in the Properties panel, show only the properties asked for in the IDS.
 - Report format (CSV, HTML, BCF link).
 - The facet guides and the developer guide of the IDS manual were not reviewed in detail for this spec. To check before implementation.
-
-
-
 - `src/ifctester/ifctester_ipc.py` is no longer used by the viewer: to delete. 
-
-
-
-We want to create subjects based on the IDS result. It will create subject in bonsaiViewer and the user can then modified them.
-Create BCF per requirements
-Create BCF per Specifications
-
-By default, valid object will be displayed in green and false one in red in the BCF.
+- Easy way to create BCF report

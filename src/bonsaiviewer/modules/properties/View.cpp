@@ -27,6 +27,7 @@
 #include "../../services/ActionPipeline.h"
 #include "../../services/ContextMenuBuilder.h"
 #include "../../services/EntitySetStore.h"
+#include "../../services/IdsPropertyChecks.h"
 #include "../../services/IfcDataAccess.h"
 #include "../../services/SelectionService.h"
 #include "../../../ifcviewer/Federation.h"
@@ -44,6 +45,7 @@
 #include <QGuiApplication>
 #include <QMap>
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
@@ -53,6 +55,94 @@
 namespace bonsaiviewer::modules::properties {
 
 namespace {
+
+// BonsaiViewer24 "Color Properties": marks a row with one IDS check (a
+// failure wins over a pass).
+void markRow(bonsaiviewer::modules::properties::KeyValueRow& row,
+             const bonsaiviewer::services::IdsPropertyChecks::Check& check) {
+    row.ids_checked = true;
+    row.ids_status = (row.ids_status < 0 || !check.passed) ? -1 : 1;
+    const QString line = QString(check.passed ? "✔ " : "✘ ") + check.text;
+    row.ids_text = row.ids_text.isEmpty() ? line : row.ids_text + "\n" + line;
+}
+
+std::string upperNameOf(const bonsaiviewer::ports::ifctester::Param& param) {
+    return param.isSimple() ? param.simple : param.toString();
+}
+
+// Marks the rows the IDS checks of the shown element concern. A failed
+// requirement on a property or attribute the element does not have adds a
+// "missing" row (in the property set it names). Then: without Color
+// Properties the marks carry no colour; with Filter Properties only the
+// marked rows (and their sets) stay.
+void applyIdsChecks(bonsaiviewer::modules::properties::PropertiesPanelState& state,
+                    const std::vector<bonsaiviewer::services::IdsPropertyChecks::Check>& checks,
+                    bool colour,
+                    bool filter) {
+    namespace it = bonsaiviewer::ports::ifctester;
+    using bonsaiviewer::modules::properties::KeyValueRow;
+    using bonsaiviewer::modules::properties::PropertySet;
+    const auto matches = [](const it::Param& param, const QString& text) {
+        return param.matches(it::Value(text.toStdString()));
+    };
+    for (const auto& check : checks) {
+        const it::Facet& facet = check.facet;
+        bool found = false;
+        if (facet.type == it::FacetType::Attribute) {
+            for (KeyValueRow& row : state.attributes) {
+                if (!matches(facet.name, row.key)) continue;
+                markRow(row, check);
+                found = true;
+            }
+            if (!found && !check.passed) {
+                KeyValueRow missing{QString::fromStdString(upperNameOf(facet.name)), "missing"};
+                markRow(missing, check);
+                state.attributes.append(missing);
+            }
+            continue;
+        }
+        if (facet.type != it::FacetType::Property) continue;
+        for (QList<PropertySet>* sets : {&state.property_sets, &state.quantity_sets}) {
+            for (PropertySet& set : *sets) {
+                if (!matches(facet.propertySet, set.title)) continue;
+                for (KeyValueRow& row : set.rows) {
+                    if (!matches(facet.baseName, row.key)) continue;
+                    markRow(row, check);
+                    found = true;
+                }
+            }
+        }
+        if (found || check.passed) continue;
+        const QString set_title = QString::fromStdString(upperNameOf(facet.propertySet));
+        QList<PropertySet>& sets = set_title.startsWith("Qto_") ? state.quantity_sets : state.property_sets;
+        auto set = std::find_if(sets.begin(), sets.end(), [&](const PropertySet& s) { return s.title == set_title; });
+        if (set == sets.end()) {
+            sets.append(PropertySet{set_title, {}});
+            set = sets.end() - 1;
+        }
+        KeyValueRow missing{QString::fromStdString(upperNameOf(facet.baseName)), "missing"};
+        markRow(missing, check);
+        set->rows.append(missing);
+    }
+
+    const auto keep_checked = [&](QList<KeyValueRow>& rows) {
+        QList<KeyValueRow> kept;
+        for (KeyValueRow& row : rows) {
+            if (!colour) row.ids_status = 0;
+            if (!filter || row.ids_checked) kept.append(row);
+        }
+        rows = kept;
+    };
+    keep_checked(state.attributes);
+    for (QList<PropertySet>* sets : {&state.property_sets, &state.quantity_sets}) {
+        QList<PropertySet> kept;
+        for (PropertySet& set : *sets) {
+            keep_checked(set.rows);
+            if (!set.rows.isEmpty()) kept.append(set);
+        }
+        *sets = kept;
+    }
+}
 
 // A property/quantity value formatted for a single-line cell. std::nullopt for
 // IFC null and compound values (entity references, lists, maps), which are
@@ -358,8 +448,21 @@ void PropertiesPanelView::render() {
             state.attributes.append({"Name", info->name});
         }
     }
+    if (ids_checks_ != nullptr && shown_.ifc_id != 0 && (ids_checks_->colour() || ids_checks_->filter())) {
+        // Filter Properties on an element no requirement checks: nothing to show.
+        static const std::vector<bonsaiviewer::services::IdsPropertyChecks::Check> none;
+        const auto* checks = ids_checks_->checksOf(shown_.session_model_id, shown_.ifc_id);
+        applyIdsChecks(state, checks ? *checks : none, ids_checks_->colour(), ids_checks_->filter());
+    }
     relationships_ = state.relationships;
     widget_->render(state);
+}
+
+void PropertiesPanelView::setIdsChecks(bonsaiviewer::services::IdsPropertyChecks* checks) {
+    ids_checks_ = checks;
+    if (ids_checks_ != nullptr) {
+        connect(ids_checks_, &bonsaiviewer::services::IdsPropertyChecks::changed, this, [this]() { render(); });
+    }
 }
 
 std::vector<std::uint32_t> PropertiesPanelView::relatedObjectIds(const RelationshipRow& row) const {

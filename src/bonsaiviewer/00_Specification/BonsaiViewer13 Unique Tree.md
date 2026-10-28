@@ -61,12 +61,12 @@ Each unified level holds its rooms; each room holds the elements attached to it:
 ### Interpreted data
 The Unified Tree is an interpretation of the models, not data read from them. This must always be visible:
 
-- The panel is titled "Unified Tree (interpreted)", and a banner at the top says: "Deduced data: not read from the models."
+- The panel is titled "USpatial Tree", and a banner at the top says: "USpatial Tree is calculated from the models, not directly in it."
 - Every deduced attachment carries an icon; its tooltip gives the reason: level matched by name, by elevation, or attached to the nearest level; element attached to a room by box overlap; slab attached to a level by its top face; element placed under "(no room)" from its IFC storey.
 - Sites, buildings, storeys and rooms keep their real names, read from the IFC.
 
 ### Display
-Show two separate panels: one with the classic Spatial Hierarchy and one with the Unified Spatial Hierarchy. The Spatial Hierarchy and the IFC Class Tree (BonsaiViewer12) stay as they are: the Unified Tree is an additional panel. The unified panel uses the same general panel design as today, but displays the more complete tree.
+Show two separate panels: one with the classic Spatial Hierarchy and one with the Unified Spatial Hierarchy. The Spatial Hierarchy and the IFC Hierarchy (BonsaiViewer12) stay as they are: the Unified Tree is an additional panel. The unified panel uses the same general panel design as today, but displays the more complete tree.
 
 A Settings button opens the choice of the two reference models (levels and rooms) and the level tolerance. A Run button launches the computation. The panel has these two buttons.
 

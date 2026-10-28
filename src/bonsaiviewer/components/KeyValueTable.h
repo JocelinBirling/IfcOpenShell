@@ -37,6 +37,10 @@ struct KeyValueTableRow {
     int key_minimum_width = 0;
     // The trailing icon is a button; a click emits linkActivated(row).
     bool link = false;
+    // A text colour for the key and the value (e.g. an IDS result), and a
+    // tooltip; empty = the default style.
+    QString status_color;
+    QString tooltip;
 };
 
 class KeyValueTable : public QWidget {

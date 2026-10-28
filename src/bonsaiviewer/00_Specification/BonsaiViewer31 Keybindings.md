@@ -65,6 +65,8 @@ In the Settings, the Keybindings tab offers:
 - Conflict detection: a combination already used by another function is refused, a message names that function, and the previous shortcut is kept.
 - A Reset button per function, and Reset All. A reset is refused when the default shortcut is used by another function.
 - An empty shortcut is allowed: the function then has no shortcut.
+- Rows are tall enough (36 px) for the key editor and the Reset button.
+- After the editable functions, the table lists the **fixed keys**, greyed and marked "Fixed": keys handled directly by the 3D view or a panel, not editable yet. Alt+H (former Show All), Alt+X (X-Ray), K / Shift+K (section tool, clear planes), Del (remove plane or last point), L / A / V (measure length, area, volume), Esc (exit tool or fly mode), F (focus selection), Home (view all), P (perspective / orthographic), X / Y / Z and Shift+X / Y / Z (standard views), W A S D Q E Shift (fly mode), Ctrl+C / Ctrl+V (copy / paste facets in Filters).
 
 ### Export/Import
 
@@ -78,4 +80,4 @@ In the Settings, the Keybindings tab offers:
 
 ## Open Subject
 
-- None.
+- Make the fixed keys of the 3D view editable (they live in ifcviewer/ViewportWindow), and refuse an editable shortcut that collides with them.

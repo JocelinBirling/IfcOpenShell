@@ -8,29 +8,43 @@ By default, we will display the following set of panels.
 
 ### "Home" 
 
-Models Panel in Top Left
-Spatial Hierarchy in the Bottom Left
+Models Panel in Whole Left
+Spatial Tree Panel Whole in Left
+USpatial Tree Panel Whole in Left
+
 Properties in the Whole Right
 3D view in the center
 
 ### "Filter" 
 Models Panel in Top Left
-Spatial Hierarchy in Top Left
-Class Hierarchy in Top Left
+Spatial Tree Panel Top in Left
+USpatial Tree Panel Top in Left
 
 Filters in the Bottom Left
+
 Properties in the Whole Right
 3D view in the center
 
 
 ### "Table" 
 Models Panel in Top Left
-Spatial Hierarchy in Top Left
-Class Hierarchy in Top Left
+Spatial Tree Panel Top in Left
+USpatial Tree Panel Top in Left
 
 Tables in the Bottom Left
-Properties in the Whole Right
 Table in the Whole Bottom
+
+Properties in the Whole Right
+3D view in the center
+
+### "IDS" 
+Models Panel in Whole Left
+Spatial Tree Panel Whole in Left
+USpatial Tree Panel Whole in Left
+
+IDS in the Whole Bottom
+
+Properties in the Whole Right
 3D view in the center
 
 

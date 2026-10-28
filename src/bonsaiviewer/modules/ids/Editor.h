@@ -56,6 +56,8 @@ public:
     void setRunning(bool running);
     void setResults(const std::vector<SpecificationResult>& results);
     void setRunError(const QString& error);
+    bool colorProperties() const;
+    bool filterProperties() const;
 
     // Asks to save the pending changes; false when the user cancels.
     bool confirmDiscard();
@@ -67,6 +69,11 @@ signals:
     // previous IDS colours are removed first); clear removes them.
     void colourRequested(const std::vector<ElementRef>& passed, const std::vector<ElementRef>& failed);
     void clearColoursRequested();
+    // "Color Properties": colour the rows of the Properties panel by the
+    // property and attribute requirements of the last run.
+    void colorPropertiesToggled(bool enabled);
+    // "Filter Properties": show only the rows the IDS checks.
+    void filterPropertiesToggled(bool enabled);
 
 private:
     void newDocument();
@@ -102,6 +109,8 @@ private:
 
     QLabel* file_label_ = nullptr;
     QPushButton* run_button_ = nullptr;
+    QPushButton* color_properties_button_ = nullptr;
+    QPushButton* filter_properties_button_ = nullptr;
     QLabel* run_status_ = nullptr;
     QListWidget* spec_list_ = nullptr;
     QPushButton* remove_spec_button_ = nullptr;
@@ -120,7 +129,7 @@ private:
     filters::SelectionEditor* applicability_editor_ = nullptr;
     filters::SelectionEditor* requirements_editor_ = nullptr;
     QTreeWidget* results_tree_ = nullptr;
-    QCheckBox* colour_check_ = nullptr;
+    QPushButton* colour_check_ = nullptr; // Color Objects
 };
 
 } // namespace bonsaiviewer::modules::ids

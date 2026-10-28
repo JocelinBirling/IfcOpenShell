@@ -96,6 +96,7 @@ struct FailureRow {
 
 struct RequirementResult {
     QString text;   // the requirement in words (Facet.to_string)
+    std::optional<bonsaiviewer::ports::ifctester::Facet> facet; // the requirement itself
     bool status = true;
     int passed = 0;
     std::vector<FailureRow> failures;

@@ -108,6 +108,19 @@ If can construct some data automaticaly, but it's not actual data from the IFC.
 We should present that data somewhere and make the possibility to export.
 
 
+## IDS colours (BonsaiViewer24)
+
+When **Color Properties** is on in the IDS panel, the rows of the shown element that the last IDS run checked are coloured:
+
+- **green**: the element meets the requirement (property, quantity or attribute);
+- **red**: it fails it; a required property or attribute that the element does not have is added as a red **missing** row, in the property set (or quantity set, for `Qto_` sets) named by the requirement;
+- the tooltip lists the specification and the requirement, and the failure reason;
+- a row checked by several requirements is red as soon as one fails.
+
+The colours follow the element shown (selection, links, Back) and disappear when Color Properties is turned off.
+
+When **Filter Properties** is on in the IDS panel, the panel shows only the rows the last IDS run checks on the shown element (properties, quantities, attributes, and the "missing" rows); the other rows and the empty sets are hidden, and an element no requirement checks shows no property. The Entity and Relationships sections are unchanged. Without Color Properties the kept rows have no colour.
+
 ## Open Subject
 Relation to display
 Unified Data to display

@@ -461,6 +461,9 @@ QWidget* SettingsDialog::buildKeybindingsTab() {
     shortcut_table_ = new QTableWidget(0, 3, tab);
     shortcut_table_->setHorizontalHeaderLabels({"Function", "Shortcut", ""});
     shortcut_table_->verticalHeader()->setVisible(false);
+    // Rows tall enough for the key editor and the Reset button.
+    shortcut_table_->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    shortcut_table_->verticalHeader()->setDefaultSectionSize(36);
     shortcut_table_->setSelectionMode(QAbstractItemView::NoSelection);
     shortcut_table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     auto* header = shortcut_table_->horizontalHeader();
@@ -490,7 +493,8 @@ QWidget* SettingsDialog::buildKeybindingsTab() {
 void SettingsDialog::refreshShortcutRows() {
     const auto& store = bonsaiviewer::services::ShortcutStore::instance();
     shortcut_table_->setRowCount(0);
-    shortcut_table_->setRowCount(static_cast<int>(store.definitions().size()));
+    shortcut_table_->setRowCount(static_cast<int>(store.definitions().size()
+                                                  + store.fixedShortcuts().size()));
     int row = 0;
     for (const auto& def : store.definitions()) {
         const QString id = def.id;
@@ -522,6 +526,20 @@ void SettingsDialog::refreshShortcutRows() {
             }
         });
         shortcut_table_->setCellWidget(row, 2, reset);
+        ++row;
+    }
+    // The fixed keys, after the editable ones, greyed.
+    for (const auto& fixed : store.fixedShortcuts()) {
+        auto* label = new QTableWidgetItem(fixed.label);
+        label->setFlags(Qt::NoItemFlags);
+        shortcut_table_->setItem(row, 0, label);
+        auto* keys = new QTableWidgetItem(fixed.keys);
+        keys->setFlags(Qt::NoItemFlags);
+        shortcut_table_->setItem(row, 1, keys);
+        auto* note = new QTableWidgetItem(QStringLiteral("Fixed"));
+        note->setFlags(Qt::NoItemFlags);
+        note->setToolTip(QStringLiteral("Handled by the 3D view or a panel: not editable yet."));
+        shortcut_table_->setItem(row, 2, note);
         ++row;
     }
     shortcut_warning_->setVisible(false);

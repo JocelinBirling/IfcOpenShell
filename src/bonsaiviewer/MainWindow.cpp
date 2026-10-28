@@ -80,6 +80,7 @@
 #include "modules/unified_tree/View.h"
 #include <QTreeWidget>
 #include "services/IdsBridge.h"
+#include "services/IdsPropertyChecks.h"
 #include "services/PropertyCatalog.h"
 #include "services/IfcDataAccess.h"
 #include "services/PanelManager.h"
@@ -653,18 +654,19 @@ void MainWindow::setupRibbon() {
     shell_layout->setContentsMargins(0, 0, 0, 0);
     shell_layout->setSpacing(0);
 
-    // TI21 phase 1: the workspace tabs (Home, Filter, Table) and the Inspect
-    // tab share one row. Workspace tabs are indexes 0 to 2, Inspect is 3.
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS) and the
+    // Inspect tab share one row. Workspace tabs are indexes 0 to 3, Inspect is 4.
     ribbon_tabs_ = new components::TabBar(shell);
     ribbon_tabs_->addTab("Home");
     ribbon_tabs_->addTab("Filter");
     ribbon_tabs_->addTab("Table");
+    ribbon_tabs_->addTab("IDS");
     ribbon_tabs_->addTab("Inspect");
     // TI21 phase 2: the last tab adds a user tab; tabs can be reordered.
     ribbon_tabs_->addTab("+");
-    ribbon_tabs_->setTabToolTip(4, "Add a tab");
-    ribbon_tabs_->setTabData(3, QStringLiteral("inspect"));
-    ribbon_tabs_->setTabData(4, QStringLiteral("add"));
+    ribbon_tabs_->setTabToolTip(5, "Add a tab");
+    ribbon_tabs_->setTabData(4, QStringLiteral("inspect"));
+    ribbon_tabs_->setTabData(5, QStringLiteral("add"));
     ribbon_tabs_->setMovable(true);
     ribbon_tabs_->setContextMenuPolicy(Qt::CustomContextMenu);
     ribbon_tabs_->setCurrentIndex(0);
@@ -678,7 +680,7 @@ void MainWindow::setupRibbon() {
 
     ribbon_pages_ = new QStackedWidget(ribbon_band);
     // Workspaces: no ribbon content, the band is hidden on these tabs.
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 4; ++i) {
         ribbon_pages_->addWidget(new QWidget(ribbon_pages_));
     }
     ribbon_pages_->addWidget(buildInspectRibbonPage());
@@ -706,6 +708,7 @@ void MainWindow::setupRibbon() {
     specific_panel->addTab(QStringLiteral("Home"));
     specific_panel->addTab(QStringLiteral("Filter"));
     specific_panel->addTab(QStringLiteral("Table"));
+    specific_panel->addTab(QStringLiteral("IDS"));
     specific_index_.insert(QStringLiteral("inspect"), specific_panel->addTab(QStringLiteral("Inspect")));
     // Order below the tabs: the tab ribbon, then the specific panel.
     shell_layout->addWidget(ribbon_band);
@@ -726,7 +729,8 @@ void MainWindow::setupRibbon() {
 // first visit; afterwards PanelManager restores what the user left. Phase 2:
 // user tabs ("+"), rename / delete / reorder, and the saved layouts.
 void MainWindow::setupWorkspaces() {
-    const QStringList names{QStringLiteral("Home"), QStringLiteral("Filter"), QStringLiteral("Table")};
+    const QStringList names{QStringLiteral("Home"), QStringLiteral("Filter"), QStringLiteral("Table"),
+                            QStringLiteral("IDS")};
     for (int i = 0; i < names.size(); ++i) {
         const QString id = panel_manager_->addTab(names.at(i));
         workspace_ids_.append(id);
@@ -774,7 +778,7 @@ void MainWindow::onRibbonTabChanged(int index) {
     }
     const bool inspect = key == QLatin1String("inspect");
     ribbon_band_->setVisible(inspect);
-    ribbon_pages_->setCurrentIndex(inspect ? 3 : 0);
+    ribbon_pages_->setCurrentIndex(inspect ? 4 : 0);
     specific_panel_->setCurrentIndex(specific_index_.value(key, 0));
     // Inspect keeps the panels of the workspace it was opened from.
     if (inspect || key.isEmpty()) return;
@@ -830,7 +834,7 @@ void MainWindow::showRibbonTabMenu(const QPoint& pos) {
 }
 
 // Saved layouts: one JSON array in QSettings, in ribbon order. A workspace
-// entry is {"kind": "workspace", "index": 0..2, "layout": base64}, a user tab
+// entry is {"kind": "workspace", "index": 0..3, "layout": base64}, a user tab
 // {"kind": "user", "name", "layout"}, Inspect {"kind": "inspect"}.
 namespace {
 const char* kSavedLayoutsKey = "layouts/tabs";
@@ -906,24 +910,23 @@ void MainWindow::restoreSavedLayouts() {
 }
 
 // Default panels of each workspace (BonsaiViewer21, phase 1).
-// Home: Models, Spatial Hierarchy, Ifc Class Tree, Properties, 3D view.
-// Filter: Home plus Filters, under the Spatial Hierarchy.
-// Table: Home plus Tables, under the Spatial Hierarchy, and the Table
-// with the Ifc Text Digger at the bottom.
+// Home: Models, Spatial Tree and USpatial Tree (tabbed), Properties, 3D view.
+// Filter: Home plus Filters, under the Spatial Tree.
+// Table: Home plus Tables, under the Spatial Tree, and the Table at the bottom.
+// IDS: Home plus the IDS panel at the bottom.
 void MainWindow::applyWorkspaceDefaults(int index) {
     QStringList visible{QStringLiteral("models"), QStringLiteral("spatial"),
-                        QStringLiteral("classtree"), QStringLiteral("properties")};
+                        QStringLiteral("unifiedtree"), QStringLiteral("properties")};
     if (index == 1) {
-        // Filter: no Ifc Class Tree in this workspace.
-        visible.removeAll(QStringLiteral("classtree"));
         addDockWidget(Qt::LeftDockWidgetArea, filters_panel_);
         splitDockWidget(spatial_panel_, filters_panel_, Qt::Vertical);
         visible << QStringLiteral("filters");
     } else if (index == 2) {
         addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
         splitDockWidget(spatial_panel_, tables_panel_, Qt::Vertical);
-        visible << QStringLiteral("tables") << QStringLiteral("sheets")
-                << QStringLiteral("text_digger");
+        visible << QStringLiteral("tables") << QStringLiteral("sheets");
+    } else if (index == 3) {
+        visible << QStringLiteral("ids");
     }
     for (const QString& id : panel_manager_->registeredPanels()) {
         panel_manager_->setPanelVisible(id, visible.contains(id));
@@ -975,7 +978,7 @@ void MainWindow::setupPanels() {
     clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
     issues_panel_ = new components::Panel("Issues", new modules::todo::TodoPanel("Issues", this), this);
     class_tree_widget_ = new QTreeWidget(this);
-    class_tree_panel_ = new components::Panel("Ifc Class Tree", class_tree_widget_, this);
+    class_tree_panel_ = new components::Panel("Ifc Tree", class_tree_widget_, this);
 
     addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
     addDockWidget(Qt::LeftDockWidgetArea, spatial_panel_);
@@ -1195,12 +1198,16 @@ void MainWindow::setupLoader() {
         properties_panel_, session_state_, *data_access_, *action_pipeline_, *selection_service_,
         *entity_set_store_, this);
     properties_view_->setTableView(table_view_);
+    // BonsaiViewer24 "Color Properties": the IDS checks shown in the Properties panel.
+    ids_property_checks_ = new bonsaiviewer::services::IdsPropertyChecks(this);
+    properties_view_->setIdsChecks(ids_property_checks_);
     // BonsaiViewer16: the Ifc Text Digger reads the selection and the IFC text files.
     text_digger_view_ = new modules::text_digger::TextDiggerView(
         text_digger_panel_, *session_state_, *selection_service_, this);
     // BonsaiViewer24: the IDS panel, run on the C++ IDS engine.
     ids_view_ = new modules::ids::IdsPanelView(ids_panel_, *session_state_, *ids_bridge_, *action_pipeline_,
                                                *appearance_service_, this);
+    ids_view_->setPropertyChecks(ids_property_checks_);
     // TI12: the Ifc Class Tree (B12 tree over the open models' IFC classes).
     auto* class_tree_data = new modules::class_tree::ClassTreeDataSource(
         *session_state_, *selection_service_, *action_pipeline_, this);
@@ -1358,37 +1365,37 @@ void MainWindow::setupMenuBar() {
     // setupLoader, hence this runs after it.
     panel_manager_ = new bonsaiviewer::services::PanelManager(this, this);
     panel_manager_->adoptPanel(QStringLiteral("models"),
-                               QStringLiteral("Models"), models_panel_);
+                               QStringLiteral("Models"), models_panel_, QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("spatial"),
-                               QStringLiteral("Spatial"), spatial_panel_);
+                               QStringLiteral("Spatial Tree"), spatial_panel_, QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("classtree"),
-                               QStringLiteral("Ifc Class Tree"), class_tree_panel_);
+                               QStringLiteral("Ifc Tree"), class_tree_panel_, QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("unifiedtree"),
-                               QStringLiteral("Unified Tree"), unified_tree_panel_);
+                               QStringLiteral("USpatial Tree"), unified_tree_panel_, QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("layers"),
-                               QStringLiteral("Layers"), layers_panel_);
+                               QStringLiteral("Layers"), layers_panel_, QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("properties"),
-                               QStringLiteral("Properties"), properties_panel_);
+                               QStringLiteral("Properties"), properties_panel_, QStringLiteral("Properties"));
     panel_manager_->adoptPanel(QStringLiteral("views"),
-                               QStringLiteral("Views"), stored_views_panel_);
+                               QStringLiteral("Views"), stored_views_panel_, QStringLiteral("Properties"));
     panel_manager_->adoptPanel(QStringLiteral("search"),
-                               QStringLiteral("Search"), search_panel_);
+                               QStringLiteral("Search"), search_panel_, QStringLiteral("Properties"));
     panel_manager_->adoptPanel(QStringLiteral("filters"),
-                               QStringLiteral("Filters"), filters_panel_);
+                               QStringLiteral("Filters"), filters_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("sheets"),
-                               QStringLiteral("Table"), table_panel_);
+                               QStringLiteral("Table"), table_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("text_digger"),
-                               QStringLiteral("Ifc Text Digger"), text_digger_panel_);
+                               QStringLiteral("Ifc Text Digger"), text_digger_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("ids"),
-                               QStringLiteral("IDS"), ids_panel_);
+                               QStringLiteral("IDS"), ids_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("tables"),
-                               QStringLiteral("Tables"), tables_panel_);
+                               QStringLiteral("Tables"), tables_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("audit"),
-                               QStringLiteral("Audit"), audit_panel_);
+                               QStringLiteral("Audit"), audit_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("clash"),
-                               QStringLiteral("Clash"), clash_panel_);
+                               QStringLiteral("Clash"), clash_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("issues"),
-                               QStringLiteral("Issues"), issues_panel_);
+                               QStringLiteral("Issues"), issues_panel_, QStringLiteral("Analyze"));
 
     menu_bar_ = new modules::menubar::MenuBar(
         this, session_state_, viewport_widget_->viewport(),

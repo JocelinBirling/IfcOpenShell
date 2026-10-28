@@ -186,10 +186,23 @@ IdsEditor::IdsEditor(IdsBridge& bridge, filters::IfcPathProvider ifc_path, QWidg
     auto* results_layout = new QVBoxLayout(results_page);
     results_layout->setContentsMargins(0, 4, 0, 0);
     auto* colour_row = new QHBoxLayout();
-    colour_check_ = new QCheckBox("Colour the objects: passing green, failing red", results_page);
-    colour_check_->setToolTip("When checked, double-click a requirement to isolate its elements and colour "
-                              "them: passing green, failing red. Unchecking removes the colours.");
+    colour_check_ = new QPushButton("Color Objects", results_page);
+    colour_check_->setCheckable(true);
+    colour_check_->setToolTip("When on, double-click a requirement to isolate its elements and colour "
+                              "them: passing green, failing red. Turning it off removes the colours.");
     colour_row->addWidget(colour_check_);
+    color_properties_button_ = new QPushButton("Color Properties", results_page);
+    color_properties_button_->setCheckable(true);
+    color_properties_button_->setToolTip("Colour the properties and attributes of the Properties panel by the "
+                                         "requirements of the last run: green when met, red when failed or missing");
+    colour_row->addWidget(color_properties_button_);
+    connect(color_properties_button_, &QPushButton::toggled, this, &IdsEditor::colorPropertiesToggled);
+    filter_properties_button_ = new QPushButton("Filter Properties", results_page);
+    filter_properties_button_->setCheckable(true);
+    filter_properties_button_->setToolTip("Show in the Properties panel only the properties and attributes the "
+                                          "requirements of the last run check on the element");
+    colour_row->addWidget(filter_properties_button_);
+    connect(filter_properties_button_, &QPushButton::toggled, this, &IdsEditor::filterPropertiesToggled);
     colour_row->addStretch(1);
     results_layout->addLayout(colour_row);
     results_tree_ = new QTreeWidget(results_page);
@@ -245,7 +258,7 @@ IdsEditor::IdsEditor(IdsBridge& bridge, filters::IfcPathProvider ifc_path, QWidg
     connect(requirements_editor_, &filters::SelectionEditor::changed, this, edited);
 
     connect(results_tree_, &QTreeWidget::customContextMenuRequested, this, &IdsEditor::showResultMenu);
-    connect(colour_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    connect(colour_check_, &QPushButton::toggled, this, [this](bool checked) {
         if (!checked) emit clearColoursRequested();
     });
     connect(results_tree_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
@@ -501,6 +514,14 @@ void IdsEditor::updateUsageHelp() {
 }
 
 // ----------------------------------------------------------------- results
+
+bool IdsEditor::colorProperties() const {
+    return color_properties_button_->isChecked();
+}
+
+bool IdsEditor::filterProperties() const {
+    return filter_properties_button_->isChecked();
+}
 
 void IdsEditor::setRunning(bool running) {
     run_button_->setEnabled(!running);

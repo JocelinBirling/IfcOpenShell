@@ -63,6 +63,15 @@ KeyValueTable::KeyValueTable(const QList<KeyValueTableRow>& rows, QWidget* paren
             emit contextMenuRequested(row_index, true, value->mapToGlobal(pos));
         });
 
+        if (!row_data.status_color.isEmpty()) {
+            key->setStyleSheet(QString("color: %1; font-weight: 600;").arg(row_data.status_color));
+            value->setStyleSheet(QString("color: %1; font-weight: 600;").arg(row_data.status_color));
+        }
+        if (!row_data.tooltip.isEmpty()) {
+            key->setToolTip(row_data.tooltip);
+            value->setToolTip(row_data.tooltip);
+        }
+
         layout->addWidget(key, row_index, 0, Qt::AlignLeft | Qt::AlignTop);
         layout->addWidget(value, row_index, 1);
 
