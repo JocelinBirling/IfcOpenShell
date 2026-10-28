@@ -73,6 +73,7 @@
 #include "services/ContextMenuBuilder.h"
 #include "services/EntitySetStore.h"
 #include "services/FilterRunner.h"
+#include "services/ActiveFilters.h"
 #include "services/RelationValues.h"
 #include "services/FilterStore.h"
 #include "services/TreePanelFramework.h"
@@ -1199,6 +1200,15 @@ void MainWindow::setupLoader() {
     filters_view_ = new modules::filters::FiltersPanelView(
         filters_panel_, *session_state_, *filter_store_, *filter_runner_, *ids_bridge_, this);
     filters_view_->setActionPipeline(action_pipeline_);
+    // BonsaiViewer06 Activate: the colours of the activated filters, forced,
+    // applied by a runner of their own so they never touch the view.
+    auto* forced_runner = new bonsaiviewer::services::FilterRunner(
+        *session_state_, *ids_bridge_, *action_pipeline_, *entity_set_store_, this,
+        bonsaiviewer::services::FilterRunner::Mode::Forced);
+    auto* active_filters = new bonsaiviewer::services::ActiveFilters(
+        *session_state_, *filter_store_, *forced_runner, *action_pipeline_, this);
+    connect(active_filters, &bonsaiviewer::services::ActiveFilters::applied, this,
+            [this](const QString& summary) { session_state_->setStatusMessage("Filters", summary); });
     // TI07 table: the property catalog of all the loaded models (BonsaiViewer26)
     // and the table panel, evaluated through the same IDS bridge.
     property_catalog_ = new bonsaiviewer::services::PropertyCatalog(*session_state_, *data_access_, this);

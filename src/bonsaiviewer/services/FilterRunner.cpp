@@ -49,12 +49,14 @@ FilterRunner::FilterRunner(SessionState& session,
                            IdsBridge& ids_bridge,
                            ActionPipeline& pipeline,
                            EntitySetStore& set_store,
-                           QObject* parent)
+                           QObject* parent,
+                           Mode mode)
     : QObject(parent),
       session_(session),
       ids_bridge_(ids_bridge),
       pipeline_(pipeline),
-      set_store_(set_store)
+      set_store_(set_store),
+      mode_(mode)
 {
 }
 
@@ -233,7 +235,8 @@ void FilterRunner::fail(const QString& error) {
 QString FilterRunner::colourAutoColourRuns() {
     QString summary;
     for (const AutoColourRun& run : auto_colour_runs_) {
-        const auto colours = pipeline_.autoColourByValues(run.values);
+        const bool forced = mode_ == Mode::Forced;
+        const auto colours = pipeline_.autoColourByValues(run.values, forced);
         std::vector<std::uint32_t> ids;
         ids.reserve(run.values.size());
         std::size_t found = 0;
@@ -241,7 +244,7 @@ QString FilterRunner::colourAutoColourRuns() {
             ids.push_back(id);
             if (value) ++found;
         }
-        emit autoColoured(run.pset, run.property, run.relation, ids, colours);
+        if (!forced) emit autoColoured(run.pset, run.property, run.relation, ids, colours);
         const QString source = run.relation.isEmpty() ? QString("%1.%2").arg(run.pset, run.property)
                                                       : relations::label(run.relation);
         summary += QString("; Automatic Color %1: %2 of %3 element(s) with a value")
@@ -319,14 +322,21 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
     // hidden and every colour / transparency removed right before its first
     // action (not at launch, so a failed selection leaves the view
     // untouched). Filters do not stack. Once per run, not once per model.
-    if (!view_cleared_) {
+    // An activated filter (Forced) keeps the view and the other colours.
+    if (!view_cleared_ && mode_ == Mode::Normal) {
         pipeline_.clearAppearance();
         pipeline_.run({}, ActionPipeline::Action::Isolate);
-        view_cleared_ = true;
     }
+    view_cleared_ = true;
     if (object_ids.empty()) return;
     actioned_elements_ += static_cast<int>(object_ids.size());
+    const bool forced = mode_ == Mode::Forced;
     for (const auto& action : layer.actions) {
+        // An activated filter has no view action (see ActiveFilters).
+        if (forced && (action.type == FilterAction::Type::Isolate || action.type == FilterAction::Type::AddToView ||
+                       action.type == FilterAction::Type::RemoveFromView)) {
+            continue;
+        }
         switch (action.type) {
         case FilterAction::Type::Isolate: {
             // Replaces the view, but keeps the elements of the previous
@@ -355,15 +365,19 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
         case FilterAction::Type::Colour:
             // Colour only: the elements are not shown or hidden by this action.
             // They must be added with an Add to the view action to be displayed.
-            pipeline_.colour(object_ids, action.colour);
+            if (forced) pipeline_.forcedColour(object_ids, action.colour);
+            else pipeline_.colour(object_ids, action.colour);
             break;
         case FilterAction::Type::Transparency:
-            pipeline_.transparency(object_ids, action.transparency_percent);
+            if (forced) pipeline_.forcedTransparency(object_ids, action.transparency_percent);
+            else pipeline_.transparency(object_ids, action.transparency_percent);
             break;
         case FilterAction::Type::AutoColourByProperty:
-            // Show the elements, then colour them.
-            pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
-            target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
+            // Show the elements, then colour them (an activated filter only colours).
+            if (!forced) {
+                pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
+                target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
+            }
         {
             // The values are read in the file the selection ran on (always
             // open), else in the viewer's file. The colours are given at the

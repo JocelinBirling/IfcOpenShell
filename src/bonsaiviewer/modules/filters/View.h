@@ -73,6 +73,8 @@ private:
     void deleteFilter(const QString& filter_id);
     // A copy "<name> (copy)" in the same folder.
     void duplicateFilter(const QString& filter_id);
+    // BonsaiViewer06 Activate / Deactivate: forces the filter's colours.
+    void setFilterActive(const QString& filter_id, bool active);
     void renameFolder(const QString& folder_id);
     void deleteFolder(const QString& folder_id);
     void exportFilter(const QString& filter_id);

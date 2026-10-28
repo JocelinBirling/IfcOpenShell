@@ -28,6 +28,8 @@ Context menus (right click):
 | A folder | Add Folder, Add Filter, Rename…, Delete (with confirmation), Import Filters Here… |
 | A filter | Run, Run on the Box, Modify…, Export…,Duplicate Delete (with confirmation) |
 
+**Duplicate** (right click on a filter): a copy named "<name> (copy)" in the same folder, with a new id.
+
 ### Save and share
 
 - The whole tree is stored in the application cache (`filters.json`), so it survives closing the session.
@@ -169,7 +171,11 @@ Example (the view starts empty):
   - **Class** — the IFC class.
 
   An element with several relations (two systems, a layered material, two referenced storeys) gets the **names of all of them, sorted and joined with ", "** (for instance "HVAC, Plumbing"): that combination is one value, with its own colour. Elements without the relation are grey. The temporary table is "Colour by <relation>", its first column the relation. Stored in the filter file as `"relation": "storey"` (keys: model, storey, building, space, system, zone, group, material, type, classification, class).
-- **Activate/Deactivate**: once activated, the elements are always displayed. Their colour and selection cannot be modified.
+- **Activate / Deactivate** (right click on a filter): an activated filter **forces its colours**. Its Colour, Transparency and Automatic Color actions are applied in a forced layer, above every other colour (Paint, tables, IDS, other filters): Paint or another filter cannot change them, and Restore View or the run of another filter keeps them. The view (shown / hidden elements) is not touched.
+  - Only a filter without view action can be activated: no Isolate, Add to the view or Remove from the view, and at least one colour action. Otherwise Activate explains why.
+  - The activated filters are applied again, one after the other, when one is activated, deactivated or modified, and when a model is loaded. Several activated filters on the same element: the last applied wins.
+  - An Automatic Color of an activated filter only colours the elements with a value (no grey), and opens no temporary table.
+  - In the Filters panel, an activated filter shows the paint bucket icon and "(active)". The state is saved with the filter (`"active": true`); a duplicate starts deactivated.
 
 ### Filter file format
 
@@ -219,18 +225,9 @@ The examples are ordinary filters: they can be modified, moved or deleted. They 
 - Performance step B: C++ selection engine (see Performance).
 
 
-@TODO
-For Automatic colour, we need to be able to select relation
-Model Name
-Level Name
-System name
-Material
-All the things we can found in Relation.
 
 
-@TODO, Always acivate filter, to color element everytime.
-If the action Add to the view, and isolate are in the filter. We can not activate the filter.
 
 
-@TODO Add Duplicate function in the Filters Panel
+
 

@@ -71,6 +71,11 @@ public:
     void transparency(const std::vector<std::uint32_t>& ids, int percent);
     // Removes every colour and transparency override (B04, all layers).
     void clearAppearance();
+    // BonsaiViewer06 activated filters: colours and transparency that win
+    // over every other one and survive clearAppearance().
+    void forcedColour(const std::vector<std::uint32_t>& ids, const QColor& colour);
+    void forcedTransparency(const std::vector<std::uint32_t>& ids, int percent);
+    void clearForced();
 
     // One generated colour per distinct value of pset.property; groups
     // without the property share a neutral grey. Returns the colour given to
@@ -78,7 +83,10 @@ public:
     // Same, on values already read: one entry per element, nullopt when the
     // element has no value.
     using ElementValues = std::vector<std::pair<std::uint32_t, std::optional<std::string>>>;
-    std::unordered_map<std::uint32_t, QColor> autoColourByValues(const ElementValues& values);
+    // `forced`: in the layer of the activated filters (BonsaiViewer06), and
+    // the elements without a value keep their colour instead of turning grey.
+    std::unordered_map<std::uint32_t, QColor> autoColourByValues(const ElementValues& values,
+                                                                 bool forced = false);
     // pset.property of each element (property sets, then quantity sets).
     ElementValues readValues(const std::vector<std::uint32_t>& ids, const std::string& pset,
                              const std::string& property) const;

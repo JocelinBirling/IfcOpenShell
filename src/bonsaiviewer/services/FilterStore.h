@@ -20,6 +20,8 @@
 #include <optional>
 #include <vector>
 
+class QJsonObject;
+
 namespace bonsaiviewer::services {
 
 // B06 filters — the document model. One filter is a JSON envelope (name,
@@ -62,6 +64,10 @@ struct FilterDocument {
     QString description;
     QString folder_id; // empty = tree root
     std::vector<FilterLayer> layers;
+    // BonsaiViewer06 Activate: the filter's colours are always applied
+    // (forced layer), whatever the other runs. Only for filters without
+    // view action (see ActiveFilters::activationError).
+    bool active = false;
 };
 
 struct FilterFolder {
@@ -92,6 +98,7 @@ public:
     QString addFilter(const FilterDocument& document, const QString& folder_id);
     void updateFilter(const FilterDocument& document);
     void deleteFilter(const QString& id);
+    void setActive(const QString& id, bool active);
     // Drag and drop; empty new_parent is the root. No-ops on cycles.
     void moveNode(const QString& id, const QString& new_parent);
 
@@ -108,12 +115,14 @@ public:
     // -1 with `error` set.
     int importFile(const QString& file_path, const QString& folder_id, QString& error);
 
+    // A filter as JSON (also used to tell whether an activated filter changed).
+    static QJsonObject documentToJson(const FilterDocument& document);
+
 signals:
     void changed();
 
 private:
     static FilterDocument documentFromJson(const class QJsonObject& json);
-    static QJsonObject documentToJson(const FilterDocument& document);
     static FilterLayer layerFromJson(const QJsonObject& json);
     static QJsonObject layerToJson(const FilterLayer& layer);
     static FilterAction actionFromJson(const QJsonObject& json);

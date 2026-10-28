@@ -70,11 +70,18 @@ public:
         Box,        // every loaded model, only the elements of the current box
     };
 
+    // Normal: a run of the Filters panel. Forced: a run of an activated
+    // filter (BonsaiViewer06): the view and the other colours are kept, the
+    // view actions are skipped, the colours go to the forced layer and no
+    // temporary table opens.
+    enum class Mode { Normal, Forced };
+
     FilterRunner(SessionState& session,
                  IdsBridge& ids_bridge,
                  ActionPipeline& pipeline,
                  EntitySetStore& set_store,
-                 QObject* parent = nullptr);
+                 QObject* parent = nullptr,
+                 Mode mode = Mode::Normal);
 
     // Starts an asynchronous run. Returns false (and emits finished) when
     // there is nothing to run on — no loaded model, or an empty document.
@@ -141,6 +148,7 @@ private:
 
     // Run state.
     bool running_ = false;
+    Mode mode_ = Mode::Normal;
     FilterDocument document_;
     Scope scope_ = Scope::WholeModel;
     std::vector<Target> targets_;

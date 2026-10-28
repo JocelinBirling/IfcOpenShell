@@ -21,6 +21,7 @@
 #include "../../services/IdsBridge.h"
 #include "../../services/PopupService.h"
 #include "../../services/ActionPipeline.h"
+#include "../../services/ActiveFilters.h"
 #include "../../ElementRegistry.h"
 
 #include <QHash>
@@ -51,11 +52,12 @@ TreeNode folderNode(const QString& id, const QString& name) {
     return node;
 }
 
-TreeNode filterNode(const QString& id, const QString& name) {
+// An activated filter (BonsaiViewer06) shows the paint bucket and "(active)".
+TreeNode filterNode(const QString& id, const QString& name, bool active) {
     TreeNode node;
     node.key = id;
-    node.label = name;
-    node.icon = ":/icons/filter.svg";
+    node.label = active ? QString("%1  (active)").arg(name) : name;
+    node.icon = active ? ":/icons/paint-bucket.svg" : ":/icons/filter.svg";
     return node;
 }
 
@@ -149,7 +151,7 @@ std::vector<TreeNode> FiltersPanelView::topLevelNodes() {
         }
     }
     for (const auto& document : store_.filtersInFolder({})) {
-        nodes.push_back(filterNode(document.id, document.name));
+        nodes.push_back(filterNode(document.id, document.name, document.active));
     }
     return nodes;
 }
@@ -162,9 +164,23 @@ std::vector<TreeNode> FiltersPanelView::childrenOf(const QString& key) {
         }
     }
     for (const auto& document : store_.filtersInFolder(key)) {
-        nodes.push_back(filterNode(document.id, document.name));
+        nodes.push_back(filterNode(document.id, document.name, document.active));
     }
     return nodes;
+}
+
+void FiltersPanelView::setFilterActive(const QString& filter_id, bool active) {
+    const auto document = store_.filter(filter_id);
+    if (!document) return;
+    if (active) {
+        const QString error = bonsaiviewer::services::ActiveFilters::activationError(*document);
+        if (!error.isEmpty()) {
+            services::popup::information(panel_, error);
+            return;
+        }
+    }
+    // ActiveFilters follows the store and applies the colours again.
+    store_.setActive(filter_id, active);
 }
 
 void FiltersPanelView::duplicateFilter(const QString& filter_id) {
@@ -172,6 +188,7 @@ void FiltersPanelView::duplicateFilter(const QString& filter_id) {
     if (!document) return;
     bonsaiviewer::services::FilterDocument copy = *document;
     copy.id.clear(); // a new id
+    copy.active = false;
     copy.name = QString("%1 (copy)").arg(document->name);
     store_.addFilter(copy, document->folder_id);
 }
@@ -231,6 +248,11 @@ void FiltersPanelView::populateContextMenu(const QString& key, ContextMenuBuilde
     menu.addItem("duplicate",
                  "Duplicate",
                  [this, key]() { duplicateFilter(key); });
+    const auto document = store_.filter(key);
+    const bool active = document && document->active;
+    menu.addItem("activate",
+                 active ? "Deactivate" : "Activate",
+                 [this, key, active]() { setFilterActive(key, !active); });
     menu.addItem("export",
                  "Export…",
                  [this, key]() { exportFilter(key); });

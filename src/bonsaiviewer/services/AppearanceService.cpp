@@ -50,7 +50,7 @@ AppearanceService::AppearanceService(bonsaiviewer::SessionState& session,
                 purgeModel(session_model_id);
             });
     connect(&session_, &bonsaiviewer::SessionState::projectReset, this,
-            [this]() { clearOverrides(); });
+            [this]() { clearAll(); });
 }
 
 void AppearanceService::setColour(const std::vector<std::uint32_t>& ids,
@@ -96,9 +96,41 @@ void AppearanceService::setOpacity(const std::vector<std::uint32_t>& ids, int pe
     if (undo_) undo_->record();
     const std::uint8_t alpha = static_cast<std::uint8_t>(
         std::clamp(percent, 0, 100) * 255 / 100);
+    std::vector<std::uint32_t> changed;
+    changed.reserve(ids.size());
     for (std::uint32_t id : ids) {
+        if (forced_opacity_.count(id)) continue; // an activated filter imposes it
+        states_[id].opacity = alpha;
+        changed.push_back(id);
+    }
+    applyToViewport(changed);
+}
+
+void AppearanceService::setForcedOpacity(const std::vector<std::uint32_t>& ids, int percent) {
+    const std::uint8_t alpha = static_cast<std::uint8_t>(
+        std::clamp(percent, 0, 100) * 255 / 100);
+    for (std::uint32_t id : ids) {
+        forced_opacity_[id] = alpha;
         states_[id].opacity = alpha;
     }
+    applyToViewport(ids);
+}
+
+void AppearanceService::clearForced() {
+    std::vector<std::uint32_t> ids;
+    constexpr int forced = static_cast<int>(Layer::ForcedFilter);
+    for (auto& [id, state] : states_) {
+        if (!state.layer_set[forced]) continue;
+        state.layer_set[forced] = false;
+        ids.push_back(id);
+    }
+    for (const auto& [id, alpha] : forced_opacity_) {
+        states_[id].opacity = 255;
+        ids.push_back(id);
+    }
+    forced_opacity_.clear();
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
     applyToViewport(ids);
 }
 
@@ -116,6 +148,28 @@ void AppearanceService::restore(const Snapshot& snapshot) {
 }
 
 void AppearanceService::clearOverrides() {
+    // The forced colours and opacities (activated filters) are kept.
+    constexpr int forced = static_cast<int>(Layer::ForcedFilter);
+    std::unordered_map<std::uint32_t, ObjectState> kept;
+    for (const auto& [id, state] : states_) {
+        const auto opacity = forced_opacity_.find(id);
+        if (!state.layer_set[forced] && opacity == forced_opacity_.end()) continue;
+        ObjectState& keep = kept[id];
+        keep.layer_set[forced] = state.layer_set[forced];
+        keep.layer_rgb8[forced] = state.layer_rgb8[forced];
+        if (opacity != forced_opacity_.end()) keep.opacity = opacity->second;
+    }
+    states_ = std::move(kept);
+    viewport_.clearObjectColors();
+    std::vector<std::uint32_t> ids;
+    ids.reserve(states_.size());
+    for (const auto& [id, state] : states_) ids.push_back(id);
+    applyToViewport(ids);
+    emit appearanceChanged({});
+}
+
+void AppearanceService::clearAll() {
+    forced_opacity_.clear();
     states_.clear();
     viewport_.clearObjectColors();
     emit appearanceChanged({});
@@ -179,6 +233,7 @@ void AppearanceService::applyToViewport(const std::vector<std::uint32_t>& ids) {
 void AppearanceService::purgeModel(std::uint32_t session_model_id) {
     std::vector<std::uint32_t> ids;
     for (const auto& info : session_.elementRegistry()->basicElementInfoForModel(session_model_id)) {
+        forced_opacity_.erase(info.object_id);
         auto it = states_.find(info.object_id);
         if (it != states_.end()) {
             states_.erase(it);

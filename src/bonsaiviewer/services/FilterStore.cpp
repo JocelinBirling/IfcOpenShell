@@ -157,6 +157,16 @@ QString FilterStore::addFilter(const FilterDocument& document, const QString& fo
     return stored.id;
 }
 
+void FilterStore::setActive(const QString& id, bool active) {
+    for (auto& document : filters_) {
+        if (document.id != id || document.active == active) continue;
+        document.active = active;
+        save();
+        emit changed();
+        return;
+    }
+}
+
 void FilterStore::updateFilter(const FilterDocument& document) {
     for (auto& entry : filters_) {
         if (entry.id == document.id) {
@@ -323,6 +333,7 @@ FilterDocument FilterStore::documentFromJson(const QJsonObject& json) {
     document.name = json["name"].toString();
     document.description = json["description"].toString();
     document.folder_id = json["folder"].toString();
+    document.active = json["active"].toBool();
     document.layers.reserve(json["layers"].toArray().size());
     for (const auto& value : json["layers"].toArray()) {
         document.layers.push_back(layerFromJson(value.toObject()));
@@ -336,6 +347,7 @@ QJsonObject FilterStore::documentToJson(const FilterDocument& document) {
     json["name"] = document.name;
     json["description"] = document.description;
     json["folder"] = document.folder_id;
+    if (document.active) json["active"] = true;
     QJsonArray layers;
     for (const auto& layer : document.layers) {
         layers.append(layerToJson(layer));

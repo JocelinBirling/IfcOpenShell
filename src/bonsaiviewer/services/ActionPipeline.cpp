@@ -63,6 +63,18 @@ void ActionPipeline::clearAppearance() {
     appearance_.clearOverrides();
 }
 
+void ActionPipeline::forcedColour(const std::vector<std::uint32_t>& ids, const QColor& colour) {
+    appearance_.setLayerColour(ids, colour, AppearanceService::Layer::ForcedFilter);
+}
+
+void ActionPipeline::forcedTransparency(const std::vector<std::uint32_t>& ids, int percent) {
+    appearance_.setForcedOpacity(ids, 100 - std::clamp(percent, 0, 100));
+}
+
+void ActionPipeline::clearForced() {
+    appearance_.clearForced();
+}
+
 QColor ActionPipeline::generatedColour(int index) {
     // Golden-ratio hue stepping: distinct, stable, and spread however many
     // groups the property produces.
@@ -98,7 +110,9 @@ std::unordered_map<std::uint32_t, QColor> ActionPipeline::autoColourByProperty(
     return autoColourByValues(readValues(ids, pset, property));
 }
 
-std::unordered_map<std::uint32_t, QColor> ActionPipeline::autoColourByValues(const ElementValues& values) {
+std::unordered_map<std::uint32_t, QColor> ActionPipeline::autoColourByValues(const ElementValues& values,
+                                                                             bool forced) {
+    const auto layer = forced ? AppearanceService::Layer::ForcedFilter : AppearanceService::Layer::FilterAction;
     std::map<std::string, std::vector<std::uint32_t>> groups;
     std::vector<std::uint32_t> without_value;
     for (const auto& [id, value] : values) {
@@ -113,11 +127,11 @@ std::unordered_map<std::uint32_t, QColor> ActionPipeline::autoColourByValues(con
     for (const auto& [value, group] : groups) {
         static_cast<void>(value);
         const QColor colour = generatedColour(index);
-        appearance_.setLayerColour(group, colour, AppearanceService::Layer::FilterAction);
+        appearance_.setLayerColour(group, colour, layer);
         for (std::uint32_t id : group) colours[id] = colour;
         ++index;
     }
-    if (!without_value.empty()) {
+    if (!without_value.empty() && !forced) {
         const QColor grey(128, 128, 128);
         appearance_.setLayerColour(without_value, grey, AppearanceService::Layer::FilterAction);
         for (std::uint32_t id : without_value) colours[id] = grey;

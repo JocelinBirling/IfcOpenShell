@@ -35,8 +35,8 @@ namespace bonsaiviewer { class SessionState; }
 
 // B04 — AppearanceService (see 00_Technical_Implementation/
 // BonsaiViewerTI00). Per-object colour and opacity overrides with priority
-// layers: user paint > table colour > IDS result > filter action > clash
-// run. The
+// layers: forced filter > user paint > table colour > IDS result > filter
+// action > clash run. The
 // effective override is the RGB of the highest-priority layer plus the
 // opacity byte; an opacity without any colour layer keeps the baked vertex
 // colour through the viewport's alpha-only flag. Removing the user paint
@@ -54,13 +54,16 @@ class AppearanceService : public QObject {
 public:
     // Priority order: a lower enum value wins.
     enum class Layer {
-        UserPaint = 0,
-        TableColour = 1,
-        IdsResult = 2, // BonsaiViewer24: passing green, failing red
-        FilterAction = 3,
-        ClashRun = 4,
+        // BonsaiViewer06: the colours of the activated filters. They win
+        // over every other layer and survive clearOverrides().
+        ForcedFilter = 0,
+        UserPaint = 1,
+        TableColour = 2,
+        IdsResult = 3, // BonsaiViewer24: passing green, failing red
+        FilterAction = 4,
+        ClashRun = 5,
     };
-    static constexpr int kLayerCount = 5;
+    static constexpr int kLayerCount = 6;
 
     AppearanceService(bonsaiviewer::SessionState& session,
                       ViewportWindow& viewport,
@@ -76,10 +79,20 @@ public:
     void clearLayer(Layer layer);
 
     // 100 restores the original (baked) opacity; colour layers are kept.
+    // The objects with a forced opacity keep it.
     void setOpacity(const std::vector<std::uint32_t>& ids, int percent);
 
-    // Drop every override in every layer and restore the viewport.
+    // BonsaiViewer06 activated filters: an opacity no other call changes.
+    void setForcedOpacity(const std::vector<std::uint32_t>& ids, int percent);
+    // Drops the forced colours and opacities (before the activated filters
+    // are applied again, or when they are all deactivated).
+    void clearForced();
+
+    // Drop every override except the forced ones (activated filters) and
+    // restore the viewport.
     void clearOverrides();
+    // Drop every override, the forced ones included (project reset).
+    void clearAll();
 
     // Undo (BonsaiViewer27): the overrides as they are now, and a way back.
     struct ObjectState {
@@ -105,6 +118,8 @@ private:
     bonsaiviewer::SessionState& session_;
     ViewportWindow& viewport_;
     std::unordered_map<std::uint32_t, ObjectState> states_;
+    // The opacities forced by the activated filters (alpha byte).
+    std::unordered_map<std::uint32_t, std::uint8_t> forced_opacity_;
     UndoStack* undo_ = nullptr;
 };
 
