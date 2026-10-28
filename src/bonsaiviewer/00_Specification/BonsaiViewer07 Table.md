@@ -156,13 +156,12 @@ By default, text data is concatenated and numeric data is summed; this can be ch
 - **Count** — the number of elements of the row.
 - Rows of a grouped table keep the viewer behaviour: selection, isolation and
   Color apply to all the elements of the row.
+
 ### Relations
 A relation can be added to the table, taking three inputs:
-
 - the relation type
 - the relation direction (Ascend or Descend)
 - the reference element
-
 It adds the elements that are related to the reference element. For example, to get a table with the levels and their objects, make a table of IfcBuildingStorey and add a SpatialRelation to add all the objects linked to each IfcBuildingStorey.
 
 The first version supports the **spatial relation** only: IfcRelContainedInSpatialStructure and the spatial aggregations (IfcRelAggregates). Other relation types (component aggregation, group assignment) are not in the first version.
@@ -180,10 +179,19 @@ The first version is strictly arithmetic: `+ - * /` with parentheses and referen
 
 ## Open Subject
 
-
 Phase 3:
+- Trier les colonnes Alphabétiques
+Dans le nom de la colonne, une petite flèche doit permettre de trier le tableau dans le sens alphatique (flèche vers le bas), ou bien anti-alphabétique (flèche vers le haut).
+- Filtre sur les colonnes
+Juste à côté, on pourra trouver un petit entonoir pour filtrer les résultats. 
+
+
+Phase 4:
 
 - Relations (spatial relation).
 - Calculated columns (BonsaiViewer23).
-- Trier les colonnes Alphabétiques
-- Filtre sur les colonnes
+
+
+
+Add the possibility to add the name of the files before the column name in the CSV. (It's weird, but it give the ability to trace data.)
+Add TimeStamp

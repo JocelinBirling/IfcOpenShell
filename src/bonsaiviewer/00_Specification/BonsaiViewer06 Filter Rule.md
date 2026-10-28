@@ -5,7 +5,7 @@
 A filter is a set of rules used to get a precise list of elements and apply a list of actions to it.
 Example of a basic function: show the IfcWalls and paint the IfcSlabs red.
 These filters are saved between sessions and can be used to easily filter the model for an analysis.
-The selections follow the IDS standard (buildingSMART) and are evaluated by IfcTester.
+The selections follow the IDS standard (buildingSMART) and are evaluated by the C++ port of IfcTester (BonsaiViewer24).
 
 ## Specification
 
@@ -26,7 +26,7 @@ Context menus (right click):
 |----|-------|
 | Empty space | Add Folder, Add Filter, Import Filters…, Export All Filters… |
 | A folder | Add Folder, Add Filter, Rename…, Delete (with confirmation), Import Filters Here… |
-| A filter | Run, Run on the Box, Modify…, Export…, Delete (with confirmation) |
+| A filter | Run, Run on the Box, Modify…, Export…,Duplicate Delete (with confirmation) |
 
 ### Save and share
 
@@ -36,7 +36,7 @@ Context menus (right click):
 
 ### IDS engine
 
-The selections are evaluated by **IfcTester**, run in a Python process. The Python interpreter and the worker script (`src/ifctester/ifctester_ipc.py`) are set in **Settings > Filters**. When they are not set, the panel stays editable and running a filter shows a message saying what to configure.
+The selections are evaluated in the viewer by the C++ port of IfcTester (`ports/ifctester`), on the IFC files the viewer already has open. Nothing has to be installed (BonsaiViewer24, IDS engine).
 
 ### Run a filter
 
@@ -77,7 +77,12 @@ An IDS specification is a list of **facets**; an element is selected when it pas
   - **Browse properties…** opens a picker laid out like the Properties panel (one group per property set, element counts, a few values, a search field); double-clicking a property fills both fields;
   - the **cardinality**: required (must exist and match), optional (must match when present), prohibited (must not exist);
   - the **value**, with the values found in the model and their element counts.
-- Attribute, classification, material and part-of facets are listed but not available yet; the data model follows IDS so they can be added later.
+- **Attribute facet**: the attribute name (Name, Description, Tag…), the value, the cardinality.
+- **Classification facet**: the system (empty = any system), the reference, the cardinality.
+- **Material facet**: the material, layer, profile or constituent name or category (empty = any material), the cardinality.
+- **Part of facet**: the relation (any, aggregation, group / system, spatial container, nesting, void / fill), the parent class (with or without its subtypes), its PredefinedType, the cardinality.
+- The property facet also has a **data type** (IFCLABEL, IFCREAL…; empty = any).
+- **Copy / paste**: Ctrl+C / Ctrl+V on the facet list, or its context menu (Copy facet, Copy all the facets, Paste facets). The clipboard holds IDS XML, shared with the Tables and the IDS panel (BonsaiViewer24). A pasted entity facet is refused when the selection already has one.
 
 #### Methods of an IDS field
 
@@ -164,16 +169,15 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 
 **Step A — done.** The worker keeps every model it opened, up to `IFCTESTER_IPC_CACHE_SIZE` files (environment variable, 8 by default), least recently used dropped first. A file changed on disk is reopened. Cost: the worker memory grows with the number of models. On the viewer side, the EXPRESS id → object id map is built once per model, and Remove from view runs in linear time.
 
-**Step B — to decide after measuring A.** Run the selection in the viewer, in C++, on the IFC file it already has open; the worker would only build and parse the IDS XML. This means re-implementing the facets the editor supports:
+**Step B — done (October 2026, C++ port of IfcTester, BonsaiViewer24).** Run the selection in the viewer, in C++, on the IFC file it already has open; the worker would only build and parse the IDS XML. This means re-implementing the facets the editor supports:
 - Entity: exact class or with subtypes, PredefinedType (inherited from the type);
 - Property: property set and property inherited from the type, cardinality required / optional / prohibited;
 - Values: simple, enumeration, XSD pattern, range, length, data type, conversion to SI units like IfcTester.
-
-Estimate: 600 to 900 lines in 3 to 4 commits, with a comparison against IfcTester on real models. Each future facet (attribute, classification, material, part-of) would then need its own C++ implementation.
+metre
+The Python worker is no longer used; Step A only applied to it.
 
 ## Open Subject
 
-- Attribute, classification, material and part-of facets.
 - Property set / property completion on all the loaded models (BonsaiViewer26 Property Selection).
 - Reusable named lists of values.
 - Importing third-party IDS files as filter layers (BonsaiViewer24 IDS).
@@ -182,5 +186,31 @@ Estimate: 600 to 900 lines in 3 to 4 commits, with a comparison against IfcTeste
 - Performance step B: C++ selection engine (see Performance).
 
 
+@TODO
+For Automatic colour, we need to be able to select relation
+Model Name
+Level Name
+System name
+Material
+All the things we can found in Relation.
+
+
+@TODO
+Layer 2: unknown IFC class: IFCCABLECARRIERSEGMENT
+It should display if it doesn't know but it should be blocked.
+
+
+@TODO
+The automatic coulour doesn't create a table anymore. It need to be fixed
+
 
 @TODO, Always acivate filter, to color element everytime.
+If the action Add to the view, and isolate are in the filter. We can not activate the filter.
+
+
+
+@TODO Clean the window, it's not clear enough, and some panel are always showing, it's messy. 
+
+
+
+@TODO Add Duplicate function
