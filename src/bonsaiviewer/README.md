@@ -3,7 +3,10 @@
 
 Welcome to **Bonsai Viewer PLUS**, it's a community build from **Bonsai Viewer**.
 
-![](./00_Images/BonsaiViewerCommunity.png)
+
+<p align="center">
+<img src="./00_Images/BonsaiViewerCommunity.png">
+</p>
 
 It opens IFC models in seconds, federates several models in one view, and offers the tools of a coordination meeting — without any authoring environment. PLUS ships with **Filters and Tables as default features**, on top of the common display tools.
 
