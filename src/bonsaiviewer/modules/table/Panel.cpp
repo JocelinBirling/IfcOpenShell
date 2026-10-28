@@ -12,6 +12,8 @@
 
 #include "Panel.h"
 
+#include "TableHeader.h"
+
 #include "../../components/Section.h"
 #include "../../components/SvgIcon.h"
 
@@ -74,6 +76,8 @@ TablePanel::TablePanel(QWidget* parent)
     section->addBodyWidget(toolbar);
 
     table_view_ = new QTableView(section);
+    table_header_ = new TableHeader(table_view_);
+    table_view_->setHorizontalHeader(table_header_);
     table_view_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     table_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_view_->setSelectionMode(QAbstractItemView::ExtendedSelection);

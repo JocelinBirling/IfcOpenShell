@@ -21,6 +21,8 @@ class QToolButton;
 
 namespace bonsaiviewer::modules::table {
 
+class TableHeader;
+
 // TI07 — the Table panel (bottom of the window): a toolbar (new table,
 // modify, add column, refresh, export CSV), the table name and row count,
 // and the table view. The panel is only the shell; TablePanelView drives it.
@@ -31,6 +33,8 @@ public:
     explicit TablePanel(QWidget* parent = nullptr);
 
     QTableView* tableView() const { return table_view_; }
+    // The column header: sort arrow and filter funnel (BonsaiViewer07 phase 3).
+    TableHeader* tableHeader() const { return table_header_; }
     void setSummary(const QString& text);
     // The table actions need a loaded table (tables are created and loaded in
     // the Tables panel).
@@ -46,6 +50,7 @@ signals:
 private:
     QLabel* summary_label_ = nullptr;
     QTableView* table_view_ = nullptr;
+    TableHeader* table_header_ = nullptr;
     QToolButton* modify_button_ = nullptr;
     QToolButton* save_button_ = nullptr;
     QToolButton* column_button_ = nullptr;

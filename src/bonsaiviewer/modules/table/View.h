@@ -39,6 +39,7 @@ namespace bonsaiviewer::modules::table {
 
 class TableModel;
 class TablePanel;
+class TableProxy;
 class TableStore;
 
 // TI07 — drives the Table panel: creates and modifies the table, evaluates
@@ -88,6 +89,15 @@ private:
     void modifyColumn(int index);
     void removeColumn(int index);
     void showHeaderMenu(int section);
+    // Phase 3: the sort arrow cycles A to Z, Z to A, unsorted; the funnel
+    // opens the value list of the column.
+    void toggleSort(int section);
+    void showFilterMenu(int section, const QPoint& global_pos);
+    // Sorting and filters follow the column indexes: cleared when the
+    // columns change.
+    void clearSortAndFilters();
+    // The table row of a displayed row.
+    int sourceRow(int displayed_row) const;
     void moveColumn(int from, int to);
     void applyColumns();
     // The Color column: one random colour per row, in the cells and in the
@@ -123,6 +133,9 @@ private:
     bonsaiviewer::services::AppearanceService& appearance_;
     bonsaiviewer::services::EntitySetStore& box_;
     TableModel* model_ = nullptr;
+    TableProxy* proxy_ = nullptr;
+    int sort_column_ = -1;
+    Qt::SortOrder sort_order_ = Qt::AscendingOrder;
 
     std::optional<TableDefinition> table_;
     // The stored table shown, empty while the table is not saved; the

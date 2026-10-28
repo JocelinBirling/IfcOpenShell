@@ -15,7 +15,9 @@
 #include "ColumnDialog.h"
 #include "CreationDialog.h"
 #include "Panel.h"
+#include "TableHeader.h"
 #include "TableModel.h"
+#include "TableProxy.h"
 #include "TableStore.h"
 
 #include "../../ElementRegistry.h"
@@ -34,9 +36,15 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QItemSelectionModel>
+#include <QLineEdit>
+#include <QListWidget>
 #include <QLocale>
 #include <QMenu>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QWidgetAction>
 #include <QPointer>
 #include <QRandomGenerator>
 #include <QRegularExpression>
@@ -108,9 +116,16 @@ TablePanelView::TablePanelView(TablePanel* panel,
         data_access,
         [this](std::uint32_t session_model_id) { return QFileInfo(ifcPath(session_model_id)).fileName(); },
         this);
+    proxy_ = new TableProxy(model_, this);
     QTableView* view = panel_->tableView();
-    view->setModel(model_);
+    view->setModel(proxy_);
     QHeaderView* header = view->horizontalHeader();
+    connect(panel_->tableHeader(), &TableHeader::sortRequested, this, &TablePanelView::toggleSort);
+    connect(panel_->tableHeader(), &TableHeader::filterRequested, this, &TablePanelView::showFilterMenu);
+    // Rows shown or hidden by a filter change the row count.
+    connect(proxy_, &QAbstractItemModel::rowsInserted, this, &TablePanelView::updateSummary);
+    connect(proxy_, &QAbstractItemModel::rowsRemoved, this, &TablePanelView::updateSummary);
+    connect(proxy_, &QAbstractItemModel::modelReset, this, &TablePanelView::updateSummary);
 
     connect(panel_, &TablePanel::saveRequested, this, &TablePanelView::saveTable);
     connect(panel_, &TablePanel::modifyTableRequested, this, &TablePanelView::modifyTable);
@@ -139,9 +154,9 @@ TablePanelView::TablePanelView(TablePanel* panel,
     connect(view->selectionModel(), &QItemSelectionModel::selectionChanged, this, &TablePanelView::selectRows);
     view->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(view, &QTableView::doubleClicked, this,
-            [this](const QModelIndex& index) { isolateRows(rowsForAction(index.row())); });
+            [this](const QModelIndex& index) { isolateRows(rowsForAction(sourceRow(index.row()))); });
     connect(view, &QWidget::customContextMenuRequested, this, [this, view](const QPoint& pos) {
-        const int row = view->indexAt(pos).row();
+        const int row = sourceRow(view->indexAt(pos).row());
         QMenu menu(panel_);
         menu.addAction("Isolate", this, [this, row] { isolateRows(rowsForAction(row)); });
         menu.exec(view->viewport()->mapToGlobal(pos));
@@ -293,6 +308,108 @@ void TablePanelView::showHeaderMenu(int section) {
     menu.exec(QCursor::pos());
 }
 
+void TablePanelView::toggleSort(int section) {
+    if (!table_ || section < 0) return;
+    if (section != sort_column_) {
+        sort_column_ = section;
+        sort_order_ = Qt::AscendingOrder;
+    } else if (sort_order_ == Qt::AscendingOrder) {
+        sort_order_ = Qt::DescendingOrder;
+    } else {
+        sort_column_ = -1;
+    }
+    proxy_->sort(sort_column_, sort_order_);
+    panel_->tableHeader()->setSortState(sort_column_, sort_order_);
+}
+
+void TablePanelView::showFilterMenu(int section, const QPoint& global_pos) {
+    if (!table_ || section < 0) return;
+    const QString empty_label = "(empty)";
+    const QSet<QString> kept = proxy_->columnFilter(section);
+    const bool filtered = proxy_->isFiltered(section);
+
+    QMenu menu(panel_);
+    auto* body = new QWidget(&menu);
+    auto* layout = new QVBoxLayout(body);
+    layout->setContentsMargins(6, 6, 6, 6);
+    auto* search = new QLineEdit(body);
+    search->setPlaceholderText("Search…");
+    search->setClearButtonEnabled(true);
+    layout->addWidget(search);
+    auto* list = new QListWidget(body);
+    list->setMinimumSize(220, 220);
+    for (const QString& value : proxy_->columnValues(section)) {
+        auto* item = new QListWidgetItem(value.isEmpty() ? empty_label : value, list);
+        item->setData(Qt::UserRole, value);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(!filtered || kept.contains(value) ? Qt::Checked : Qt::Unchecked);
+    }
+    layout->addWidget(list);
+    auto* choice_row = new QHBoxLayout();
+    auto* all_button = new QPushButton("All", body);
+    auto* none_button = new QPushButton("None", body);
+    choice_row->addWidget(all_button);
+    choice_row->addWidget(none_button);
+    choice_row->addStretch(1);
+    layout->addLayout(choice_row);
+    auto* action_row = new QHBoxLayout();
+    auto* clear_button = new QPushButton("Clear Filter", body);
+    auto* apply_button = new QPushButton("Apply", body);
+    apply_button->setDefault(true);
+    action_row->addWidget(clear_button);
+    action_row->addStretch(1);
+    action_row->addWidget(apply_button);
+    layout->addLayout(action_row);
+    auto* action = new QWidgetAction(&menu);
+    action->setDefaultWidget(body);
+    menu.addAction(action);
+
+    // The search narrows the list; All / None apply to the listed values.
+    connect(search, &QLineEdit::textChanged, list, [list](const QString& text) {
+        for (int i = 0; i < list->count(); ++i) {
+            list->item(i)->setHidden(!list->item(i)->text().contains(text, Qt::CaseInsensitive));
+        }
+    });
+    const auto check_listed = [list](Qt::CheckState state) {
+        for (int i = 0; i < list->count(); ++i) {
+            if (!list->item(i)->isHidden()) list->item(i)->setCheckState(state);
+        }
+    };
+    connect(all_button, &QPushButton::clicked, list, [check_listed] { check_listed(Qt::Checked); });
+    connect(none_button, &QPushButton::clicked, list, [check_listed] { check_listed(Qt::Unchecked); });
+    connect(clear_button, &QPushButton::clicked, &menu, [this, section, &menu] {
+        proxy_->clearColumnFilter(section);
+        panel_->tableHeader()->setFiltered(section, false);
+        menu.close();
+    });
+    connect(apply_button, &QPushButton::clicked, &menu, [this, section, list, &menu] {
+        QSet<QString> values;
+        bool all = true;
+        for (int i = 0; i < list->count(); ++i) {
+            if (list->item(i)->checkState() == Qt::Checked) values.insert(list->item(i)->data(Qt::UserRole).toString());
+            else all = false;
+        }
+        // Every value checked = no filter.
+        if (all) proxy_->clearColumnFilter(section);
+        else proxy_->setColumnFilter(section, values);
+        panel_->tableHeader()->setFiltered(section, !all);
+        menu.close();
+    });
+    search->setFocus();
+    menu.exec(global_pos);
+}
+
+void TablePanelView::clearSortAndFilters() {
+    sort_column_ = -1;
+    proxy_->sort(-1);
+    proxy_->clearFilters();
+    panel_->tableHeader()->clearStates();
+}
+
+int TablePanelView::sourceRow(int displayed_row) const {
+    return proxy_->sourceRow(displayed_row);
+}
+
 void TablePanelView::moveColumn(int from, int to) {
     if (!table_ || from == to) return;
     const int count = static_cast<int>(table_->columns.size());
@@ -311,6 +428,7 @@ void TablePanelView::moveColumn(int from, int to) {
 }
 
 void TablePanelView::applyColumns() {
+    clearSortAndFilters();
     // Regroups the rows when a group-key column changes.
     model_->setColumns(table_ ? table_->columns : std::vector<TableColumn>{});
     applyRowColours();
@@ -422,12 +540,16 @@ void TablePanelView::updateSummary() {
         text += " <i>(not saved)</i>";
     }
     if (apply_to_box_) text += " <i>(on the box)</i>";
+    // "12 of 40 row(s)" while a filter hides rows.
+    const QString rows = proxy_->rowCount() == model_->rowCount()
+                             ? QString::number(model_->rowCount())
+                             : QString("%1 of %2").arg(proxy_->rowCount()).arg(model_->rowCount());
     if (temporary_) {
-        text += QString(" — %1 row(s)").arg(model_->rowCount());
+        text += QString(" — %1 row(s)").arg(rows);
     } else if (evaluating_) {
         text += QString(" — evaluating %1 model(s)…").arg(sources_.size());
     } else {
-        text += QString(" — %1 row(s) from %2 model(s)").arg(model_->rowCount()).arg(sources_.size());
+        text += QString(" — %1 row(s) from %2 model(s)").arg(rows).arg(sources_.size());
     }
     panel_->setSummary(text);
     panel_->tableView()->setToolTip(table_->description);
@@ -439,7 +561,7 @@ void TablePanelView::updateSummary() {
 void TablePanelView::selectRows() {
     std::set<int> rows;
     for (const QModelIndex& index : panel_->tableView()->selectionModel()->selectedIndexes()) {
-        rows.insert(index.row());
+        rows.insert(sourceRow(index.row()));
     }
     std::vector<std::uint32_t> ids;
     for (int row : rows) {
@@ -452,7 +574,7 @@ void TablePanelView::selectRows() {
 std::vector<int> TablePanelView::rowsForAction(int clicked_row) const {
     std::set<int> rows;
     for (const QModelIndex& index : panel_->tableView()->selectionModel()->selectedIndexes()) {
-        rows.insert(index.row());
+        rows.insert(sourceRow(index.row()));
     }
     if (clicked_row >= 0 && rows.count(clicked_row) == 0) return {clicked_row};
     return {rows.begin(), rows.end()};
@@ -490,7 +612,9 @@ void TablePanelView::exportCsv() {
         header.append(csvField(model_->headerData(column, Qt::Horizontal), separator, decimal_point));
     }
     lines.append(header.join(separator));
-    for (int row = 0; row < model_->rowCount(); ++row) {
+    // The displayed rows, in the displayed order (sort and filters).
+    for (int displayed = 0; displayed < proxy_->rowCount(); ++displayed) {
+        const int row = sourceRow(displayed);
         QStringList fields;
         for (int column = 0; column < model_->columnCount(); ++column) {
             fields.append(csvField(model_->value(row, column), separator, decimal_point));

@@ -217,6 +217,10 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/Table.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableModel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableModel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableHeader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableHeader.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableProxy.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableProxy.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableStore.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TableStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/TablesPanel.cpp

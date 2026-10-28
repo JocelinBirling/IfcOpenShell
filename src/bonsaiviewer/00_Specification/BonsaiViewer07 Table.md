@@ -31,6 +31,9 @@ Save of the current table, and Load (run) of a saved table.
 Grouped Table below): grouping keys in the Table Creation Window, aggregation
 per column in the Add Column window.
 
+**Phase 3 (implemented, to build and test)**: sorting and filtering on the
+columns (see Sort and Filter below).
+
 
 
 ### List Of Table
@@ -132,6 +135,29 @@ With a right click on a column header, the following functions appear
   clicked column (the toolbar **Column** adds it at the right end)
 - **Left Drag Click to move the column**
 
+### Sort and Filter (phase 3)
+
+Each column header shows, right of its name, a small **arrow** and a small **funnel**.
+
+- **Sort** — clicking the arrow sorts the table on the column: first click
+  alphabetical order (arrow down, A to Z), second click reverse order (arrow up,
+  Z to A), third click back to the table order. One sorted column at a time;
+  the arrow of the sorted column is highlighted. Numbers sort by value and
+  before texts, texts are case-insensitive, empty cells stay at the end.
+- **Filter** — clicking the funnel opens the list of the distinct values of the
+  column, each one with a check box ("(empty)" for empty cells), a search field
+  to narrow the list, **All** / **None** (on the listed values), **Clear Filter**
+  and **Apply**. The table keeps the rows whose value is checked. Several
+  columns can be filtered: a row must pass all of them. The funnel of a
+  filtered column is filled.
+- The summary shows "12 of 40 row(s)" while a filter hides rows.
+- Selection, isolation and the CSV export follow the displayed rows: the export
+  writes the rows shown, in the shown order.
+- Sorting and filters are not saved with the table; they are cleared when the
+  columns change (add, modify, remove, move) or another table is loaded.
+- Clicking the arrow or the funnel does not start a column drag; the rest of the
+  header keeps its behaviour (right click menu, left drag to move).
+
 ### CSV export
 
 The CSV file follows the system's number format so it opens as columns in
@@ -179,11 +205,7 @@ The first version is strictly arithmetic: `+ - * /` with parentheses and referen
 
 ## Open Subject
 
-Phase 3:
-- Trier les colonnes Alphabétiques
-Dans le nom de la colonne, une petite flèche doit permettre de trier le tableau dans le sens alphatique (flèche vers le bas), ou bien anti-alphabétique (flèche vers le haut).
-- Filtre sur les colonnes
-Juste à côté, on pourra trouver un petit entonoir pour filtrer les résultats. 
+Phase 3: done (Sort and Filter).
 
 
 Phase 4:
