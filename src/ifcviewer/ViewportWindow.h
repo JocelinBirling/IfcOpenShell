@@ -191,6 +191,17 @@ public:
     void    setStandardView(float yaw_deg, float pitch_deg);
     void    focusOnSelectedObject();
     void    toggleProjection();
+    // BonsaiViewer31: the former X/Y/Z and Alt+X keys, bound by the shell.
+    void    setStandardView(ViewportCore::StandardView view) { core_.setStandardView(view); }
+    void    toggleXray() { core_.toggleXray(); }
+    // BonsaiViewer31: the fly-mode keys (Qt::Key codes), editable (AZERTY:
+    // ZQSD, A / E). Default QWERTY: WASD to move, Q / E to turn, R / F to
+    // rise / fall.
+    struct FlyKeys {
+        int forward = Qt::Key_W, back = Qt::Key_S, left = Qt::Key_A, right = Qt::Key_D,
+            turn_left = Qt::Key_Q, turn_right = Qt::Key_E, up = Qt::Key_R, down = Qt::Key_F;
+    };
+    void    setFlyKeys(const FlyKeys& keys) { fly_keys_ = keys; }
     bool    projectionOrtho() const { return projection_ortho_; }
     std::string cameraString() const;
 
@@ -853,6 +864,13 @@ private:
     // back at fps_press_center_ so the orbit camera resumes cleanly.
     bool         fps_mode_                    = false;
     std::unordered_set<int> fps_keys_held_;
+    FlyKeys fly_keys_;
+    bool isFlyKey(int key) const {
+        return key == fly_keys_.forward || key == fly_keys_.back || key == fly_keys_.left
+            || key == fly_keys_.right || key == fly_keys_.down || key == fly_keys_.up
+            || key == fly_keys_.turn_left || key == fly_keys_.turn_right
+            || key == Qt::Key_Shift;
+    }
     Stopwatch    fps_last_tick_;
     Eigen::Vector2i       fps_press_center_;
     bool         fps_ignore_next_mouse_move_  = false;

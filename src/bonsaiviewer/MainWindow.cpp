@@ -214,6 +214,22 @@ void MainWindow::setupChrome() {
     bindShortcut(this, "tool.measure_volume", [this]() {
         modules::viewport::commands::toggleVolume(*viewport_widget_->viewport());
     });
+    bindShortcut(this, "view.xray", [this]() { viewport_widget_->viewport()->toggleXray(); });
+    bindShortcut(this, "view.focus_selection", [this]() {
+        modules::viewport::commands::viewSelected(*viewport_widget_->viewport());
+    });
+    bindShortcut(this, "view.all", [this]() { viewport_widget_->viewport()->viewAll(); });
+    bindShortcut(this, "view.projection", [this]() { viewport_widget_->viewport()->toggleProjection(); });
+    {
+        using SV = ViewportCore::StandardView;
+        const std::pair<const char*, SV> views[] = {
+            {"view.front", SV::Front}, {"view.back", SV::Back}, {"view.right", SV::Right},
+            {"view.left", SV::Left},   {"view.top", SV::Top},   {"view.bottom", SV::Bottom}};
+        for (const auto& [id, view] : views) {
+            const SV v = view;
+            bindShortcut(this, id, [this, v]() { viewport_widget_->viewport()->setStandardView(v); });
+        }
+    }
     bindShortcut(this, "view.isolate_selection", [this]() {
         active_view_->isolate(selection_service_->selectionIdsAsVector());
     });
@@ -1233,6 +1249,28 @@ void MainWindow::setupLoader() {
     // Perpendicular View (right click) and the section gizmo right-click
     // delete menu are viewport-level interactions owned by the shell.
     viewport_widget_->viewport()->installEventFilter(this);
+    // BonsaiViewer31: the fly keys of the 3D view come from ShortcutStore.
+    // (not window shortcuts: the 3D view reads them in fly mode).
+    auto apply_fly_keys = [this]() {
+        const auto& store = bonsaiviewer::services::ShortcutStore::instance();
+        auto key = [&store](const char* id, int fallback) {
+            const QKeySequence sequence = store.sequence(QString::fromLatin1(id));
+            return sequence.isEmpty() ? fallback : int(sequence[0].key());
+        };
+        ViewportWindow::FlyKeys keys;
+        keys.forward = key("fly.forward", 0);
+        keys.back = key("fly.back", 0);
+        keys.left = key("fly.left", 0);
+        keys.right = key("fly.right", 0);
+        keys.turn_left = key("fly.turn_left", 0);
+        keys.turn_right = key("fly.turn_right", 0);
+        keys.up = key("fly.up", 0);
+        keys.down = key("fly.down", 0);
+        viewport_widget_->viewport()->setFlyKeys(keys);
+    };
+    apply_fly_keys();
+    connect(&bonsaiviewer::services::ShortcutStore::instance(),
+            &bonsaiviewer::services::ShortcutStore::changed, this, apply_fly_keys);
 
     viewport_view_ = new modules::viewport::ViewportView(
         session_state_, viewport_widget_->viewport(), this);

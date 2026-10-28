@@ -55,12 +55,12 @@ ShortcutStore::ShortcutStore() {
         {"search.focus", "Search Bar", "Ctrl+Space"},
         {"view.hide", "Hide", "H"},
         {"view.show", "Show", "S"},
-        {"view.show_all", "Show All", "Alt+S"},
+        {"view.show_all", "Show All", "Alt+H"},
         {"view.invert", "Invert View", "Ctrl+I"},
         {"view.restore", "Restore View", "Ctrl+R"},
         {"view.undo", "Undo View", "Ctrl+Z"},
-        {"section.plane", "Section Plane", "Ctrl+S"},
-        {"section.remove", "Remove Section", ""},
+        {"section.plane", "Section Plane", "K"},
+        {"section.remove", "Remove Section", "Shift+K"},
         {"section.hide", "Hide Section", ""},
         {"section.suspend", "Suspend Section", "Ctrl+D"},
         {"select.all", "Select Everything", "Ctrl+A"},
@@ -78,35 +78,43 @@ ShortcutStore::ShortcutStore() {
         // Not in the default list of BonsaiViewer31: the shortcuts the viewer
         // already had, kept so that these functions stay reachable.
         {"view.isolate_selection", "Isolate Selection", "Shift+H"},
-        {"tool.measure_distance", "Measure Distance", "Ctrl+Shift+L"},
-        {"tool.measure_area", "Measure Area", "Ctrl+Shift+A"},
-        {"tool.measure_volume", "Measure Volume", "Ctrl+Shift+V"},
+        {"tool.measure_distance", "Measure Distance", "L"},
+        {"tool.measure_area", "Measure Area", "A"},
+        {"tool.measure_volume", "Measure Volume", "V"},
         {"camera.fly", "Fly Mode", "Shift+F"},
+        // Formerly hard-coded in the 3D view (ViewportWindow::keyPressEvent).
+        {"view.xray", "X-Ray", "Alt+X"},
+        {"view.focus_selection", "Focus Selection", "F"},
+        {"view.all", "View All", "Home"},
+        {"view.projection", "Perspective / Orthographic", "P"},
+        {"view.front", "Front View", "X"},
+        {"view.back", "Back View", "Shift+X"},
+        {"view.right", "Right View", "Y"},
+        {"view.left", "Left View", "Shift+Y"},
+        {"view.top", "Top View", "Z"},
+        {"view.bottom", "Bottom View", "Shift+Z"},
+        // Fly-mode keys, QWERTY: WASD to move, Q / E to turn, R / F to rise /
+        // fall. AZERTY users set ZQSD and A / E.
+        {"fly.forward", "Fly: Forward", "W", "fly"},
+        {"fly.back", "Fly: Back", "S", "fly"},
+        {"fly.left", "Fly: Left", "A", "fly"},
+        {"fly.right", "Fly: Right", "D", "fly"},
+        {"fly.turn_left", "Fly: Turn Left", "Q", "fly"},
+        {"fly.turn_right", "Fly: Turn Right", "E", "fly"},
+        {"fly.up", "Fly: Up", "R", "fly"},
+        {"fly.down", "Fly: Down", "F", "fly"},
     };
     load();
 }
 
 const std::vector<ShortcutStore::FixedShortcut>& ShortcutStore::fixedShortcuts() {
-    // The keys of ViewportWindow::keyPressEvent (3D view focused) and of the
-    // Filters facet list, not yet editable.
+    // The keys of an active mode of the 3D view (ViewportWindow::keyPressEvent)
+    // and of the Filters facet list: not editable.
     static const std::vector<FixedShortcut> fixed = {
-        {"Show All (former)", "Alt+H"},
-        {"X-Ray", "Alt+X"},
-        {"Section Tool", "K"},
-        {"Clear Section Planes", "Shift+K"},
         {"Remove Section Plane (section tool on)", "Del / Backspace"},
-        {"Measure Length", "L"},
-        {"Measure Area", "A"},
-        {"Measure Volume", "V"},
-        {"Remove Last Point (length)", "Del / Backspace"},
+        {"Remove Last Point (length tool on)", "Del / Backspace"},
         {"Exit Tool / Fly Mode", "Esc"},
-        {"Focus Selection", "F"},
-        {"View All", "Home"},
-        {"Perspective / Orthographic", "P"},
-        {"Front / Back View", "X / Shift+X"},
-        {"Right / Left View", "Y / Shift+Y"},
-        {"Top / Bottom View", "Z / Shift+Z"},
-        {"Fly: Move", "W A S D, Q E, Shift (faster)"},
+        {"Fly: Faster", "Shift"},
         {"Copy Facets (Filters)", "Ctrl+C"},
         {"Paste Facets (Filters)", "Ctrl+V"},
     };
@@ -126,8 +134,10 @@ QKeySequence ShortcutStore::sequence(const QString& id) const {
 
 QString ShortcutStore::conflictingId(const QString& id, const QKeySequence& sequence) const {
     if (sequence.isEmpty()) return {};
+    const auto* own = definition(id);
+    const QString scope = own != nullptr ? own->scope : QString();
     for (const auto& def : definitions_) {
-        if (def.id != id && sequences_.value(def.id) == sequence) {
+        if (def.id != id && def.scope == scope && sequences_.value(def.id) == sequence) {
             return def.id;
         }
     }
@@ -233,7 +243,8 @@ bool ShortcutStore::importFromFile(const QString& path, QString* error) {
         const QKeySequence sequence = imported.value(def.id);
         if (sequence.isEmpty()) continue;
         for (const auto& other : definitions_) {
-            if (other.id != def.id && imported.value(other.id) == sequence) {
+            if (other.id != def.id && other.scope == def.scope
+                && imported.value(other.id) == sequence) {
                 return fail(QStringLiteral("%1 and %2 use the same shortcut")
                                 .arg(def.label, other.label));
             }

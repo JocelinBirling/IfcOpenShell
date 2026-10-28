@@ -46,6 +46,9 @@ public:
         QString id;
         QString label;
         QString default_key; // portable text; empty when the function has none
+        // Functions of one scope must not share a key. "fly": the fly-mode
+        // move keys, active only in fly mode, so they may reuse S, A...
+        QString scope;
     };
 
     static ShortcutStore& instance();

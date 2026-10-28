@@ -19,12 +19,12 @@ Default list:
 - Enter the search bar: CTRL+SPACE
 - Hide: H
 - Show: S
-- Show All: ALT+S
+- Show All: ALT+H
 - Invert View: CTRL+I
 - Restore View: CTRL+R
 - Undo View: CTRL+Z (see BonsaiViewer02, Undo View)
-- Section Plane: CTRL+S
-- Remove Section: no default shortcut
+- Section Plane: K
+- Remove Section: SHIFT+K
 - Hide Section: no default shortcut
 - Suspend Section: CTRL+D
 - Select Everything: CTRL+A
@@ -43,15 +43,32 @@ Default list:
 
 Toggle Visibility has no default shortcut. Its behaviour: if every selected element is shown, they are hidden; otherwise they are shown.
 
-Other functions already in the viewer, kept with their shortcut (not in the default list above):
+Functions that were hard-coded in the 3D view are now in the list, with their former key as default:
 
 - Isolate Selection: SHIFT+H
-- Measure Distance: CTRL+SHIFT+L
-- Measure Area: CTRL+SHIFT+A
-- Measure Volume: CTRL+SHIFT+V
+- Measure Distance: L
+- Measure Area: A
+- Measure Volume: V
 - Fly Mode: SHIFT+F
+- X-Ray: ALT+X
+- Focus Selection: F
+- View All: HOME
+- Perspective / Orthographic: P
+- Front / Back View: X / SHIFT+X
+- Right / Left View: Y / SHIFT+Y
+- Top / Bottom View: Z / SHIFT+Z
 
-The previous shortcuts K (section tool) and SHIFT+K (remove section) are replaced by Section Plane (CTRL+S) and Remove Section (no default). ALT+H (Show All) is replaced by ALT+S.
+Fly mode keys, editable, active only in fly mode (they may reuse a key of another function, e.g. S; they must differ from each other). Defaults for QWERTY:
+
+- Fly: Forward / Back / Left / Right: W / S / A / D
+- Fly: Turn Left / Turn Right: Q / E (90° per second)
+- Fly: Up / Down: R / F
+
+On an AZERTY keyboard, the user sets Z / S / Q / D and A / E in the editor (or imports an AZERTY shortcut file).
+
+The 3D view keeps only the keys of an active mode, listed as "Fixed" in the editor: Esc (exit tool or fly mode), Del / Backspace (remove a section plane or the last length point), Shift (faster in fly mode). The Filters facet list keeps CTRL+C / CTRL+V. The former camera log key (C) is removed: C is Color.
+
+Bindings already saved in the user's settings keep their value: Reset All applies these defaults.
 
 Section functions use the viewport's existing toggles: Hide Section switches the section gizmos hidden, Suspend Section switches the section planes suspended.
 
@@ -66,7 +83,7 @@ In the Settings, the Keybindings tab offers:
 - A Reset button per function, and Reset All. A reset is refused when the default shortcut is used by another function.
 - An empty shortcut is allowed: the function then has no shortcut.
 - Rows are tall enough (36 px) for the key editor and the Reset button.
-- After the editable functions, the table lists the **fixed keys**, greyed and marked "Fixed": keys handled directly by the 3D view or a panel, not editable yet. Alt+H (former Show All), Alt+X (X-Ray), K / Shift+K (section tool, clear planes), Del (remove plane or last point), L / A / V (measure length, area, volume), Esc (exit tool or fly mode), F (focus selection), Home (view all), P (perspective / orthographic), X / Y / Z and Shift+X / Y / Z (standard views), W A S D Q E Shift (fly mode), Ctrl+C / Ctrl+V (copy / paste facets in Filters).
+- After the editable functions, the table lists the **fixed keys** of an active mode, greyed and marked "Fixed".
 
 ### Export/Import
 
@@ -80,4 +97,4 @@ In the Settings, the Keybindings tab offers:
 
 ## Open Subject
 
-- Make the fixed keys of the 3D view editable (they live in ifcviewer/ViewportWindow), and refuse an editable shortcut that collides with them.
+- None.

@@ -711,6 +711,15 @@ void ViewportWindow::resizeEvent(QResizeEvent* /*event*/) {
 }
 
 bool ViewportWindow::event(QEvent* event) {
+    // In fly mode the move keys and Esc go to keyPressEvent, before any
+    // window shortcut using the same key (S, A...).
+    if (event->type() == QEvent::ShortcutOverride && fps_mode_) {
+        const int key = static_cast<QKeyEvent*>(event)->key();
+        if (isFlyKey(key) || key == Qt::Key_Escape) {
+            event->accept();
+            return true;
+        }
+    }
     if (event->type() == QEvent::UpdateRequest) {
         if (wgpu_initialized_ && surface_configured_) {
             render();
@@ -1459,10 +1468,17 @@ void ViewportWindow::fpsIntegrate() {
 
     // Fly-camera math lives in ViewportCore (shared with the web path).
     core_.flyMove(
-        fps_keys_held_.count(Qt::Key_W) != 0, fps_keys_held_.count(Qt::Key_S) != 0,
-        fps_keys_held_.count(Qt::Key_D) != 0, fps_keys_held_.count(Qt::Key_A) != 0,
-        fps_keys_held_.count(Qt::Key_E) != 0, fps_keys_held_.count(Qt::Key_Q) != 0,
+        fps_keys_held_.count(fly_keys_.forward) != 0, fps_keys_held_.count(fly_keys_.back) != 0,
+        fps_keys_held_.count(fly_keys_.right) != 0, fps_keys_held_.count(fly_keys_.left) != 0,
+        fps_keys_held_.count(fly_keys_.up) != 0, fps_keys_held_.count(fly_keys_.down) != 0,
         fps_keys_held_.count(Qt::Key_Shift) != 0, dt);
+    // Turn in place: 90 degrees per second (flyLook turns 0.2 degree per px).
+    const int turn = int(fps_keys_held_.count(fly_keys_.turn_right) != 0)
+                   - int(fps_keys_held_.count(fly_keys_.turn_left) != 0);
+    if (turn != 0) {
+        core_.flyLook(float(turn) * 450.0f * dt, 0.0f);
+        requestUpdate();
+    }
 }
 
 // chunkScreenAreaPx moved to ViewportCore (#84-h).
@@ -1995,7 +2011,6 @@ void ViewportWindow::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void ViewportWindow::keyPressEvent(QKeyEvent* event) {
-    const auto mods = event->modifiers();
     const int  key  = event->key();
 
     // Fly-mode keys come first so WASD/QE/Shift don't leak to shortcuts.
@@ -2004,9 +2019,7 @@ void ViewportWindow::keyPressEvent(QKeyEvent* event) {
             exitFpsMode();
             return;
         }
-        switch (key) {
-        case Qt::Key_W: case Qt::Key_A: case Qt::Key_S: case Qt::Key_D:
-        case Qt::Key_Q: case Qt::Key_E: case Qt::Key_Shift:
+        if (isFlyKey(key)) {
             if (!event->isAutoRepeat()) {
                 const bool was_empty = fps_keys_held_.empty();
                 fps_keys_held_.insert(key);
@@ -2021,41 +2034,13 @@ void ViewportWindow::keyPressEvent(QKeyEvent* event) {
                 requestUpdate();
             }
             return;
-        default: break;
         }
     }
 
-    // Bonsai shortcuts (mirror MainWindow.cpp bind_shortcut table):
-    //   H        — hide selected
-    //   Shift+H  — isolate selected
-    //   Alt+H    — show all (clear hidden set)
-    //   Shift+F  — enter fly mode (Esc exits)
-    // Visibility + X-ray math lives in ViewportCore (shared with web).
-    if (key == Qt::Key_H && mods == Qt::AltModifier) { core_.showAll();        return; }
-    if (key == Qt::Key_X && mods == Qt::AltModifier && !event->isAutoRepeat()) {
-        core_.toggleXray(); return;
-    }
-    if (key == Qt::Key_H && mods == Qt::ShiftModifier) { core_.isolateSelected(); return; }
-    if (key == Qt::Key_H && mods == Qt::NoModifier)    { core_.hideSelected();    return; }
-    if (key == Qt::Key_F && mods == Qt::ShiftModifier && !event->isAutoRepeat()) {
-        enterFpsMode();
-        return;
-    }
-
-    // Section tool. K toggles the tool; Shift+K clears all planes. When
-    // the tool is active, click adds a plane at the surface (handled in
-    // mouseReleaseEvent) or selects the gizmo under the cursor, Esc
-    // deactivates, Del/Backspace removes the selected plane (or the most
-    // recent one when nothing is selected). Mirrors GL ViewportWindow +
-    // Bonsai's bind_shortcut(K / Shift+K) bindings.
-    if (key == Qt::Key_K && !event->isAutoRepeat()) {
-        if (mods == Qt::ShiftModifier) {
-            clearSectionPlanes();
-        } else if (mods == Qt::NoModifier) {
-            toggleSectionTool();
-        }
-        return;
-    }
+    // BonsaiViewer31: the shortcuts (hide, isolate, show all, X-ray, fly,
+    // section, measure tools, focus, view all, projection, standard views)
+    // are bound by the shell from ShortcutStore, so the user can change them.
+    // Only the keys of an active mode stay here.
     if (section_tool_active_ && !event->isAutoRepeat()) {
         if (key == Qt::Key_Escape) {
             toggleSectionTool();
@@ -2072,24 +2057,6 @@ void ViewportWindow::keyPressEvent(QKeyEvent* event) {
         }
     }
 
-    // Measurement tools. V toggles Volume, A toggles Area; Esc exits
-    // whichever tool is active. Mirrors GL ViewportWindow + Bonsai's
-    // bind_shortcut(V) / bind_shortcut(A).
-    if (key == Qt::Key_V && mods == Qt::NoModifier && !event->isAutoRepeat()) {
-        setToolMode(tool_mode_ == ToolMode::Volume ? ToolMode::NoTool
-                                                   : ToolMode::Volume);
-        return;
-    }
-    if (key == Qt::Key_A && mods == Qt::NoModifier && !event->isAutoRepeat()) {
-        setToolMode(tool_mode_ == ToolMode::Area ? ToolMode::NoTool
-                                                 : ToolMode::Area);
-        return;
-    }
-    if (key == Qt::Key_L && mods == Qt::NoModifier && !event->isAutoRepeat()) {
-        setToolMode(tool_mode_ == ToolMode::Length ? ToolMode::NoTool
-                                                   : ToolMode::Length);
-        return;
-    }
     if (tool_mode_ == ToolMode::Length
         && (key == Qt::Key_Backspace || key == Qt::Key_Delete)
         && !event->isAutoRepeat()) {
@@ -2099,39 +2066,6 @@ void ViewportWindow::keyPressEvent(QKeyEvent* event) {
     if (tool_mode_ != ToolMode::NoTool && key == Qt::Key_Escape
         && !event->isAutoRepeat()) {
         setToolMode(ToolMode::NoTool);
-        return;
-    }
-
-    // GL-parity viewport hotkeys.
-    if (key == Qt::Key_F && mods == Qt::NoModifier && !event->isAutoRepeat()) {
-        focusOnSelectedObject();
-        return;
-    }
-    if (key == Qt::Key_Home && !event->isAutoRepeat()) {
-        viewAll();
-        return;
-    }
-    if (key == Qt::Key_P && mods == Qt::NoModifier && !event->isAutoRepeat()) {
-        toggleProjection();
-        return;
-    }
-    if (key == Qt::Key_C && !(mods & Qt::ControlModifier)) {
-        Log::info() << "--camera " << cameraString();
-        return;
-    }
-    // Standard axis-aligned views: X/Y/Z look from +axis, Shift+X/Y/Z from
-    // negative side. Top/bottom use pitch ±90°; buildViewProj's up-vector
-    // switch keeps lookAt non-degenerate at the poles.
-    if ((key == Qt::Key_X || key == Qt::Key_Y || key == Qt::Key_Z)
-        && (mods == Qt::NoModifier || mods == Qt::ShiftModifier)
-        && !event->isAutoRepeat()) {
-        const bool neg = (mods & Qt::ShiftModifier);
-        using SV = ViewportCore::StandardView;
-        switch (key) {
-        case Qt::Key_X: core_.setStandardView(neg ? SV::Back   : SV::Front); break;
-        case Qt::Key_Y: core_.setStandardView(neg ? SV::Left   : SV::Right); break;
-        case Qt::Key_Z: core_.setStandardView(neg ? SV::Bottom : SV::Top);   break;
-        }
         return;
     }
 
