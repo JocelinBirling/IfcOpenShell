@@ -31,9 +31,9 @@ class QToolButton;
 namespace bonsaiviewer::modules::filters {
 
 // B06 — the editor of an IDS selection, shared by the filter layers (TI06)
-// and the tables (TI07): the list of facets (exactly one entity facet plus
-// any number of property, attribute, classification, material and partOf
-// facets, all of which must pass), the page of the selected facet, and a
+// and the tables (TI07): the list of facets (any facets, all of which must
+// pass; at most one of them an entity facet), the page of the selected
+// facet, and a
 // live preview counting the elements selected in the active model, with
 // "Isolate in the view". Facets are copied and pasted as IDS XML
 // (FacetClipboard): Ctrl+C / Ctrl+V on the list, or its context menu.
@@ -41,8 +41,8 @@ class SelectionEditor : public QWidget {
     Q_OBJECT
 
 public:
-    // Selection: one entity facet plus other facets, with the live preview
-    // (filters, tables). Clause: any facets, no preview — an applicability or
+    // Selection: any facets, at most one of them an entity facet, with the
+    // live preview (filters, tables). Clause: any facets, no preview — an applicability or
     // the requirements of an IDS specification (BonsaiViewer24).
     enum class Mode { Selection, Clause };
 

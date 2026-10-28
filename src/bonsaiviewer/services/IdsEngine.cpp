@@ -584,15 +584,16 @@ IdsFacet fromFacet(const it::Facet& facet) {
 
 it::Specification buildSpecification(const QString& name, const std::vector<IdsFacet>& facets,
                                       ifcopenshell::file* file) {
-    const auto entities = std::count_if(facets.begin(), facets.end(),
+    // Without an entity facet, every facet is an applicability: an IDS
+    // applicability may hold any facet type, and the selection needs one.
+    const bool has_entity = std::any_of(facets.begin(), facets.end(),
                                         [](const IdsFacet& f) { return f.type == IdsFacet::Type::Entity; });
-    if (entities != 1) throw UserError("a selection needs exactly one entity facet");
     it::Specification spec;
     spec.name = s(name);
     int index = 0;
     for (const IdsFacet& facet : facets) {
         ++index;
-        if (facet.type == IdsFacet::Type::Entity) {
+        if (facet.type == IdsFacet::Type::Entity || !has_entity) {
             spec.applicability.push_back(toFacet(facet, index, file));
         } else {
             spec.requirements.push_back(toFacet(facet, index, file));

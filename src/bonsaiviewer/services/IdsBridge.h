@@ -122,8 +122,8 @@ class IdsBridge : public QObject {
     Q_OBJECT
 
 public:
-    // The facets of one selection: exactly one entity facet and any number
-    // of other facets, all of which must pass.
+    // The facets of one selection: any facets, all of which must pass; at
+    // most one of them an entity facet.
     struct SelectionFields {
         std::vector<IdsFacet> facets;
     };

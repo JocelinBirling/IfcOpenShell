@@ -45,7 +45,8 @@ it::Facet toFacet(const IdsFacet& facet, int index, ifcopenshell::file* file = n
 IdsFacet fromFacet(const it::Facet& facet);
 
 // The selection as one specification: the entity facet in the
-// applicability, the others in the requirements.
+// applicability, the others in the requirements (all in the applicability
+// when there is no entity facet).
 it::Specification buildSpecification(const QString& name, const std::vector<IdsFacet>& facets,
                                       ifcopenshell::file* file = nullptr);
 QString buildXml(const QString& name, const std::vector<IdsFacet>& facets);

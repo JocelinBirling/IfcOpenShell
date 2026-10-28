@@ -71,9 +71,9 @@ The **Type** of the selection is either:
 - **IDS specification**: the layer selects its own elements, or
 - **AND, same elements as the layer above**: the layer has no selection of its own. Not available on the first layer.
 
-An IDS specification is a list of **facets**; an element is selected when it passes **all** of them. "+ Add" adds a facet, "Remove" removes the selected one. Selecting a facet shows its configuration page.
+An IDS specification is a list of **facets**; an element is selected when it passes **all** of them. A selection needs at least one facet, and no particular type: an entity facet is not required. "+ Add" adds a facet, "Remove" removes the selected one. Selecting a facet shows its configuration page.
 
-- **Entity facet** (exactly one per specification):
+- **Entity facet** (optional, at most one per selection; any other facet works without it):
   - the **IFC class**: one class, a list of classes or a pattern on the class name;
   - **Include the subtypes** (checked by default): IDS matches the class exactly, so without it IfcWall does not select IfcWallStandardCase;
   - the page shows the classes covered and how many elements of the loaded models they hold;

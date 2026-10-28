@@ -221,10 +221,9 @@ IdsBridge::SelectionFields SelectionEditor::defaultFields() {
 }
 
 QString SelectionEditor::validationError(const IdsBridge::SelectionFields& fields) {
-    int entities = 0;
+    if (fields.facets.empty()) return "the selection needs at least one facet";
     for (const auto& facet : fields.facets) {
         if (facet.type == IdsFacet::Type::Entity) {
-            ++entities;
             if (facet.name.isAny() || !valueIsComplete(facet.name)) return "the entity facet needs an IFC class";
             if (!valueIsComplete(facet.predefined_type)) return "the PredefinedType is incomplete";
             continue;
@@ -248,7 +247,6 @@ QString SelectionEditor::validationError(const IdsBridge::SelectionFields& field
                 .arg(facet.summary());
         }
     }
-    if (entities != 1) return "the selection needs exactly one entity facet";
     return {};
 }
 
@@ -470,7 +468,14 @@ void SelectionEditor::runPreview() {
         preview_label_->setText("No model loaded: the preview needs an active model.");
         return;
     }
-    if (entityFacet().name.isAny()) {
+    if (fields_.facets.empty()) {
+        preview_label_->setText("Add a facet.");
+        return;
+    }
+    const bool untyped_entity = std::any_of(fields_.facets.begin(), fields_.facets.end(), [](const IdsFacet& f) {
+        return f.type == IdsFacet::Type::Entity && f.name.isAny();
+    });
+    if (untyped_entity) {
         preview_label_->setText("Add an IFC class.");
         return;
     }
