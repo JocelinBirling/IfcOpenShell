@@ -31,7 +31,7 @@ Filter rules to analyse the model: selections built from **IDS facets** (class, 
 
 ![](./00_Images/Filter.png)
 
-You can display data as a color, on display it clearly.
+You can display data as a color. It allow a better vizualisation of data.
 
 ![](./00_Images/AutomaticFilterByColor.png)
 
@@ -41,7 +41,7 @@ Tables of elements, opened by the tools that produce them: values and counts of 
 
 ![](./00_Images/Export_Table.png)
 
-
+You can do small pivot table that can interact with the 3D viewer.
 
 ![](./00_Images/Table_Gather_Elements.png)
 
@@ -52,34 +52,35 @@ A microscope on the IFC file itself: explore the raw structure of the model — 
 ![](./00_Images/Ifc_Digger.png)
 
 ### Custom Layer
-
-Create your own display
+You can create your own custom windows, to display it as you like.
 
 ![](./00_Images/Custom_Layer.png)
 
 
 
 ### IDS
-
-Create IDS
-Modify IDS
-Launch IDS
-
-Color object by IDS result 
-Color properties by IDS result
-Filter properties by IDS
-
+It can create an IDS specification, modify it, and launch it on the loaded models.
+The results drive both the view and the Properties panel: colour the objects by IDS result, colour the properties in the panel by their result, and filter the properties to keep only the ones the IDS selects.
 
 ![](./00_Images/IDS_Validation.png)
 
 ## What's Next
 
+### BCF
+I plan to introduce BCF management. 
 
-BCF
+### A better tree management system
+There are a lot of tree in the Ifc Schema, IfcGroup, IfcSystem, IfcZone, etc...
+I plan to standardize a view to allow for a quick acces to it.
 
-A better tree management system
+### Clash Management tools
+My main part was to create a clash management tools. I have already build it in Pyhon, it need to be cleaned and exported there.
 
-Clash
+### Calculation in table
+We could do some small calculation in the viewer, multiply, add to value together. Nothing to fancy, but it could save a small step from going to excel. 
 
-Calculation in table
-We could do some small calculation in the viewer, multiply 
+### Draw small chart
+After the table, i could create a smalls charts about the models.
+
+### BSDD Manage
+There is probably something to do with the BSDD in here.
