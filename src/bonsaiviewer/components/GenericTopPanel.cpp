@@ -34,12 +34,27 @@ GenericTopPanel::GenericTopPanel(QWidget* parent)
     row_ = new QHBoxLayout(this);
     row_->setContentsMargins(2, 2, 2, 2);
     row_->setSpacing(0);
+    // Equal stretch on the side zones: the centre zone stays in the middle
+    // of the bar whatever the widths of the side groups.
+    const auto zone = [this](int stretch) {
+        auto* widget = new QWidget(this);
+        auto* layout = new QHBoxLayout(widget);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        widget->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        row_->addWidget(widget, stretch);
+        return layout;
+    };
+    left_ = zone(1);
+    centre_ = zone(0);
+    right_ = zone(1);
+    centre_->parentWidget()->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 }
 
 void GenericTopPanel::setSearchBar(QWidget* bar) {
     if (!bar) return;
     // The left corner, before any group.
-    row_->insertWidget(0, bar);
+    left_->insertWidget(0, bar);
 }
 
 void GenericTopPanel::makeCompact() {
@@ -47,6 +62,8 @@ void GenericTopPanel::makeCompact() {
     // right-most groups are clipped instead of pushing the side panels.
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     setMinimumWidth(0);
+    left_->addStretch(1);
+    right_->insertStretch(0, 1);
     row_->setContentsMargins(2, 1, 2, 1);
     // Local sheet: overrides the ribbon button padding of Style.cpp.
     setStyleSheet(QStringLiteral("QToolButton#ribbonButton { padding: 2px; }"));

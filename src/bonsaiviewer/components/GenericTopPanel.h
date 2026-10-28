@@ -44,9 +44,12 @@ public:
 
     // The left-corner slot for the search bar.
     void setSearchBar(QWidget* bar);
-    // The groups are appended left to right; the panel adds the final
-    // stretch itself.
-    QHBoxLayout* row() const { return row_; }
+    // Spec 05: three zones. Left: the search bar, then the groups appended
+    // left to right. Centre: centred on the bar (left and right zones get
+    // the same width). Right: the groups justified on the right edge.
+    QHBoxLayout* left() const { return left_; }
+    QHBoxLayout* centre() const { return centre_; }
+    QHBoxLayout* right() const { return right_; }
     // Spec 05: icon-only buttons (label in the tooltip), no group titles,
     // and no minimum width, so the strip never squeezes the side panels.
     // Call once the groups are populated.
@@ -54,6 +57,9 @@ public:
 
 private:
     QHBoxLayout* row_ = nullptr;
+    QHBoxLayout* left_ = nullptr;
+    QHBoxLayout* centre_ = nullptr;
+    QHBoxLayout* right_ = nullptr;
 };
 
 } // namespace bonsaiviewer::components

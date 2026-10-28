@@ -8,43 +8,29 @@ By default, we will display the following set of panels.
 
 ### "Home" 
 
-Models Panel in Whole Left
-Spatial Tree Panel Whole in Left
-USpatial Tree Panel Whole in Left
-
+Models Panel in Top Left
+Spatial Hierarchy in the Bottom Left
 Properties in the Whole Right
 3D view in the center
 
 ### "Filter" 
 Models Panel in Top Left
-Spatial Tree Panel Top in Left
-USpatial Tree Panel Top in Left
+Spatial Hierarchy in Top Left
+Class Hierarchy in Top Left
 
 Filters in the Bottom Left
-
 Properties in the Whole Right
 3D view in the center
 
 
 ### "Table" 
 Models Panel in Top Left
-Spatial Tree Panel Top in Left
-USpatial Tree Panel Top in Left
+Spatial Hierarchy in Top Left
+Class Hierarchy in Top Left
 
 Tables in the Bottom Left
+Properties in the Whole Right
 Table in the Whole Bottom
-
-Properties in the Whole Right
-3D view in the center
-
-### "IDS" 
-Models Panel in Whole Left
-Spatial Tree Panel Whole in Left
-USpatial Tree Panel Whole in Left
-
-IDS in the Whole Bottom
-
-Properties in the Whole Right
 3D view in the center
 
 
@@ -69,15 +55,14 @@ Properties in the Whole Right
 - In Settings, a button "Save Layouts" saves the current state of all the tabs of the software.
 - There is one single saved layout: the button overwrites it.
 - At the next opening of the software, the saved layout is used as the default layout.
-- "Use the Defaults" removes the saved layout (the next start uses the defaults of phase 1). At start-up, Home is shown with its saved layout.
-### Implementation rules (phase 2)
 
+### Implementation rules (phase 2)
+- **System tabs**: Home, Filter, Table and Inspect cannot be renamed or deleted. Inspect is not a workspace: it keeps the panels of the tab it was opened from.
 - **New tab**: named "Tab N" (first free number), inserted just before "+", and selected. It starts with the 3D view only.
 - **Compose**: the panels are added or removed with the Window menu (BonsaiViewer01), whose check marks follow the current tab.
 - **Rename / Delete**: right click on a user tab. Delete asks for confirmation; deleting the current tab goes back to Home.
 - **Reorder**: every tab can be dragged; "+" always stays the last one.
-
+- **Save Layouts**: Settings > Layouts. Saves every tab: its panels and positions, the user tabs with their names, and the ribbon order. "Use the Defaults" removes the saved layout (the next start uses the defaults of phase 1). At start-up, Home is shown with its saved layout.
 
 ## Open Subject
 The docking mechanics of the panels in a workspace (dock positions, sizes, floating windows) need to be defined.
-@TODO Default position of the panel need to be done according to this spec.

@@ -295,7 +295,6 @@ void MainWindow::populateRecentMenu(QMenu* menu) {
 // display, box, zoom and colour groups — always visible whatever the
 // ribbon tab.
 void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
-    auto* row = panel->row();
 
     auto* hide_selected = components::buttons::makeButton("Hide", ":/icons/eye-closed.svg", this);
     connect(hide_selected, &QToolButton::clicked, this, [this]() {
@@ -582,19 +581,17 @@ void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
     });
     modify_section->setMenu(modify_menu);
 
-    components::buttons::addButtonGroups(row, {
+    components::buttons::addButtonGroups(panel->left(), {
         components::buttons::makeButtonGroup("SELECTION", {hide_selected, show_selected, show_all, invert_selection, select_in_view, restore_view}, this),
         components::buttons::makeButtonGroup("CATEGORIES", {categories}, this),
         components::buttons::makeButtonGroup("SECTION", {section_mode, modify_section}, this),
     });
-    // Box centred in the band: stretches on both sides push it to the
-    // middle while Zoom and Colour justify to the right edge.
-    row->addStretch(1);
-    components::buttons::addButtonGroups(row, {
+    // Spec 05: Box centred on the band, Zoom and Colour justified on the
+    // right edge (GenericTopPanel zones).
+    components::buttons::addButtonGroups(panel->centre(), {
         components::buttons::makeButtonGroup("BOX", {selection_to_box, add_to_box, remove_from_box, isolate_box, hide_box, box_storage}, this),
     });
-    row->addStretch(1);
-    components::buttons::addButtonGroups(row, {
+    components::buttons::addButtonGroups(panel->right(), {
         components::buttons::makeButtonGroup("ZOOM", {fit_view, perpendicular_view}, this),
         components::buttons::makeButtonGroup("COLOUR", {paint, remove_colour, transparency}, this),
     });
@@ -626,13 +623,9 @@ void MainWindow::populateGenericTopPanel(components::GenericTopPanel* panel) {
     describe(modify_section, "Remove, hide or suspend the section.");
 
     // Icon only: the name and description are in the hover tooltip.
-    for (int index = 0; index < row->count(); ++index) {
-        if (QWidget* group = row->itemAt(index)->widget()) {
-            for (QToolButton* button : group->findChildren<QToolButton*>()) {
-                button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-                button->setText(QString());
-            }
-        }
+    for (QToolButton* button : panel->findChildren<QToolButton*>()) {
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        button->setText(QString());
     }
 }
 
@@ -926,20 +919,25 @@ void MainWindow::restoreSavedLayouts() {
 }
 
 // Default panels of each workspace (BonsaiViewer21, phase 1).
-// Home: Models, Spatial Tree and USpatial Tree (tabbed), Properties, 3D view.
-// Filter: Home plus Filters, under the Spatial Tree.
-// Table: Home plus Tables, under the Spatial Tree, and the Table at the bottom.
-// IDS: Home plus the IDS panel at the bottom.
+// Every workspace: Models, Spatial Tree and USpatial Tree tabbed on the
+// left (Models in front), Properties on the whole right, 3D view in the
+// centre. Home and IDS: the tree group fills the whole left.
+// Filter / Table: the tree group on the top left, Filters / Tables on the
+// bottom left. Table and IDS: the Table / IDS panel on the whole bottom
+// (the bottom corners belong to the bottom area, Qt's default).
 void MainWindow::applyWorkspaceDefaults(int index) {
+    addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
+    tabifyDockWidget(models_panel_, spatial_panel_);
+    tabifyDockWidget(spatial_panel_, unified_tree_panel_);
+    addDockWidget(Qt::RightDockWidgetArea, properties_panel_);
+
     QStringList visible{QStringLiteral("models"), QStringLiteral("spatial"),
                         QStringLiteral("unifiedtree"), QStringLiteral("properties")};
     if (index == 1) {
-        addDockWidget(Qt::LeftDockWidgetArea, filters_panel_);
-        splitDockWidget(spatial_panel_, filters_panel_, Qt::Vertical);
+        splitDockWidget(models_panel_, filters_panel_, Qt::Vertical);
         visible << QStringLiteral("filters");
     } else if (index == 2) {
-        addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
-        splitDockWidget(spatial_panel_, tables_panel_, Qt::Vertical);
+        splitDockWidget(models_panel_, tables_panel_, Qt::Vertical);
         visible << QStringLiteral("tables") << QStringLiteral("sheets");
     } else if (index == 3) {
         visible << QStringLiteral("ids");
@@ -947,6 +945,7 @@ void MainWindow::applyWorkspaceDefaults(int index) {
     for (const QString& id : panel_manager_->registeredPanels()) {
         panel_manager_->setPanelVisible(id, visible.contains(id));
     }
+    models_panel_->raise();
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
