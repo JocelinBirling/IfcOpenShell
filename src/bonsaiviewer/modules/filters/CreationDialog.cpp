@@ -12,34 +12,21 @@
 
 #include "CreationDialog.h"
 
-#include "../property_selection/PropertyPicker.h"
-
-#include "../../components/Dialog.h"
 #include "../../services/PopupService.h"
 
-#include <QCheckBox>
-#include <QColorDialog>
-#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
-#include <QGroupBox>
+#include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
-#include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QPointer>
 #include <QPushButton>
-#include <QScrollArea>
-#include <QSignalBlocker>
-#include <QSpinBox>
-#include <QGuiApplication>
 #include <QScreen>
-#include <QSplitter>
-#include <QStandardItemModel>
-#include <QStackedWidget>
-#include <QTimer>
-#include <QToolButton>
+#include <QTableWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -50,90 +37,36 @@ using bonsaiviewer::services::FilterAction;
 using bonsaiviewer::services::FilterDocument;
 using bonsaiviewer::services::FilterLayer;
 using bonsaiviewer::services::IdsBridge;
-using bonsaiviewer::services::IdsFacet;
-using bonsaiviewer::services::IdsValue;
 
 namespace {
 
-// The action parameter pages of the stacked editor, by action type.
-enum ParamPage {
-    kNoParamPage = 0,
-    kColourPage,
-    kTransparencyPage,
-    kAutoColourPage,
-};
+enum Column { kNumber = 0, kType, kSelection, kActions, kColumnCount };
 
-// The two kinds of selection of a layer (combo index = stack page).
-enum SelectionPage {
-    kSpecificationPage = 0,
-    kAndPage,
-};
-
-ParamPage pageFor(FilterAction::Type type) {
-    switch (type) {
-    case FilterAction::Type::Colour: return kColourPage;
-    case FilterAction::Type::Transparency: return kTransparencyPage;
-    case FilterAction::Type::AutoColourByProperty: return kAutoColourPage;
-    case FilterAction::Type::Isolate:
-    case FilterAction::Type::AddToView:
-    case FilterAction::Type::RemoveFromView:
-        break;
+QString selectionSummary(int index, const FilterCreationDialog::EditLayer& layer) {
+    if (layer.is_and) {
+        return index > 1 ? QString("(reuses layers 1–%1)").arg(index) : QString("(reuses layer 1)");
     }
-    return kNoParamPage;
+    QStringList parts;
+    for (const auto& facet : layer.fields.facets) parts << facet.summary();
+    return parts.isEmpty() ? QStringLiteral("(empty selection)") : parts.join(" · ");
 }
 
-QString actionLabel(const FilterAction& action) {
-    switch (action.type) {
-    case FilterAction::Type::Isolate: return "Isolate in the view";
-    case FilterAction::Type::AddToView: return "Add to the view";
-    case FilterAction::Type::RemoveFromView: return "Remove from the view";
-    case FilterAction::Type::Colour: return QString("Apply Color %1").arg(action.colour.name());
-    case FilterAction::Type::Transparency:
-        return QString("Transparency %1%").arg(action.transparency_percent);
-    case FilterAction::Type::AutoColourByProperty:
-        return QString("Automatic Color by %1.%2").arg(action.pset, action.property);
+QString actionsSummary(const FilterCreationDialog::EditLayer& layer) {
+    QStringList parts;
+    for (const auto& action : layer.actions) parts << LayerDialog::actionLabel(action);
+    return parts.isEmpty() ? QStringLiteral("—") : parts.join(", ");
+}
+
+// The colour of the layer's first Colour action, as a small swatch.
+QIcon actionsIcon(const FilterCreationDialog::EditLayer& layer) {
+    for (const auto& action : layer.actions) {
+        if (action.type != FilterAction::Type::Colour || !action.colour.isValid()) continue;
+        QPixmap swatch(12, 12);
+        swatch.fill(action.colour);
+        return QIcon(swatch);
     }
     return {};
 }
-
-QString layerLabel(int index, const FilterCreationDialog::EditLayer& layer) {
-    QString label = QString("%1. ").arg(index + 1);
-    if (layer.is_and) {
-        label += "\u21b3 same elements as above";
-    } else {
-        QStringList parts;
-        for (const auto& facet : layer.fields.facets) parts << facet.summary();
-        label += parts.isEmpty() ? QStringLiteral("(empty selection)") : parts.join(" & ");
-    }
-    if (!layer.actions.empty()) {
-        QStringList actions;
-        for (const auto& action : layer.actions) actions << actionLabel(action);
-        label += "  →  " + actions.join(", ");
-    }
-    return label;
-}
-
-FilterCreationDialog::EditLayer defaultLayer(bool is_and) {
-    FilterCreationDialog::EditLayer layer;
-    layer.is_and = is_and;
-    if (!is_and) {
-        layer.fields = SelectionEditor::defaultFields();
-    }
-    return layer;
-}
-
-void setColourSwatch(QPushButton* button, const QColor& colour) {
-    if (colour.isValid()) {
-        button->setText(colour.name());
-        button->setStyleSheet(QString("QPushButton { background-color: %1; color: %2; }")
-                                  .arg(colour.name(),
-                                       colour.lightnessF() > 0.55 ? "black" : "white"));
-    } else {
-        button->setText("Colour…");
-        button->setStyleSheet({});
-    }
-}
-
 
 } // namespace
 
@@ -150,11 +83,10 @@ FilterCreationDialog::FilterCreationDialog(const FilterDocument& document,
 {
     setWindowTitle(document_.id.isEmpty() ? "New Filter" : "Modify Filter");
     setModal(true);
-    // Fit the screen: the selection needs room, but laptops are short.
-    setMinimumSize(820, 560);
+    setMinimumSize(720, 420);
     if (const QScreen* screen = parent != nullptr ? parent->screen() : QGuiApplication::primaryScreen()) {
         const QRect available = screen->availableGeometry();
-        resize(std::min(1240, available.width() * 9 / 10), std::min(880, available.height() * 9 / 10));
+        resize(std::min(980, available.width() * 9 / 10), std::min(620, available.height() * 9 / 10));
     }
 
     auto* body = new QWidget(this);
@@ -162,522 +94,222 @@ FilterCreationDialog::FilterCreationDialog(const FilterDocument& document,
     body_layout->setContentsMargins(0, 0, 0, 0);
     body_layout->setSpacing(8);
 
-    // Name and description.
-    auto* identity = new QFormLayout();
-    auto* name_edit = new QLineEdit(document_.name, this);
-    auto* description_edit = new QLineEdit(document_.description, this);
-    identity->addRow("Name", name_edit);
-    identity->addRow("Description", description_edit);
+    // Name and description on one line.
+    auto* identity = new QHBoxLayout();
+    auto* name_edit = new QLineEdit(document_.name, body);
+    auto* description_edit = new QLineEdit(document_.description, body);
+    identity->addWidget(new QLabel("Name", body));
+    identity->addWidget(name_edit, 1);
+    identity->addWidget(new QLabel("Description", body));
+    identity->addWidget(description_edit, 2);
     body_layout->addLayout(identity);
-    connect(name_edit, &QLineEdit::textChanged, this,
-            [this](const QString& text) { document_.name = text; });
+    connect(name_edit, &QLineEdit::textChanged, this, [this](const QString& text) {
+        document_.name = text;
+        syncTable(currentLayer());
+    });
     connect(description_edit, &QLineEdit::textChanged, this,
             [this](const QString& text) { document_.description = text; });
 
-    // Layout: the layers in a column on the left; on the right, the editor
-    // of the selected layer (selection above, actions below, resizable).
-    auto* main_split = new QSplitter(Qt::Horizontal, body);
-    body_layout->addWidget(main_split, 1);
+    // The layers, one row each, run from top to bottom.
+    table_ = new QTableWidget(0, kColumnCount, body);
+    table_->setHorizontalHeaderLabels({"#", "Type", "Selection", "Actions"});
+    table_->verticalHeader()->setVisible(false);
+    table_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table_->setSelectionMode(QAbstractItemView::SingleSelection);
+    table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_->setWordWrap(true);
+    auto* header = table_->horizontalHeader();
+    header->setSectionResizeMode(kNumber, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(kType, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(kSelection, QHeaderView::Stretch);
+    header->setSectionResizeMode(kActions, QHeaderView::Stretch);
+    table_->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    body_layout->addWidget(table_, 1);
 
-    // Layer list with ordering buttons. The layers run from top to bottom.
-    auto* layers_box = new QGroupBox("Layers (top to bottom)", main_split);
-    auto* layers_layout = new QVBoxLayout(layers_box);
-    layer_list_ = new QListWidget(layers_box);
-    layer_list_->setWordWrap(true);
-    layer_list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    layers_layout->addWidget(layer_list_, 1);
-    auto* layer_buttons = new QHBoxLayout();
-    auto* add_layer_button = new QPushButton("Add", layers_box);
-    add_layer_button->setToolTip("Add a layer under the selected one");
-    auto* remove_layer_button = new QPushButton("Remove", layers_box);
-    auto* layer_up_button = new QPushButton("\u2191", layers_box);
-    layer_up_button->setToolTip("Move the layer up");
-    auto* layer_down_button = new QPushButton("\u2193", layers_box);
-    layer_down_button->setToolTip("Move the layer down");
-    for (auto* button : {layer_up_button, layer_down_button}) button->setFixedWidth(32);
-    for (auto* button : {add_layer_button, remove_layer_button, layer_up_button, layer_down_button}) {
-        layer_buttons->addWidget(button);
-    }
-    layer_buttons->addStretch(1);
-    layers_layout->addLayout(layer_buttons);
-    main_split->addWidget(layers_box);
+    auto* row_buttons = new QHBoxLayout();
+    auto button = [body, row_buttons](const QString& text, const QString& tip) {
+        auto* b = new QPushButton(text, body);
+        b->setToolTip(tip);
+        row_buttons->addWidget(b);
+        return b;
+    };
+    auto* add = button("+ Add layer", "Add a layer under the selected one");
+    auto* edit = button("Edit…", "Edit the selected layer (or double-click it)");
+    auto* duplicate = button("Duplicate", "Copy the selected layer under it");
+    auto* remove = button("Remove", "Remove the selected layer");
+    auto* up = button("↑", "Move the layer up");
+    auto* down = button("↓", "Move the layer down");
+    up->setFixedWidth(32);
+    down->setFixedWidth(32);
+    row_buttons->addStretch(1);
+    body_layout->addLayout(row_buttons);
 
-    auto* editor_split = new QSplitter(Qt::Vertical, main_split);
-    main_split->addWidget(editor_split);
-    main_split->setStretchFactor(0, 1);
-    main_split->setStretchFactor(1, 4);
-    main_split->setSizes({220, 980});
-
-
-    // The selection of a layer is either an IDS specification (facet list
-    // on the left, the page of the selected facet on the right) or AND
-    // (the same elements as the layer above); the live preview is below.
-    selection_box_ = new QGroupBox("Selection", editor_split);
-    auto* selection_layout = new QVBoxLayout(selection_box_);
-    auto* type_row = new QHBoxLayout();
-    selection_type_combo_ = new QComboBox(selection_box_);
-    selection_type_combo_->addItem("IDS specification");
-    selection_type_combo_->addItem("AND \u2014 same elements as the layer above");
-    selection_type_combo_->setToolTip("AND: this layer's actions apply to the elements of the "
-                                      "layer above, without a selection of its own.");
-    type_row->addWidget(new QLabel("Type", selection_box_));
-    type_row->addWidget(selection_type_combo_);
-    type_row->addStretch(1);
-    selection_layout->addLayout(type_row);
-    selection_stack_ = new QStackedWidget(selection_box_);
-    selection_layout->addWidget(selection_stack_, 1);
-    selection_editor_ = new SelectionEditor(ids_bridge_, ifc_path_, selection_stack_);
-    selection_stack_->addWidget(selection_editor_); // kSpecificationPage
-    auto* and_page = new QLabel("This layer has no selection of its own: its actions apply to the "
-                                "same elements as the layer above.", selection_stack_);
-    and_page->setAlignment(Qt::AlignCenter);
-    and_page->setWordWrap(true);
-    and_page->setProperty("textRole", "secondary");
-    selection_stack_->addWidget(and_page); // kAndPage
-    editor_split->addWidget(selection_box_);
-
-    // The layer's actions: the list (with its buttons) and the parameters
-    // of the selected action.
-    auto* actions_box = new QGroupBox("Actions of the layer", editor_split);
-    auto* actions_layout = new QHBoxLayout(actions_box);
-    auto* action_list_side = new QVBoxLayout();
-    action_list_ = new QListWidget(actions_box);
-    action_list_->setMinimumHeight(48);
-    action_list_side->addWidget(action_list_, 1);
-    auto* action_buttons = new QHBoxLayout();
-    auto* add_action_button = new QPushButton("Add", actions_box);
-    add_action_button->setToolTip("Add an action to this layer");
-    auto* remove_action_button = new QPushButton("Remove", actions_box);
-    action_buttons->addWidget(add_action_button);
-    action_buttons->addWidget(remove_action_button);
-    action_buttons->addStretch(1);
-    action_list_side->addLayout(action_buttons);
-    actions_layout->addLayout(action_list_side, 2);
-
-    action_params_ = new QWidget(actions_box);
-    auto* params_form = new QFormLayout(action_params_);
-    params_form->setContentsMargins(0, 0, 0, 0);
-    action_type_combo_ = new QComboBox(action_params_);
-    // Same order as FilterAction::Type.
-    action_type_combo_->addItems({"Isolate in the view", "Add to the view", "Remove from the view",
-                                  "Apply Color", "Change the transparency",
-                                  "Automatic Color"});
-    params_form->addRow("Action", action_type_combo_);
-
-    auto* params_stack = new QStackedWidget(action_params_);
-    params_stack->addWidget(new QWidget(params_stack)); // kNoParamPage
-    {
-        auto* page = new QWidget(params_stack);
-        auto* form = new QFormLayout(page);
-        form->setContentsMargins(0, 0, 0, 0);
-        colour_button_ = new QPushButton("Colour…", page);
-        colour_button_->setFixedWidth(100);
-        form->addRow("Colour", colour_button_);
-        params_stack->addWidget(page); // kColourPage
-    }
-    {
-        auto* page = new QWidget(params_stack);
-        auto* form = new QFormLayout(page);
-        form->setContentsMargins(0, 0, 0, 0);
-        transparency_spin_ = new QSpinBox(page);
-        transparency_spin_->setRange(0, 100);
-        transparency_spin_->setSuffix("%");
-        form->addRow("Transparency", transparency_spin_);
-        params_stack->addWidget(page); // kTransparencyPage
-    }
-    {
-        auto* page = new QWidget(params_stack);
-        auto* form = new QFormLayout(page);
-        form->setContentsMargins(0, 0, 0, 0);
-        auto_pset_edit_ = new QLineEdit(page);
-        auto_pset_edit_->setPlaceholderText("Pset_WallCommon");
-        auto_property_edit_ = new QLineEdit(page);
-        auto_property_edit_->setPlaceholderText("FireRating");
-        auto* browse = new QPushButton("Browse properties\u2026", page);
-        browse->setToolTip("Search the properties of the model and double-click one to use it");
-        form->addRow("Property set", auto_pset_edit_);
-        form->addRow("Property", auto_property_edit_);
-        form->addRow("", browse);
-        params_stack->addWidget(page); // kAutoColourPage
-        connect(browse, &QPushButton::clicked, this, &FilterCreationDialog::browseAutoColourProperty);
-    }
-    params_form->addRow(params_stack);
-    actions_layout->addWidget(action_params_, 3);
-    editor_split->addWidget(actions_box);
-    editor_split->setStretchFactor(0, 4);
-    editor_split->setStretchFactor(1, 1);
-    editor_split->setChildrenCollapsible(false);
-    main_split->setChildrenCollapsible(false);
+    problems_label_ = new QLabel(body);
+    problems_label_->setWordWrap(true);
+    problems_label_->setProperty("textRole", "secondary");
+    body_layout->addWidget(problems_label_);
 
     addBodyWidget(body);
-
     buttons_ = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons_, &QDialogButtonBox::accepted, this, &FilterCreationDialog::accept);
     connect(buttons_, &QDialogButtonBox::rejected, this, &QDialog::reject);
     addFooterWidget(buttons_);
 
-    connect(selection_editor_, &SelectionEditor::isolateRequested, this, &FilterCreationDialog::isolateRequested);
-    connect(selection_editor_, &SelectionEditor::changed, this, [this]() {
-        storeSelection();
-        syncLayerList();
-    });
-
-    // Layer list wiring.
-    connect(add_layer_button, &QPushButton::clicked, this, [this]() { addLayer(); });
-    connect(remove_layer_button, &QPushButton::clicked, this, [this]() {
-        if (current_layer_ >= 0) removeLayer(current_layer_);
-    });
-    connect(layer_up_button, &QPushButton::clicked, this, [this]() {
-        if (current_layer_ > 0) moveLayer(current_layer_, -1);
-    });
-    connect(layer_down_button, &QPushButton::clicked, this, [this]() {
-        if (current_layer_ >= 0 && current_layer_ < static_cast<int>(layers_.size()) - 1) {
-            moveLayer(current_layer_, +1);
+    connect(add, &QPushButton::clicked, this, &FilterCreationDialog::addLayer);
+    connect(edit, &QPushButton::clicked, this, [this]() {
+        const int index = currentLayer();
+        if (index < 0) return;
+        EditLayer layer = layers_[static_cast<size_t>(index)];
+        if (editLayer(index, layer)) {
+            layers_[static_cast<size_t>(index)] = layer;
+            syncTable(index);
         }
     });
-    connect(layer_list_, &QListWidget::currentRowChanged, this, [this](int row) {
-        storeSelection();
-        loadLayer(row);
-    });
-    connect(selection_type_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-        if (loading_ || current_layer_ < 0) return;
-        const bool own_selection = index == kSpecificationPage;
-        layers_[current_layer_].is_and = !own_selection;
-        if (own_selection && layers_[current_layer_].fields.facets.empty()) {
-            layers_[current_layer_].fields = SelectionEditor::defaultFields();
-        }
-        if (own_selection) selection_editor_->setFields(layers_[current_layer_].fields);
-        updateSelectionEnabled();
-        syncLayerList();
-    });
-
-    // Action wiring.
-    connect(add_action_button, &QPushButton::clicked, this, [this]() { addAction(); });
-    connect(remove_action_button, &QPushButton::clicked, this, [this]() {
-        const int row = action_list_->currentRow();
-        if (row >= 0 && current_layer_ >= 0) removeAction(row);
-    });
-    connect(action_type_combo_, &QComboBox::currentIndexChanged, this, [this, params_stack](int index) {
-        params_stack->setCurrentIndex(pageFor(static_cast<FilterAction::Type>(index)));
-        if (loading_) return;
-        FilterAction* action = currentAction();
-        if (action == nullptr) return;
-        action->type = static_cast<FilterAction::Type>(index);
-        // Sensible defaults so a freshly switched action is never a no-op.
-        if (action->type == FilterAction::Type::Colour && !action->colour.isValid()) {
-            action->colour = QColor(220, 50, 47);
-        }
-        if (action->type == FilterAction::Type::Transparency && action->transparency_percent == 0) {
-            action->transparency_percent = 50;
-        }
-        loadActionParameters(action_list_->currentRow());
-        syncActionListRow(action_list_->currentRow());
-        syncLayerList();
-    });
-    connect(colour_button_, &QPushButton::clicked, this, [this]() {
-        FilterAction* action = currentAction();
-        if (action == nullptr || action->type != FilterAction::Type::Colour) return;
-        const QColor picked = QColorDialog::getColor(action->colour, this, "Pick a colour");
-        if (picked.isValid()) {
-            action->colour = picked;
-            setColourSwatch(colour_button_, picked);
-            syncActionListRow(action_list_->currentRow());
-            syncLayerList();
-        }
-    });
-    connect(transparency_spin_, &QSpinBox::valueChanged, this, [this](int value) {
-        if (loading_) return;
-        FilterAction* action = currentAction();
-        if (action == nullptr || action->type != FilterAction::Type::Transparency) return;
-        action->transparency_percent = value;
-        syncActionListRow(action_list_->currentRow());
-        syncLayerList();
-    });
-    connect(auto_pset_edit_, &QLineEdit::textChanged, this, [this](const QString& text) {
-        if (loading_) return;
-        FilterAction* action = currentAction();
-        if (action == nullptr || action->type != FilterAction::Type::AutoColourByProperty) return;
-        action->pset = text.trimmed();
-        syncActionListRow(action_list_->currentRow());
-        syncLayerList();
-    });
-    connect(auto_property_edit_, &QLineEdit::textChanged, this, [this](const QString& text) {
-        if (loading_) return;
-        FilterAction* action = currentAction();
-        if (action == nullptr || action->type != FilterAction::Type::AutoColourByProperty) return;
-        action->property = text.trimmed();
-        syncActionListRow(action_list_->currentRow());
-        syncLayerList();
-    });
-    connect(action_list_, &QListWidget::currentRowChanged, this, [this](int row) {
-        loadActionParameters(row);
-    });
+    connect(table_, &QTableWidget::cellDoubleClicked, edit, [edit](int, int) { edit->click(); });
+    connect(duplicate, &QPushButton::clicked, this, &FilterCreationDialog::duplicateLayer);
+    connect(remove, &QPushButton::clicked, this, &FilterCreationDialog::removeLayer);
+    connect(up, &QPushButton::clicked, this, [this]() { moveLayer(-1); });
+    connect(down, &QPushButton::clicked, this, [this]() { moveLayer(+1); });
 
     if (layers_.empty()) {
-        EditLayer layer = defaultLayer(false);
+        EditLayer layer = LayerDialog::defaultLayer(false);
         FilterAction action;
         action.type = FilterAction::Type::Isolate;
         layer.actions.push_back(action);
         layers_.push_back(layer);
     }
-    syncLayerList();
-    {
-        const QSignalBlocker blocker(layer_list_);
-        layer_list_->setCurrentRow(0);
-    }
-    loadLayer(0);
+    syncTable(0);
 }
 
-FilterAction* FilterCreationDialog::currentAction() {
-    if (current_layer_ < 0 || current_layer_ >= static_cast<int>(layers_.size())) return nullptr;
-    auto& actions = layers_[current_layer_].actions;
-    const int row = action_list_->currentRow();
-    if (row < 0 || row >= static_cast<int>(actions.size())) return nullptr;
-    return &actions[row];
+int FilterCreationDialog::currentLayer() const {
+    const int row = table_->currentRow();
+    return row >= 0 && row < static_cast<int>(layers_.size()) ? row : -1;
 }
 
-void FilterCreationDialog::syncLayerList() {
-    // Update the labels in place: rebuilding the list would steal the
-    // focus from the field being typed into.
-    const QSignalBlocker blocker(layer_list_);
-    while (layer_list_->count() > static_cast<int>(layers_.size())) {
-        delete layer_list_->takeItem(layer_list_->count() - 1);
-    }
+void FilterCreationDialog::syncTable(int select) {
+    table_->setRowCount(static_cast<int>(layers_.size()));
     for (int i = 0; i < static_cast<int>(layers_.size()); ++i) {
-        const QString label = layerLabel(i, layers_[i]);
-        if (i < layer_list_->count()) {
-            layer_list_->item(i)->setText(label);
-        } else {
-            layer_list_->addItem(label);
-        }
-    }
-}
-
-void FilterCreationDialog::syncActionListRow(int row) {
-    if (current_layer_ < 0) return;
-    if (row >= 0 && row < action_list_->count()) {
-        action_list_->item(row)->setText(actionLabel(layers_[current_layer_].actions[row]));
-    }
-}
-
-void FilterCreationDialog::loadLayer(int index) {
-    const bool valid = index >= 0 && index < static_cast<int>(layers_.size());
-    current_layer_ = valid ? index : -1;
-    selection_editor_->setFields(valid ? layers_[index].fields : IdsBridge::SelectionFields{});
-
-    {
-        const QSignalBlocker blocker(action_list_);
-        action_list_->clear();
-        if (valid) {
-            for (const auto& action : layers_[index].actions) {
-                action_list_->addItem(actionLabel(action));
+        const EditLayer& layer = layers_[static_cast<size_t>(i)];
+        auto set = [this, i](int column, const QString& text) {
+            auto* item = table_->item(i, column);
+            if (item == nullptr) {
+                item = new QTableWidgetItem();
+                table_->setItem(i, column, item);
             }
-        }
+            item->setText(text);
+            return item;
+        };
+        set(kNumber, QString::number(i + 1));
+        set(kType, layer.is_and ? "AND" : "Select");
+        set(kSelection, selectionSummary(i, layer));
+        set(kActions, actionsSummary(layer))->setIcon(actionsIcon(layer));
     }
-    if (action_list_->count() > 0) {
-        action_list_->setCurrentRow(0);
+    if (select >= 0 && select < table_->rowCount()) table_->selectRow(select);
+
+    bool blocking = false;
+    const QStringList list = problems(&blocking);
+    problems_label_->setText(list.isEmpty() ? QString() : "⚠ " + list.join("\n⚠ "));
+    problems_label_->setVisible(!list.isEmpty());
+}
+
+QStringList FilterCreationDialog::problems(bool* blocking) const {
+    QStringList list;
+    bool block = false;
+    if (document_.name.trimmed().isEmpty()) {
+        list << "The filter needs a name.";
+        block = true;
     }
-    loadActionParameters(action_list_->currentRow());
-    updateSelectionEnabled();
-}
-
-void FilterCreationDialog::storeSelection() {
-    if (current_layer_ < 0 || current_layer_ >= static_cast<int>(layers_.size())) return;
-    if (layers_[current_layer_].is_and) return; // the editor holds no selection of this layer
-    layers_[current_layer_].fields = selection_editor_->fields();
-}
-
-void FilterCreationDialog::updateSelectionEnabled() {
-    const bool valid = current_layer_ >= 0;
-    const bool is_and = valid && layers_[current_layer_].is_and;
-    loading_ = true;
-    selection_box_->setEnabled(valid);
-    // The first layer has nothing above it to reuse.
-    if (auto* model = qobject_cast<QStandardItemModel*>(selection_type_combo_->model())) {
-        model->item(kAndPage)->setEnabled(valid && (current_layer_ > 0 || is_and));
-    }
-    selection_type_combo_->setCurrentIndex(is_and ? kAndPage : kSpecificationPage);
-    selection_stack_->setCurrentIndex(is_and ? kAndPage : kSpecificationPage);
-    loading_ = false;
-}
-
-// ---------------------------------------------------------------------------
-// Actions
-// ---------------------------------------------------------------------------
-
-void FilterCreationDialog::loadActionParameters(int row) {
-    FilterAction* action = (row >= 0) ? currentAction() : nullptr;
-    loading_ = true;
-    action_params_->setEnabled(action != nullptr);
-    if (action != nullptr) {
-        action_type_combo_->setCurrentIndex(static_cast<int>(action->type));
-        setColourSwatch(colour_button_, action->colour);
-        transparency_spin_->setValue(action->transparency_percent);
-        auto_pset_edit_->setText(action->pset);
-        auto_property_edit_->setText(action->property);
-    }
-    loading_ = false;
-}
-
-void FilterCreationDialog::addLayer() {
-    storeSelection();
-    // Insert after the selected layer.
-    const int at = current_layer_ >= 0 ? current_layer_ + 1 : static_cast<int>(layers_.size());
-    layers_.insert(layers_.begin() + at, defaultLayer(false));
-    current_layer_ = -1; // indices shifted: nothing to store on the row change
-    syncLayerList();
-    layer_list_->setCurrentRow(at);
-}
-
-void FilterCreationDialog::removeLayer(int index) {
-    if (index < 0 || index >= static_cast<int>(layers_.size())) return;
-    layers_.erase(layers_.begin() + index);
-    current_layer_ = -1;
-    syncLayerList();
-    if (!layers_.empty()) {
-        const int next = std::min(index, static_cast<int>(layers_.size()) - 1);
-        {
-            const QSignalBlocker blocker(layer_list_);
-            layer_list_->setCurrentRow(next);
-        }
-        loadLayer(next);
-    } else {
-        loadLayer(-1);
-    }
-}
-
-void FilterCreationDialog::moveLayer(int index, int direction) {
-    const int target = index + direction;
-    if (index < 0 || target < 0 || target >= static_cast<int>(layers_.size())) return;
-    storeSelection();
-    std::swap(layers_[index], layers_[target]);
-    current_layer_ = -1;
-    syncLayerList();
-    {
-        const QSignalBlocker blocker(layer_list_);
-        layer_list_->setCurrentRow(target);
-    }
-    loadLayer(target);
-}
-
-void FilterCreationDialog::addAction() {
-    if (current_layer_ < 0) return;
-    FilterAction action;
-    action.type = FilterAction::Type::Isolate;
-    layers_[current_layer_].actions.push_back(action);
-    action_list_->addItem(actionLabel(action));
-    action_list_->setCurrentRow(action_list_->count() - 1);
-    syncLayerList();
-}
-
-void FilterCreationDialog::removeAction(int index) {
-    if (current_layer_ < 0) return;
-    auto& actions = layers_[current_layer_].actions;
-    if (index < 0 || index >= static_cast<int>(actions.size())) return;
-    actions.erase(actions.begin() + index);
-    {
-        const QSignalBlocker blocker(action_list_);
-        delete action_list_->takeItem(index);
-    }
-    loadActionParameters(action_list_->currentRow());
-    syncLayerList();
-}
-
-void FilterCreationDialog::browseAutoColourProperty() {
-    const QString path = ifc_path_ ? ifc_path_() : QString();
-    if (path.isEmpty()) {
-        services::popup::information(this, "No model loaded: type the property set and the property.");
-        return;
-    }
-    // Every product of the model: the colour applies to whatever the layer
-    // selected, so the picker is not limited to one class.
-    IdsFacet all = IdsFacet::entity("IfcProduct");
-    all.include_subtypes = true;
-    QPointer<FilterCreationDialog> guard(this);
-    ids_bridge_.properties(path, all, [this, guard](bool ok, const IdsBridge::PropertyMap& psets,
-                                                    const IdsBridge::SampleMap& samples, const QString& error) {
-        if (guard.isNull()) return;
-        if (!ok) {
-            services::popup::information(this, error);
-            return;
-        }
-        auto* picker = new property_selection::PropertyPicker(psets, samples, "Properties found on the products of the active model.",
-                                          this);
-        picker->setAttribute(Qt::WA_DeleteOnClose);
-        connect(picker, &property_selection::PropertyPicker::picked, this, [this](const QString& pset, const QString& property) {
-            // The line edits write the action back (see their connections).
-            auto_pset_edit_->setText(pset);
-            auto_property_edit_->setText(property);
-        });
-        picker->open();
-    });
-}
-
-// ---------------------------------------------------------------------------
-// Accept
-// ---------------------------------------------------------------------------
-
-bool FilterCreationDialog::validate() {
-    storeSelection();
-    const auto fail = [this](int layer, const QString& message) {
-        services::popup::information(this, message);
-        if (layer >= 0) layer_list_->setCurrentRow(layer);
-        return false;
-    };
-    if (document_.name.trimmed().isEmpty()) return fail(-1, "The filter needs a name.");
-    if (layers_.empty()) return fail(-1, "The filter needs at least one layer.");
-    if (layers_.front().is_and) {
-        return fail(0, "The first layer cannot be an AND layer: there is no selection above it to reuse.");
+    if (layers_.empty()) {
+        list << "The filter needs at least one layer.";
+        block = true;
+    } else if (layers_.front().is_and) {
+        list << "Layer 1: the first layer cannot be an AND layer.";
+        block = true;
     }
     bool any_action = false;
     for (int i = 0; i < static_cast<int>(layers_.size()); ++i) {
-        const EditLayer& layer = layers_[i];
+        const EditLayer& layer = layers_[static_cast<size_t>(i)];
         any_action = any_action || !layer.actions.empty();
-        if (layer.is_and) continue;
-        if (const QString error = SelectionEditor::validationError(layer.fields); !error.isEmpty()) {
-            return fail(i, QString("Layer %1: %2.").arg(i + 1).arg(error));
-        }
-        for (const auto& action : layer.actions) {
-            if (action.type == FilterAction::Type::AutoColourByProperty &&
-                (action.pset.isEmpty() || action.property.isEmpty())) {
-                return fail(i, QString("Layer %1: the automatic colour needs a property set and a "
-                                       "property.").arg(i + 1));
-            }
+        if (const QString error = LayerDialog::validationError(layer); !error.isEmpty()) {
+            list << QString("Layer %1: %2.").arg(i + 1).arg(error);
+            block = true;
         }
     }
-    if (!any_action) return fail(-1, "No layer has an action: the filter would do nothing.");
-
-    // Non blocking: selection layers whose elements no later action uses
-    // (they wait for an action layer that never comes).
+    if (!layers_.empty() && !any_action) {
+        list << "No layer has an action: the filter would do nothing.";
+        block = true;
+    }
+    // Non blocking: selection layers whose elements no later action uses.
     QStringList unused;
     for (int i = 0; i < static_cast<int>(layers_.size()); ++i) {
-        if (!layers_[i].actions.empty()) {
+        if (!layers_[static_cast<size_t>(i)].actions.empty()) {
             unused.clear();
-        } else if (!layers_[i].is_and) {
+        } else if (!layers_[static_cast<size_t>(i)].is_and) {
             unused << QString::number(i + 1);
         }
     }
     if (!unused.isEmpty()) {
-        services::popup::information(
-            this, QString("Layer(s) %1 have no action and no action layer follows them: they will "
-                          "do nothing. The filter is saved anyway.").arg(unused.join(", ")));
+        list << QString("Layer(s) %1: no action and no action layer after them, they do nothing.")
+                    .arg(unused.join(", "));
     }
+    if (blocking != nullptr) *blocking = block;
+    return list;
+}
+
+bool FilterCreationDialog::editLayer(int index, EditLayer& layer) {
+    LayerDialog dialog(index, layer, ids_bridge_, ifc_path_, this);
+    connect(&dialog, &LayerDialog::isolateRequested, this, &FilterCreationDialog::isolateRequested);
+    if (dialog.exec() != QDialog::Accepted) return false;
+    layer = dialog.layer();
     return true;
 }
 
+void FilterCreationDialog::addLayer() {
+    const int at = currentLayer() >= 0 ? currentLayer() + 1 : static_cast<int>(layers_.size());
+    EditLayer layer = LayerDialog::defaultLayer(false);
+    if (!editLayer(at, layer)) return;
+    layers_.insert(layers_.begin() + at, layer);
+    syncTable(at);
+}
+
+void FilterCreationDialog::duplicateLayer() {
+    const int index = currentLayer();
+    if (index < 0) return;
+    layers_.insert(layers_.begin() + index + 1, layers_[static_cast<size_t>(index)]);
+    syncTable(index + 1);
+}
+
+void FilterCreationDialog::removeLayer() {
+    const int index = currentLayer();
+    if (index < 0) return;
+    layers_.erase(layers_.begin() + index);
+    syncTable(std::min(index, static_cast<int>(layers_.size()) - 1));
+}
+
+void FilterCreationDialog::moveLayer(int direction) {
+    const int index = currentLayer();
+    const int target = index + direction;
+    if (index < 0 || target < 0 || target >= static_cast<int>(layers_.size())) return;
+    std::swap(layers_[static_cast<size_t>(index)], layers_[static_cast<size_t>(target)]);
+    syncTable(target);
+}
+
 void FilterCreationDialog::accept() {
+    bool blocking = false;
+    const QStringList list = problems(&blocking);
+    if (blocking) {
+        services::popup::information(this, list.join("\n"));
+        return;
+    }
     // Serialise every selection layer to canonical IDS XML through the
-    // bridge (IfcTester builds the document); AND layers carry no XML.
-    if (!validate()) return;
+    // bridge; AND layers carry no XML.
     built_xml_.assign(layers_.size(), QString());
     buttons_->setEnabled(false);
     buildNextLayer(0);
 }
 
 void FilterCreationDialog::buildNextLayer(size_t index) {
-    while (index < layers_.size() && layers_[index].is_and) {
-        ++index;
-    }
+    while (index < layers_.size() && layers_[index].is_and) ++index;
     if (index >= layers_.size()) {
         FilterDocument document = document_;
         document.name = document.name.trimmed();
@@ -697,14 +329,13 @@ void FilterCreationDialog::buildNextLayer(size_t index) {
     // Name the specification after the filter and the layer, so the IDS
     // stays readable when opened in another tool.
     const QString spec_name = QString("%1 — layer %2").arg(document_.name.trimmed()).arg(index + 1);
-    // The window may be closed while IfcTester builds the document.
     QPointer<FilterCreationDialog> guard(this);
     ids_bridge_.build(spec_name, layers_[index].fields,
                       [this, guard, index](bool ok, const QString& ids_xml, const QString& error) {
         if (guard.isNull()) return;
         if (!ok) {
             buttons_->setEnabled(true);
-            layer_list_->setCurrentRow(static_cast<int>(index));
+            table_->selectRow(static_cast<int>(index));
             services::popup::information(this, QString("Layer %1: %2").arg(index + 1)
                 .arg(error.isEmpty() ? "the IDS engine failed" : error));
             return;

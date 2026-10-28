@@ -26,7 +26,7 @@ Context menus (right click):
 |----|-------|
 | Empty space | Add Folder, Add Filter, Import Filters…, Export All Filters… |
 | A folder | Add Folder, Add Filter, Rename…, Delete (with confirmation), Import Filters Here… |
-| A filter | Run, Run on the Box, Modify…, Export…, Delete (with confirmation) |
+| A filter | Run, Run on the Box, Modify…, Export…,Duplicate Delete (with confirmation) |
 
 ### Save and share
 
@@ -51,11 +51,18 @@ The selections are evaluated in the viewer by the C++ port of IfcTester (`ports/
 
 **Add Filter** and **Modify…** open the creation window. It holds:
 
-- a **name** (required) and a **description**;
-- on the left, the **layers** (run from top to bottom), with Add, Remove, Up and Down;
-- on the right, the **selected layer**: its **Selection** above, its **Actions** below (the separator can be moved).
+- a **name** (required) and a **description**, on one line;
+- the **layers** in a summary table, one row per layer, run from top to bottom: **#**, **Type** (Select / AND), **Selection** (the facets in one line, or "reuses layers 1–N"), **Actions** (with a swatch of the first colour). Nothing is edited in the table;
+- the buttons **+ Add layer**, **Edit…**, **Duplicate**, **Remove**, **↑**, **↓**. Double-click a row = Edit…;
+- under the table, the **problems** of the filter (⚠ lines, with the layer number), updated as the layers change.
 
-The window adapts to the screen size.
+A layer is edited in its own window, **Layer N**, opened by Edit… or a double-click, and by + Add layer for a new layer (inserted under the selected one when OK is pressed). Three steps from top to bottom:
+
+1. **Type**: New selection, or AND (reuse the elements of the layers above; not available on the first layer). With AND, the selection shows "uses layers 1–N".
+2. **Selection**: the facets and the live preview (below).
+3. **Actions (run in this order)**: one row per action with its parameters on the row (colour swatch, transparency %, property set . property with Browse…), and ↑ ↓ ✕. **+ Action** adds an action from a menu.
+
+OK checks the layer (selection complete, automatic colour with a property); Cancel drops the changes of this layer only. Both windows adapt to the screen size.
 
 #### Selection of a layer
 
@@ -111,11 +118,11 @@ Below the selection, the preview counts the elements the layer selects in the ac
 
 #### Actions of a layer
 
-A layer has zero, one or several actions, applied in order. Selecting an action shows its parameters (colour, transparency, property). Several actions can be added to the same layer, so "isolate" and "colour" can be done in one layer.
+A layer has zero, one or several actions, applied in order, each one a row of the Layer window with its parameters. Several actions can be added to the same layer, so "isolate" and "colour" can be done in one layer.
 
 #### Saving
 
-The filter is checked before it is saved:
+The filter is checked before it is saved (the same problems are listed live under the layer table):
 
 - blocking: no name, no layer, a first layer of type AND, no entity class, an incomplete field (empty list, pattern, range or length), a property facet without property set or property, an automatic colour without property, no action in the whole filter;
 - warning only: layers whose selection no later action uses (they do nothing).
@@ -148,7 +155,7 @@ Example (the view starts empty):
 - **Remove from the view**
 - **Apply Color**: adds the elements to the view, then paints them like the Paint bucket of the ribbon (same colour, removed by Remove Color).
 - **Change the transparency**: a percentage of transparency: 0 % = opaque, 100 % = invisible (30 % leaves the elements 70 % opaque). A base transparency of the model (for example windows) is kept.
-- **Automatic Color**: adds the elements to the view, then each distinct value of the chosen property gets its own colour (elements without the property are grey). The property can be chosen with **Browse properties…**, on all the loaded models.
+- **Automatic Color**: adds the elements to the view, then each distinct value of the chosen property gets its own colour (elements without the property are grey). The property can be chosen with **Browse properties…**, on all the loaded models. A temporary table "Colour by <property>" opens in the Table panel (shown if hidden) with the values, their counts and their colours, as « Colour by property » of the Properties panel (BonsaiViewer14).
 - **Activate/Deactivate**: once activated, the elements are always displayed. Their colour and selection cannot be modified.
 
 ### Filter file format
@@ -173,7 +180,7 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 - Entity: exact class or with subtypes, PredefinedType (inherited from the type);
 - Property: property set and property inherited from the type, cardinality required / optional / prohibited;
 - Values: simple, enumeration, XSD pattern, range, length, data type, conversion to SI units like IfcTester.
-
+metre
 The Python worker is no longer used; Step A only applied to it.
 
 ## Open Subject
@@ -186,6 +193,31 @@ The Python worker is no longer used; Step A only applied to it.
 - Performance step B: C++ selection engine (see Performance).
 
 
+@TODO
+For Automatic colour, we need to be able to select relation
+Model Name
+Level Name
+System name
+Material
+All the things we can found in Relation.
+
+
+@TODO
+Layer 2: unknown IFC class: IFCCABLECARRIERSEGMENT
+It should display if it doesn't know but it should be blocked.
+
+
+@TODO
+The automatic coulour doesn't create a table anymore. It need to be fixed
+
 
 @TODO, Always acivate filter, to color element everytime.
-@TODO Clean the window, it's not clear enough, and some panel are always showing, it's messy.
+If the action Add to the view, and isolate are in the filter. We can not activate the filter.
+
+
+
+@TODO Clean the window, it's not clear enough, and some panel are always showing, it's messy. 
+
+
+
+@TODO Add Duplicate function

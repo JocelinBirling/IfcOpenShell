@@ -115,6 +115,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/CreationDialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/CreationDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/LayerDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/LayerDialog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetPages.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetPages.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/FacetClipboard.cpp

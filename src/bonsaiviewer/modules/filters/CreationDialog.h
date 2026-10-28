@@ -13,8 +13,7 @@
 #ifndef IFCINTERFACE_MODULES_FILTERS_CREATIONDIALOG_H
 #define IFCINTERFACE_MODULES_FILTERS_CREATIONDIALOG_H
 
-#include "FacetPages.h"
-#include "SelectionEditor.h"
+#include "LayerDialog.h"
 
 #include "../../components/Dialog.h"
 #include "../../services/FilterStore.h"
@@ -22,45 +21,25 @@
 
 #include <vector>
 
-class QListWidget;
-class QCheckBox;
-class QComboBox;
 class QDialogButtonBox;
-class QGroupBox;
 class QLabel;
-class QLineEdit;
-class QPushButton;
-class QSpinBox;
-class QStackedWidget;
-class QTimer;
-class QToolButton;
+class QTableWidget;
 
 namespace bonsaiviewer::modules::filters {
 
-// B06 — the Filter Creation Window: name, description and the layers,
-// each with its selection (an IDS specification, or an AND marker) and its
-// action list.
+// B06 — the Filter Creation Window (New / Modify Filter): name,
+// description and the layers in a summary table, one row per layer (type,
+// selection in one line, actions). A layer is edited in its own window
+// (LayerDialog): double-click or Edit. The problems of the filter are
+// listed under the table as they appear.
 //
-// The selection of a layer is a list of IDS facets: exactly one entity
-// facet plus any number of property facets. Selecting a facet in the list
-// shows the configuration page of its type (FacetPages), whose lists come
-// from the schema and the active model. A live preview counts the
-// elements the layer selects in the active model and can isolate them in
-// the view.
-//
-// The dialog edits facets, not XML; on accept it asks the IdsBridge to
-// serialise every selection layer to canonical IDS XML (built by
-// IfcTester) and only then emits documentReady.
+// On accept the dialog asks the IdsBridge to serialise every selection
+// layer to canonical IDS XML and only then emits documentReady.
 class FilterCreationDialog : public components::Dialog {
     Q_OBJECT
 
 public:
-    // The layer as edited here; is_and layers have no facets.
-    struct EditLayer {
-        bool is_and = false;
-        bonsaiviewer::services::IdsBridge::SelectionFields fields;
-        std::vector<bonsaiviewer::services::FilterAction> actions;
-    };
+    using EditLayer = FilterEditLayer;
 
     // `document` carries the id (Modify) or none (New); `layers` holds the
     // pre-parsed facets of each layer for Modify, or is empty.
@@ -73,53 +52,31 @@ public:
 signals:
     // Emitted once every selection layer has been serialised to IDS XML.
     void documentReady(const bonsaiviewer::services::FilterDocument& document);
-    // "Isolate in the view" of the preview: EXPRESS ids of the active model.
+    // "Isolate in the view" of a layer's preview: EXPRESS ids of the active model.
     void isolateRequested(const std::vector<int>& express_ids);
 
 private:
     void accept() override;
-    bool validate();
-    void syncLayerList();
-    void syncActionListRow(int row);
-    void loadLayer(int index);
-    void updateSelectionEnabled();
+    // Blocking problems (the filter cannot be saved), then warnings.
+    QStringList problems(bool* blocking = nullptr) const;
+    void syncTable(int select);
+    int currentLayer() const;
+    // Opens the layer window; true when the user accepted it.
+    bool editLayer(int index, EditLayer& layer);
     void addLayer();
-    void removeLayer(int index);
-    void moveLayer(int index, int direction);
-    void addAction();
-    void removeAction(int index);
-    void loadActionParameters(int row);
-    void browseAutoColourProperty();
+    void duplicateLayer();
+    void removeLayer();
+    void moveLayer(int direction);
     void buildNextLayer(size_t index);
-    bonsaiviewer::services::FilterAction* currentAction();
-
-    // Writes the selection editor back into the current layer.
-    void storeSelection();
 
     bonsaiviewer::services::FilterDocument document_;
     std::vector<EditLayer> layers_;
     bonsaiviewer::services::IdsBridge& ids_bridge_;
     IfcPathProvider ifc_path_;
 
-    QListWidget* layer_list_ = nullptr;
-    QListWidget* action_list_ = nullptr;
-    QGroupBox* selection_box_ = nullptr;
-    QComboBox* selection_type_combo_ = nullptr; // IDS specification / AND
-    QStackedWidget* selection_stack_ = nullptr;
-
-    SelectionEditor* selection_editor_ = nullptr;
-
-    QComboBox* action_type_combo_ = nullptr;
-    QPushButton* colour_button_ = nullptr;
-    QSpinBox* transparency_spin_ = nullptr;
-    QLineEdit* auto_pset_edit_ = nullptr;
-    QLineEdit* auto_property_edit_ = nullptr;
-    QWidget* action_params_ = nullptr;
+    QTableWidget* table_ = nullptr;
+    QLabel* problems_label_ = nullptr;
     QDialogButtonBox* buttons_ = nullptr;
-    int current_layer_ = -1;
-    // True while the editor widgets are being filled from the model, so
-    // their change signals do not write back.
-    bool loading_ = false;
     std::vector<QString> built_xml_;
 };
 
