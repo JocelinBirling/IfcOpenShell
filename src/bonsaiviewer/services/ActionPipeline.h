@@ -25,6 +25,10 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
+#include <string>
+#include <utility>
+#include <unordered_map>
 #include <vector>
 
 namespace bonsaiviewer::services {
@@ -67,8 +71,16 @@ public:
     void transparency(const std::vector<std::uint32_t>& ids, int percent);
 
     // One generated colour per distinct value of pset.property; groups
-    // without the property share a neutral grey.
-    void autoColourByProperty(const std::vector<std::uint32_t>& ids,
+    // without the property share a neutral grey. Returns the colour given to
+    // each element (B06: shown in the temporary table).
+    // Same, on values already read: one entry per element, nullopt when the
+    // element has no value.
+    using ElementValues = std::vector<std::pair<std::uint32_t, std::optional<std::string>>>;
+    std::unordered_map<std::uint32_t, QColor> autoColourByValues(const ElementValues& values);
+    // pset.property of each element (property sets, then quantity sets).
+    ElementValues readValues(const std::vector<std::uint32_t>& ids, const std::string& pset,
+                             const std::string& property) const;
+    std::unordered_map<std::uint32_t, QColor> autoColourByProperty(const std::vector<std::uint32_t>& ids,
                               const std::string& pset,
                               const std::string& property);
 

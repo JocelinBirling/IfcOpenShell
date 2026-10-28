@@ -13,11 +13,14 @@
 #ifndef IFCINTERFACE_SERVICES_FILTERRUNNER_H
 #define IFCINTERFACE_SERVICES_FILTERRUNNER_H
 
+#include "ActionPipeline.h"
 #include "FilterStore.h"
 
+#include <QColor>
 #include <QObject>
 #include <QString>
 
+#include <cstdint>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -91,6 +94,10 @@ public:
 signals:
     void progress(const QString& stage);
     void finished(bool ok, const QString& summary);
+    // An Automatic Color action ran (B06): the shell shows its temporary table.
+    void autoColoured(const QString& pset, const QString& property,
+                      const std::vector<std::uint32_t>& ids,
+                      const std::unordered_map<std::uint32_t, QColor>& colours);
 
 private:
     // One loaded model the filter runs on.
@@ -105,6 +112,20 @@ private:
     void finishLayer();
     void fail(const QString& error);
     void applyActions(const FilterLayer& layer, const std::vector<int>& express_ids);
+    // Automatic Color: the values collected on every model of the run,
+    // coloured at the end of the run; returns a summary for `finished`.
+    struct AutoColourRun {
+        QString pset;
+        QString property;
+        ActionPipeline::ElementValues values;
+    };
+    std::vector<AutoColourRun> auto_colour_runs_;
+    QString colourAutoColourRuns();
+    // Automatic Color: pset.property of each selected element, read in the
+    // selection's file. nullopt when that file is not available.
+    std::optional<ActionPipeline::ElementValues> propertyValues(const std::vector<int>& express_ids,
+                                                                const std::string& pset,
+                                                                const std::string& property);
 
     SessionState& session_;
     IdsBridge& ids_bridge_;

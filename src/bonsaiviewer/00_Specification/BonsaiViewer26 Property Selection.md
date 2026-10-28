@@ -97,5 +97,3 @@ proposed the same way, with their element counts.
 
 ## Open Subject
 
-- Use the property field in the filter property facet and in the automatic
-  colour action (06).

@@ -26,7 +26,7 @@ Context menus (right click):
 |----|-------|
 | Empty space | Add Folder, Add Filter, Import Filters…, Export All Filters… |
 | A folder | Add Folder, Add Filter, Rename…, Delete (with confirmation), Import Filters Here… |
-| A filter | Run, Run on the Box, Modify…, Export…,Duplicate Delete (with confirmation) |
+| A filter | Run, Run on the Box, Modify…, Export…, Delete (with confirmation) |
 
 ### Save and share
 
@@ -173,7 +173,7 @@ The envelope itself is a simple proprietary JSON; only the specifications it con
 - Entity: exact class or with subtypes, PredefinedType (inherited from the type);
 - Property: property set and property inherited from the type, cardinality required / optional / prohibited;
 - Values: simple, enumeration, XSD pattern, range, length, data type, conversion to SI units like IfcTester.
-metre
+
 The Python worker is no longer used; Step A only applied to it.
 
 ## Open Subject
@@ -186,31 +186,6 @@ The Python worker is no longer used; Step A only applied to it.
 - Performance step B: C++ selection engine (see Performance).
 
 
-@TODO
-For Automatic colour, we need to be able to select relation
-Model Name
-Level Name
-System name
-Material
-All the things we can found in Relation.
-
-
-@TODO
-Layer 2: unknown IFC class: IFCCABLECARRIERSEGMENT
-It should display if it doesn't know but it should be blocked.
-
-
-@TODO
-The automatic coulour doesn't create a table anymore. It need to be fixed
-
 
 @TODO, Always acivate filter, to color element everytime.
-If the action Add to the view, and isolate are in the filter. We can not activate the filter.
-
-
-
-@TODO Clean the window, it's not clear enough, and some panel are always showing, it's messy. 
-
-
-
-@TODO Add Duplicate function
+@TODO Clean the window, it's not clear enough, and some panel are always showing, it's messy.

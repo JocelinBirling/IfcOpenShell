@@ -29,4 +29,3 @@ At the top left of the panel, a function resets the view and removes all the dis
 - **Placement**: bottom dock, in the same tab group as the Table panel.
 
 ## Open Subject
--If we click on an IfcElement, we can ask to display it. 

@@ -21,10 +21,13 @@
 
 #include "../../ifcviewer/SceneLoader.h"
 
+#include "pset.h"
+
 #include <QFileInfo>
 #include <QHash>
 
 #include <algorithm>
+#include <sstream>
 #include <unordered_set>
 
 namespace bonsaiviewer::services {
@@ -124,6 +127,7 @@ bool FilterRunner::run(const FilterDocument& document, Scope scope) {
     view_cleared_ = false;
     layers_executed_ = 0;
     kept_ids_.clear();
+    auto_colour_runs_.clear();
     target_shown_.clear();
     running_ = true;
     if (undo_) undo_->setSuspended(true);
@@ -159,11 +163,13 @@ void FilterRunner::step() {
             return;
         }
         running_ = false;
+        const QString auto_colour = colourAutoColourRuns();
         if (undo_) undo_->setSuspended(false);
-        emit finished(true, QString("%1 layer(s) run on %2 model(s), %3 element(s) affected")
+        emit finished(true, QString("%1 layer(s) run on %2 model(s), %3 element(s) affected%4")
                                 .arg(layers_executed_)
                                 .arg(targets_.size())
-                                .arg(actioned_elements_));
+                                .arg(actioned_elements_)
+                                .arg(auto_colour));
         return;
     }
     const FilterLayer& layer = document_.layers[layer_index_];
@@ -223,6 +229,58 @@ void FilterRunner::fail(const QString& error) {
                              .arg(error));
 }
 
+QString FilterRunner::colourAutoColourRuns() {
+    QString summary;
+    for (const AutoColourRun& run : auto_colour_runs_) {
+        const auto colours = pipeline_.autoColourByValues(run.values);
+        std::vector<std::uint32_t> ids;
+        ids.reserve(run.values.size());
+        std::size_t found = 0;
+        for (const auto& [id, value] : run.values) {
+            ids.push_back(id);
+            if (value) ++found;
+        }
+        emit autoColoured(run.pset, run.property, ids, colours);
+        summary += QString("; Automatic Color %1.%2: %3 of %4 element(s) with a value")
+                       .arg(run.pset, run.property)
+                       .arg(static_cast<qulonglong>(found))
+                       .arg(static_cast<qulonglong>(ids.size()));
+    }
+    auto_colour_runs_.clear();
+    return summary;
+}
+
+std::optional<ActionPipeline::ElementValues> FilterRunner::propertyValues(
+    const std::vector<int>& express_ids, const std::string& pset, const std::string& property) {
+    if (target_index_ >= targets_.size()) return std::nullopt;
+    ifcopenshell::file* file = ids_bridge_.file(targets_[target_index_].ifc_path);
+    if (file == nullptr) return std::nullopt;
+    auto find = [&pset, &property](const element_properties& sets) -> std::optional<std::string> {
+        const auto set = sets.find(pset);
+        if (set == sets.end()) return std::nullopt;
+        const auto value = set->second.find(property);
+        if (value == set->second.end() || property == "id") return std::nullopt;
+        std::ostringstream formatted;
+        formatted << value->second;
+        return formatted.str();
+    };
+    ActionPipeline::ElementValues values;
+    values.reserve(express_ids.size());
+    for (int express_id : express_ids) {
+        const auto object = object_id_by_ifc_id_.find(express_id);
+        if (object == object_id_by_ifc_id_.end()) continue;
+        std::optional<std::string> value;
+        try {
+            const express::base element = file->instance_by_id(express_id);
+            value = find(get_psets(element, /*psets_only=*/true));
+            if (!value) value = find(get_psets(element, /*psets_only=*/false, /*qtos_only=*/true));
+        } catch (...) {
+        }
+        values.emplace_back(object->second, std::move(value));
+    }
+    return values;
+}
+
 void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>& express_ids) {
     // EXPRESS ids -> the session's object ids (map built once per model).
     std::vector<uint32_t> object_ids;
@@ -278,10 +336,26 @@ void FilterRunner::applyActions(const FilterLayer& layer, const std::vector<int>
             // Show the elements, then colour them.
             pipeline_.run(object_ids, ActionPipeline::Action::AddToView);
             target_shown_.insert(target_shown_.end(), object_ids.begin(), object_ids.end());
-            pipeline_.autoColourByProperty(object_ids,
-                                           action.pset.toStdString(),
-                                           action.property.toStdString());
+        {
+            // The values are read in the file the selection ran on (always
+            // open), else in the viewer's file. The colours are given at the
+            // end of the run, on every model at once, so that one value has
+            // one colour across the models (see colourAutoColourRuns).
+            const std::string pset = action.pset.toStdString();
+            const std::string property = action.property.toStdString();
+            auto values = propertyValues(express_ids, pset, property);
+            if (!values) values = pipeline_.readValues(object_ids, pset, property);
+            auto run = std::find_if(auto_colour_runs_.begin(), auto_colour_runs_.end(),
+                                    [&action](const AutoColourRun& r) {
+                                        return r.pset == action.pset && r.property == action.property;
+                                    });
+            if (run == auto_colour_runs_.end()) {
+                auto_colour_runs_.push_back({action.pset, action.property, {}});
+                run = std::prev(auto_colour_runs_.end());
+            }
+            run->values.insert(run->values.end(), values->begin(), values->end());
             break;
+        }
         }
     }
 }

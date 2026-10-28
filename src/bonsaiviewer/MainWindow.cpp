@@ -1208,6 +1208,26 @@ void MainWindow::setupLoader() {
         table_panel_, *session_state_, *ids_bridge_, *data_access_, *property_catalog_,
         *selection_service_, *action_pipeline_, *table_store_, *appearance_service_, *entity_set_store_, this);
     tables_view_ = new modules::table::TablesView(tables_panel_, *table_store_, this);
+    // B06 Automatic Color: the values, counts and colours in a temporary table,
+    // as "Colour by property" does in the Properties panel.
+    connect(filter_runner_, &bonsaiviewer::services::FilterRunner::autoColoured, this,
+            [this](const QString& pset, const QString& property, const std::vector<std::uint32_t>& ids,
+                   const std::unordered_map<std::uint32_t, QColor>& colours) {
+                modules::table::TableColumn value_column;
+                value_column.kind = modules::table::TableColumn::Kind::Property;
+                value_column.pset = pset;
+                value_column.property = property;
+                value_column.group_key = true;
+                modules::table::TableColumn count_column;
+                count_column.kind = modules::table::TableColumn::Kind::Count;
+                modules::table::TableColumn color_column;
+                color_column.kind = modules::table::TableColumn::Kind::Color;
+                table_view_->showTemporaryTable(QString("Colour by %1").arg(property),
+                                                {value_column, count_column, color_column}, ids, colours);
+                // The Table panel is hidden in the Filter workspace: show it.
+                panel_manager_->setPanelVisible(QStringLiteral("sheets"), true);
+                table_panel_->raise();
+            });
     // TI14: Select By Property, the right-click functions of the Properties panel.
     // Built here, once the services it uses exist; "Colour by property" shows its table here.
     properties_view_ = new modules::properties::PropertiesPanelView(
