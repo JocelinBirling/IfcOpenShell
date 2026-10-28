@@ -1,7 +1,6 @@
 # Bonsai Viewer PLUS
-
-
 Welcome to **Bonsai Viewer PLUS**, it's a community build from **Bonsai Viewer**.
+Here's the link to [IfcOpenshell](https://ifcopenshell.org/).
 
 
 <p align="center">
