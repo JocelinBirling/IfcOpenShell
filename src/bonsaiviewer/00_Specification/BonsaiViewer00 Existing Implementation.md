@@ -92,4 +92,3 @@ External connector processes (newline-delimited JSON-RPC 2.0), discovered from m
 - Recent Projects list persisted; every successful open/save is remembered.
 
 ## Placeholder Panels
-TodoPanel-based, title + "Coming soon": Layers, Stored Views, Search and Query, Spreadsheet, Audit, Clash, Issues.

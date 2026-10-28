@@ -22,6 +22,8 @@ The goal is to centralise functions used a few times per session: file opening, 
 - **Save As** — File > Save As: saves under a new name or format.
 - **Settings** — File > Settings: application settings.
 
+Each File item has an icon (resources `:/icons/`): New `plus-square`, Open `folder`, Open Cloud `cloud-square`, Open Recent `clock-rotate-right`, Add Model `plus`, Sync From Cloud `refresh-double`, Save `floppy-disk`, Save As `floppy-disk-arrow-in`, Settings `settings`.
+
 ### View
 - **Fly** — View > Fly: toggles the free-fly camera (WASD/QE, Shift+F to exit).
 
@@ -50,4 +52,4 @@ Each button will be a toggle button, to display or hide the panel in the current
 - **About** — Help > About: shows the licence information.
 
 # Open Subject
-@TODO Add Icon to each function
+@TODO Add an icon to the functions of the other menus (File done).

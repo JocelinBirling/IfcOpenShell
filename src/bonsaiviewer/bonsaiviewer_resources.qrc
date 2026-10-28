@@ -5,6 +5,7 @@
     </qresource>
     <qresource prefix="/icons">
         <file alias="plus-square.svg">icons/plus-square.svg</file>
+        <file alias="plus.svg">icons/plus.svg</file>
         <file alias="download-square.svg">icons/download-square.svg</file>
         <file alias="cloud-square.svg">icons/cloud-square.svg</file>
         <file alias="clock-rotate-right.svg">icons/clock-rotate-right.svg</file>

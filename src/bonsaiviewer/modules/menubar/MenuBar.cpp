@@ -32,6 +32,7 @@
 
 #include <QAction>
 #include <QDesktopServices>
+#include <QIcon>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QMenu>
@@ -55,6 +56,11 @@ const CategorySpec kCategories[] = {
     {"IfcZone", "IfcZones", true},
     {"IfcDrawing", "IfcDrawings", false},
 };
+
+// BonsaiViewer01: the icons of the File menu, from the resources.
+QIcon icon(const char* name) {
+    return QIcon(QStringLiteral(":/icons/%1.svg").arg(QLatin1String(name)));
+}
 
 } // namespace
 
@@ -85,36 +91,36 @@ void MenuBar::setOpenRecentPopulator(std::function<void(QMenu*)> populator) {
 }
 
 void MenuBar::buildFileMenu(QMenu* menu) {
-    connect(menu->addAction(QStringLiteral("New")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("plus-square"), QStringLiteral("New")), &QAction::triggered, this, [this]() {
         modules::project::commands::newProject(*session_state_, *window_, *viewport_);
     });
-    connect(menu->addAction(QStringLiteral("Open")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("folder"), QStringLiteral("Open")), &QAction::triggered, this, [this]() {
         modules::project::commands::openProject(*session_state_, *window_, *viewport_);
     });
-    connect(menu->addAction(QStringLiteral("Open Cloud")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("cloud-square"), QStringLiteral("Open Cloud")), &QAction::triggered, this, [this]() {
         modules::project::commands::openCloudProject(*session_state_, *window_, *viewport_);
     });
-    QMenu* recent = menu->addMenu(QStringLiteral("Open Recent"));
+    QMenu* recent = menu->addMenu(icon("clock-rotate-right"), QStringLiteral("Open Recent"));
     recent->setToolTipsVisible(true);
     connect(recent, &QMenu::aboutToShow, this, [this, recent]() {
         if (recent_populator_) recent_populator_(recent);
     });
     menu->addSeparator();
-    connect(menu->addAction(QStringLiteral("Add Model")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("plus"), QStringLiteral("Add Model")), &QAction::triggered, this, [this]() {
         modules::models::commands::addModel(*session_state_, *window_);
     });
-    connect(menu->addAction(QStringLiteral("Sync From Cloud")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("refresh-double"), QStringLiteral("Sync From Cloud")), &QAction::triggered, this, [this]() {
         modules::project::commands::syncCloudProject(*session_state_, *window_, *viewport_);
     });
     menu->addSeparator();
-    connect(menu->addAction(QStringLiteral("Save")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("floppy-disk"), QStringLiteral("Save")), &QAction::triggered, this, [this]() {
         modules::project::commands::saveProject(*session_state_, *window_);
     });
-    connect(menu->addAction(QStringLiteral("Save As")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("floppy-disk-arrow-in"), QStringLiteral("Save As")), &QAction::triggered, this, [this]() {
         modules::project::commands::saveProjectAs(*session_state_, *window_);
     });
     menu->addSeparator();
-    connect(menu->addAction(QStringLiteral("Settings")), &QAction::triggered, this, [this]() {
+    connect(menu->addAction(icon("settings"), QStringLiteral("Settings")), &QAction::triggered, this, [this]() {
         modules::settings::SettingsDialog dialog(session_state_, window_);
         dialog.exec();
     });
