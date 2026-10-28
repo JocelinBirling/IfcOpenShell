@@ -1,15 +1,27 @@
 # Bonsai Viewer PLUS
 Welcome to **Bonsai Viewer PLUS**, it's a community build from **Bonsai Viewer**.
-Here's the link to [IfcOpenshell](https://ifcopenshell.org/).
+Here's the link to [IfcOpenshell](https://ifcopenshell.org/) without whom this project wouldn't exist.
 
 
 <p align="center">
 <img src="./src/bonsaiviewer/00_Images/BonsaiViewerCommunity.png">
 </p>
 
-It opens IFC models in seconds, federates several models in one view, and offers the tools of a coordination meeting — without any authoring environment. PLUS ships with **Filters and Tables as default features**, on top of the common display tools.
+Bonsai viewer is really fast, and federates huges models. 
+Bonsai viewer Plus give it several way to deals with thoose models. It give function to cut, select, color, hide and show and manage those view. It give several other function:
+- Filter to modify aspect of the models.
+- Tables to view data as a table, and to allow export. 
+- A Search bar to dig into the models
+- Digger to actually see the text of ifc file next to the 3D
+- Custom layer to modify the aspect of it
+- IDS to manage IDS
+- Unified Tree wich gather tree from all models to display an unique one
+
+
 
 ![](./src/bonsaiviewer/00_Images/BasicView.png)
+
+**It's made with IA.**
 
 ## Features
 
