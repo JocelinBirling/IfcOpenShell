@@ -72,6 +72,7 @@ consumed by the features. Build them before the features that need them.
 | TI21 Add Panel | B13, B14 | user tabs |
 | TI22a Easy Load File | B14, B17 | drop handler, path history |
 | TI22b Keybindings | B14 | ShortcutRegistry |
+| TI34 IfcDiff | B01, B04, B05, B13, B14, B17 | C++ port of the diff engine (`services/IfcDiff`), Diff panel |
 
 ## Not covered yet (specs not finished)
 
