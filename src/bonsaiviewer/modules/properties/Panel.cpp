@@ -43,6 +43,12 @@ bonsaiviewer::components::KeyValueTableRow tableRow(const bonsaiviewer::modules:
     if (row.ids_status != 0) {
         table_row.status_color = row.ids_status > 0 ? QStringLiteral("#2ea043") : QStringLiteral("#dc322f");
         table_row.tooltip = row.ids_text;
+    } else if (row.diff_status != 0) {
+        // BonsaiViewer34: the IfcDiff colours (an IDS colour wins when both are on).
+        table_row.status_color = row.diff_status == 1    ? QStringLiteral("#3CB44B")
+                                 : row.diff_status == -1 ? QStringLiteral("#E6194B")
+                                                         : QStringLiteral("#F08A24");
+        table_row.tooltip = row.diff_text;
     }
     return table_row;
 }

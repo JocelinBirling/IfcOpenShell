@@ -61,6 +61,9 @@ public:
     // Fills the File > Open Recent submenu (repulated on each show).
     // The shell owns the recent-projects logic.
     void setOpenRecentPopulator(std::function<void(QMenu*)> populator);
+    // Appends the shell's own entries (the workspace tabs, BonsaiViewer34
+    // Window > Diff) to the Window menu, after each rebuild of its panels.
+    void setWindowMenuExtras(std::function<void(QMenu*)> extras);
 
 private:
     void buildFileMenu(QMenu* menu);
@@ -76,6 +79,7 @@ private:
     bonsaiviewer::services::PanelManager* panel_manager_ = nullptr;
     QMenu* window_menu_ = nullptr;
     std::function<void(QMenu*)> recent_populator_;
+    std::function<void(QMenu*)> window_extras_;
 };
 
 } // namespace bonsaiviewer::modules::menubar

@@ -40,6 +40,10 @@ struct KeyValueRow {
     int ids_status = 0;
     QString ids_text;
     bool ids_checked = false; // checked by an IDS requirement (Filter Properties)
+    // BonsaiViewer34: the last IfcDiff run — 1 added (green), -1 removed
+    // (red), 2 changed (orange); with "old → new" as a tooltip.
+    int diff_status = 0;
+    QString diff_text;
 };
 
 // A row of the Relationships section. A row with an ifc_id is a link to that

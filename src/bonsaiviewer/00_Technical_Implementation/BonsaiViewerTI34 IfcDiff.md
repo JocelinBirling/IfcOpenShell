@@ -182,18 +182,66 @@ placement + openings + representation items → change_register with geometry
 details → B04 colours + panel state → report window / Export JSON. Re-run
 replaces the result and clears previous colours first (undo point stored).
 
-## Technical questions
+## Technical questions — decisions taken (v1)
 
-- Geometry source: fresh IfcGeom iterator on the potential changes (same
-  settings as Python) vs reuse of the viewer's loaded `.ifcview` geometry —
-  the latter is faster but may differ in tessellation settings.
-- Matrix layout in the export: kernel 4×3 vs padded 4×4 — pick one and
-  document it in the JSON schema.
-- Epsilon sources: shape summary 1e-5 (Python `math_epsilon`), placement
-  rotation 1e-2, attributes/translation = model `Precision` (default 1e-4) —
-  confirm the mix is intended.
-- Parallelism: Python uses `multiprocessing.cpu_count()` in the iterator;
-  the C++ port can use a thread pool — cap at the build machine's limits
-  (`-j6` rule of `agend.md` is for builds, not runtime).
-- `is_shallow` semantics with geometry details: first differing item only,
-  or all items? Python terminates at the first — keep that for v1.
+- Geometry source: **neither the kernel nor the `.ifcview` geometry**. The
+  geometry is compared on the IFC data itself: placement (`get_local_placement`
+  of `src/helpers/placement.h`), openings, projections, and the items of the
+  Body `IfcShapeRepresentation`, compared recursively attribute by attribute
+  (Python's "Option 3"; slow in Python, fast in C++ with a memo on
+  `(old id, new id)` pairs, shared across the run so a type's mapped
+  representation is compared once). No tessellation, so no `shape` summary
+  (`total_verts`, `sum_verts`, `matrix`) in the export; in exchange every
+  item change has its attribute path and old / new values.
+- Matrix layout: no kernel matrix is exported; the placement is exported as
+  translation old / new / delta and `rotation_changed`.
+- Epsilons: attributes, properties, translation and representation numbers
+  use the model `Precision` (first `Model` context of the After file, default
+  1e-4); the rotation part uses 1e-2, as `diff_element_basic_geometry()`.
+- Parallelism: none. The run is on the GUI thread (the IFC files are shared
+  with the panels); the progress bar is repainted during the run, user input
+  is held. The 973-element Duplex MEP model diffs in about 1 s.
+- `is_shallow`: off by default in the panel (the property filters need every
+  change). On: the first differing relationship per element, the first
+  differing item per representation (DiffTerminator behaviour).
+- Spec 34 open subjects: precision = model `Precision`; attribute-only
+  changes count as "modified" (the `attributes` relationship is a checkbox);
+  the report is a non-modal window; export = IfcDiff JSON, plus the CSV of
+  the report table.
+
+## Implementation (v1)
+
+| Part | Files |
+|---|---|
+| Engine (port of `IfcDiff.diff()`, JSON export) | `services/IfcDiff/IfcDiff.h/.cpp` |
+| Property changes for the Properties panel | `services/IfcDiff/DiffMarks.h` |
+| IfcDiff panel widget | `modules/diff/Panel.h/.cpp` |
+| Run, colours, undo, selection, report | `modules/diff/View.h/.cpp` |
+| Report table and Before / After comparison | `modules/diff/ReportDialog.h/.cpp` |
+| Diff tab, Window > Diff, panel wiring | `MainWindow.cpp`, `modules/menubar/MenuBar.*` |
+| Properties panel colours | `modules/properties/{Types.h,View.cpp,Panel.cpp}` |
+| Diff colour layer | `services/AppearanceService.h` (`Layer::DiffResult`) |
+
+Notes:
+
+- Diff colours are a layer of B04 placed after the user paint: a Paint on a
+  diffed element still wins; the diff wins over table, IDS, filter colours.
+- A run stores one undo state, then replaces the previous colours; Clear
+  Diff and Swap transparency store one each. A model loaded or removed drops
+  the result and its colours without an undo state.
+- Container / aggregate are compared by GlobalId (Python compares instances
+  of two files, which never match); with `is_shallow` off every relationship
+  is checked (Python stops at the first different one either way).
+- `properties_changed` is exported in the DeepDiff layout (`values_changed`,
+  `type_changes` for a value added / removed, `dictionary_item_added`,
+  `dictionary_item_removed`, with `root['Pset']['Property']` paths);
+  `attributes` and `geometry` detail objects sit next to the booleans.
+- The IDS shortlist: each specification is checked against the IFC version
+  of each file (`check_ifc_version`), its applicable elements of either model
+  are compared on the property requirements of the specification only.
+- Geometry selection buttons (beside the property ones): Select / Isolate
+  the elements, in both models, with any geometry change, a move
+  (`placement.moved`, also exported), a rotation, a Body shape change, or
+  openings / projections added or removed.
+- Not done in v1: the property field proposes all the properties of the
+  loaded models (PropertyCatalog), not only those of the IDS shortlist.
