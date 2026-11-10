@@ -29,17 +29,19 @@ The panel holds a **toolbar** and the **tree** of the rules. The toolbar offers:
 - **Create Folder**;
 - **Run**.
 
-A **left click on a folder** offers:
+A **right-click on a folder** opens the context menu (same convention as the Filters and Tables panels):
 
 - Edit Folder
 - Add Folder
 - Add Rule
 - Delete Folder
 
-A **left click on a rule** offers:
+A **right-click on a rule** opens:
 
 - Edit Rule
 - Delete Rule
+
+A **left click** only selects the node and drives the rest of the panel (see Rules tree).
 
 ### Rules tree
 
@@ -47,7 +49,7 @@ The tree is the left column of the panel. It holds folders, sub-folders, rules a
 
 - **Folders**: activatable / deactivatable with a check box; an active folder conditions the execution of the rules it contains.
 - **Rules**: a **type badge** per rule (1 object / 2 objects / complex), and the **doc/test status** columns of the catalogue.
-- **Cascades**: a rule Select can feed a rule located in another folder. A simple **"fed by / feeds" badge** on the nodes avoids a full graph while making the dependencies visible before a run.
+- **Cascades**: a rule Select can feed a rule located in another folder. A simple **"fed by / feeds" badge** on the nodes makes the dependencies visible before a run (confirmed: the badge is kept, no dependency graph view).
 - Selecting a node drives the rest of the panel; a **double click opens the editing window** of the node.
 
 
@@ -89,13 +91,22 @@ The window sits on the right of the tree (or opens as a modal), opened by a **do
 
 A **Run button per level**: a single rule, a folder, or a multiple selection. The activatable folder already conditions the execution, so a run of a folder only runs its active content.
 
+### Results
+
+After a **Run**, the results are shown in a **results panel** (below the rules tree):
+
+- one row per **A/B pair**: the rule, the source object, the target object, and the **measure** (penetration depth for an intersection, clearance distance for a clearance rule);
+- **click** on a row selects the pair's objects in the viewer; **double-click** isolates them; **right-click** opens the standard menu (Isolate…);
+- the objects of the pairs are **coloured in the 3D view** while the results are displayed;
+- **Create BCF topic** on the selected rows creates topics in the BCF panel (BonsaiViewer10), with the current viewpoint captured and the pair objects as components.
+
 ### Exceptions: scope
 
 The exceptions window is **only accessible from two-object rules** (constraint of the rule definition). Everywhere else it is greyed out or hidden; otherwise **orphan exceptions** would be created.
 
 ### AbsOrRel (Must rules)
 
-The **abs or rel** verification (rule Must) processes **absolute or relative quantities** on the results of the rules. It always starts with a **grouping** of all the results; the goal is to compare the quantity, or the number of elements, in each group.
+The **abs or rel** verification (rule Must) processes **absolute or relative quantities** on the results of the rules. It always starts with a **grouping** of all the results, defined by a third set — the **Grouping set**, edited like Source / Target / Context with **IDS facets** (BonsaiViewer24, e.g. all the spaces). The goal is to compare the quantity, or the number of elements, in each group.
 
 Examples:
 
@@ -113,11 +124,38 @@ Examples:
 | Relative quantity           | the quantity is relative between the source and the target; a relation links the two quantities (the sum of set A must be greater than the sum of set B) | source **and** target          |
 
 
+## Implementation status (what exists today)
+
+- **Viewer UI**: a "Clash" dock panel exists but is a **placeholder**
+  (`modules::todo::TodoPanel`, `MainWindow.cpp:1006`), registered in the
+  "Analyze" group of the panel manager, tabified with the audit / issues
+  panels and hidden by default. No rules tree, no editing window, no results
+  panel yet.
+- **Colour plumbing**: `AppearanceService` already reserves the priority
+  layer `ClashRun = 6` ("result > filter action > clash run",
+  `services/AppearanceService.h`); nothing writes to it yet.
+- **Engine (Python only)**: `src/ifcclash/ifcclash/ifcclash.py` — `Clasher`
+  with clash sets (`ClashSet`: A/B source lists with `file`, `mode` a/e/i and
+  `selector`; modes `intersection` / `collision` / `clearance`; parameters
+  `tolerance`, `allow_touching`, `clearance`, `check_all`), geometry tree
+  backend `opencascade.trianglebvh`, per-pair results (`ClashResult`: A/B
+  GlobalId, class, name, clash `type`, points `p1`/`p2`, `distance`), smart
+  grouping (`smart_group_clashes`), export to **JSON** and **BCF-XML** with
+  viewpoint snapshots. The viewer README confirms the intent: the clash tools
+  were "already built in Python" and must be cleaned and exported into the
+  viewer.
+- **Not implemented anywhere**: the IfcClash Plus rule catalogue of this spec
+  (folders, activation, Source→Target cascades, exceptions, Must rules) —
+  "IfcClashPlus" appears only in this spec. The Python engine covers flat
+  clash sets, not the rule tree.
+- **Porting decision**: same as TI34 (IfcDiff) — C++ port, no Python at
+  runtime.
+
 ## Open Subjects
 
-- A **clickable prototype** of the interface (tree + exceptions window) to validate the concept before implementing it in Qt/Bonsai.
-
-- **Cascades across folders**: the "fed by / feeds" badge is the proposed answer; a dependency view could replace it if the badge is not enough.
-- **Left click vs right click**: the menus of the nodes are on the left click in these notes; the Filters and Tables panels use right-click context menus. To confirm.
+- The exact list of geometric rules shipped in the first catalogue: the engine supports the three classes (one object / two objects / complex) and the Source→Target cascades, but the concrete rules (intersection, clearance, contact…) are defined later.
+- C++ backend for the clash queries: the Python engine relies on
+  `ifcopenshell.geom.tree` (opencascade triangle BVH); the equivalent C++ tree /
+  BVH API for the port must be identified.
 
 
