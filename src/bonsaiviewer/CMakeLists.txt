@@ -175,6 +175,30 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsPropertyChecks.h
+    # BonsaiViewer09: the IfcClash_Plus rule model and orchestration (TI09).
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleModel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleCatalogue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleCatalogue.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleJson.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleJson.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/Orchestrator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/Orchestrator.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleDocument.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleDocument.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Editors.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Editors.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleTree.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleTree.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RulePanels.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RulePanels.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleEditDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleEditDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/SlotClipboard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/SlotClipboard.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.h
     # C++ ports of ifcopenshell.util and IfcTester (BonsaiViewer24 IDS).
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.h
@@ -258,6 +282,16 @@ set(BONSAIVIEWER_FILES
 
 add_executable(BonsaiViewer ${BONSAIVIEWER_FILES})
 
+# BonsaiViewer09: the IfcClash_Plus C++ engine (clash rules, TI09).
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcclash_engine ${CMAKE_CURRENT_BINARY_DIR}/ifcclash_engine)
+# The clash rules query the IfcOpenShell trees, run-time plug-ins loaded
+# from the geometry library directory: build them with the viewer.
+foreach(tree_target geometry_tree_opencascade_trianglebvh geometry_tree_opencascade_brep)
+    if(TARGET ${tree_target})
+        add_dependencies(BonsaiViewer ${tree_target})
+    endif()
+endforeach()
+
 set_target_properties(BonsaiViewer PROPERTIES
     AUTOMOC ON
     AUTORCC ON
@@ -279,6 +313,7 @@ if(APPLE)
 endif()
 
 target_link_libraries(BonsaiViewer PRIVATE
+    ifcclash_engine
     # IfcViewer is the unified scene + render lib (SceneLoader, Federation,
     # GeometryStreamer, IfcViewAssembler, ViewportWindow, OverlayRenderer,
     # BufferPool, …) since the wgpu/ifcviewer merge.

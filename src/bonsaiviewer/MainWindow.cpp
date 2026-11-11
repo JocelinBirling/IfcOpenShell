@@ -54,6 +54,9 @@
 #include "modules/table/View.h"
 #include "modules/ids/Editor.h"
 #include "modules/ids/View.h"
+#include "modules/rule/ClashView.h"
+#include "modules/rule/RulePanels.h"
+#include "modules/rule/RuleTree.h"
 #include "modules/text_digger/Panel.h"
 #include "modules/text_digger/View.h"
 #include "services/ActionPipeline.h"
@@ -665,19 +668,22 @@ void MainWindow::setupRibbon() {
     shell_layout->setContentsMargins(0, 0, 0, 0);
     shell_layout->setSpacing(0);
 
-    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS) and the
-    // Inspect tab share one row. Workspace tabs are indexes 0 to 3, Inspect is 4.
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS,
+    // GeometryRule, Clash Filter) and the Inspect tab share one row.
+    // Workspace tabs are indexes 0 to 5, Inspect is 6.
     ribbon_tabs_ = new components::TabBar(shell);
     ribbon_tabs_->addTab("Home");
     ribbon_tabs_->addTab("Filter");
     ribbon_tabs_->addTab("Table");
     ribbon_tabs_->addTab("IDS");
+    ribbon_tabs_->addTab("GeometryRule"); // BonsaiViewer09
+    ribbon_tabs_->addTab("Clash Filter"); // BonsaiViewer09
     ribbon_tabs_->addTab("Inspect");
     // TI21 phase 2: the last tab adds a user tab; tabs can be reordered.
     ribbon_tabs_->addTab("+");
-    ribbon_tabs_->setTabToolTip(5, "Add a tab");
-    ribbon_tabs_->setTabData(4, QStringLiteral("inspect"));
-    ribbon_tabs_->setTabData(5, QStringLiteral("add"));
+    ribbon_tabs_->setTabToolTip(7, "Add a tab");
+    ribbon_tabs_->setTabData(6, QStringLiteral("inspect"));
+    ribbon_tabs_->setTabData(7, QStringLiteral("add"));
     ribbon_tabs_->setMovable(true);
     ribbon_tabs_->setContextMenuPolicy(Qt::CustomContextMenu);
     ribbon_tabs_->setCurrentIndex(0);
@@ -691,7 +697,7 @@ void MainWindow::setupRibbon() {
 
     ribbon_pages_ = new QStackedWidget(ribbon_band);
     // Workspaces: no ribbon content, the band is hidden on these tabs.
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 6; ++i) {
         ribbon_pages_->addWidget(new QWidget(ribbon_pages_));
     }
     ribbon_pages_->addWidget(buildInspectRibbonPage());
@@ -720,6 +726,10 @@ void MainWindow::setupRibbon() {
     specific_panel->addTab(QStringLiteral("Filter"));
     specific_panel->addTab(QStringLiteral("Table"));
     specific_panel->addTab(QStringLiteral("IDS"));
+    // BonsaiViewer09: the run, rule file and result buttons of the two
+    // clash workspaces.
+    specific_panel->setContent(specific_panel->addTab(QStringLiteral("GeometryRule")), clash_view_->geometryRuleRibbon());
+    specific_panel->setContent(specific_panel->addTab(QStringLiteral("Clash Filter")), clash_view_->clashFilterRibbon());
     specific_index_.insert(QStringLiteral("inspect"), specific_panel->addTab(QStringLiteral("Inspect")));
     // Order below the tabs: the tab ribbon, then the specific panel.
     shell_layout->addWidget(ribbon_band);
@@ -741,7 +751,7 @@ void MainWindow::setupRibbon() {
 // user tabs ("+"), rename / delete / reorder, and the saved layouts.
 void MainWindow::setupWorkspaces() {
     const QStringList names{QStringLiteral("Home"), QStringLiteral("Filter"), QStringLiteral("Table"),
-                            QStringLiteral("IDS")};
+                            QStringLiteral("IDS"), QStringLiteral("GeometryRule"), QStringLiteral("Clash Filter")};
     for (int i = 0; i < names.size(); ++i) {
         const QString id = panel_manager_->addTab(names.at(i));
         workspace_ids_.append(id);
@@ -789,7 +799,7 @@ void MainWindow::onRibbonTabChanged(int index) {
     }
     const bool inspect = key == QLatin1String("inspect");
     ribbon_band_->setVisible(inspect);
-    ribbon_pages_->setCurrentIndex(inspect ? 4 : 0);
+    ribbon_pages_->setCurrentIndex(inspect ? 6 : 0);
     specific_panel_->setCurrentIndex(specific_index_.value(key, 0));
     // Inspect keeps the panels of the workspace it was opened from.
     if (inspect || key.isEmpty()) return;
@@ -845,7 +855,7 @@ void MainWindow::showRibbonTabMenu(const QPoint& pos) {
 }
 
 // Saved layouts: one JSON array in QSettings, in ribbon order. A workspace
-// entry is {"kind": "workspace", "index": 0..3, "layout": base64}, a user tab
+// entry is {"kind": "workspace", "index": 0..5, "layout": base64}, a user tab
 // {"kind": "user", "name", "layout"}, Inspect {"kind": "inspect"}.
 namespace {
 const char* kSavedLayoutsKey = "layouts/tabs";
@@ -943,6 +953,21 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         visible << QStringLiteral("tables") << QStringLiteral("sheets");
     } else if (index == 3) {
         visible << QStringLiteral("ids");
+    } else if (index == 4) {
+        // BonsaiViewer09 GeometryRule: Rule Library over Rule Config on the
+        // left, Properties over Rule on the right (branch IfcViewer_Clash).
+        addDockWidget(Qt::LeftDockWidgetArea, rule_library_dock_);
+        splitDockWidget(rule_library_dock_, rule_config_dock_, Qt::Vertical);
+        splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
+        visible = QStringList{QStringLiteral("rule_library"), QStringLiteral("rule_config"),
+                              QStringLiteral("properties"), QStringLiteral("rules")};
+    } else if (index == 5) {
+        // Clash Filter: Result over Result Info on the left, Properties over Rule.
+        addDockWidget(Qt::LeftDockWidgetArea, result_dock_);
+        splitDockWidget(result_dock_, result_info_dock_, Qt::Vertical);
+        splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
+        visible = QStringList{QStringLiteral("results"), QStringLiteral("result_info"),
+                              QStringLiteral("properties"), QStringLiteral("rules")};
     }
     for (const QString& id : panel_manager_->registeredPanels()) {
         panel_manager_->setPanelVisible(id, visible.contains(id));
@@ -951,7 +976,8 @@ void MainWindow::applyWorkspaceDefaults(int index) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    if (ids_view_ != nullptr && !ids_view_->editor()->confirmDiscard()) {
+    if ((ids_view_ != nullptr && !ids_view_->editor()->confirmDiscard()) ||
+        (clash_view_ != nullptr && !clash_view_->confirmDiscard())) {
         event->ignore();
         return;
     }
@@ -992,7 +1018,12 @@ void MainWindow::setupPanels() {
     ids_panel_ = new components::Panel("IDS", nullptr, this);
     tables_panel_ = new modules::table::TablesPanel(this);
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
-    clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
+    // BonsaiViewer09: the clash workspaces; their content comes in setupLoader.
+    rule_dock_ = new components::Panel("Rule", nullptr, this);
+    rule_library_dock_ = new components::Panel("Rule Library", nullptr, this);
+    rule_config_dock_ = new components::Panel("Rule Config", nullptr, this);
+    result_dock_ = new components::Panel("Result", nullptr, this);
+    result_info_dock_ = new components::Panel("Result Info", nullptr, this);
     issues_panel_ = new components::Panel("Issues", new modules::todo::TodoPanel("Issues", this), this);
     class_tree_widget_ = new QTreeWidget(this);
     class_tree_panel_ = new components::Panel("Ifc Tree", class_tree_widget_, this);
@@ -1014,7 +1045,11 @@ void MainWindow::setupPanels() {
     addDockWidget(Qt::RightDockWidgetArea, stored_views_panel_);
     addDockWidget(Qt::RightDockWidgetArea, search_panel_);
     addDockWidget(Qt::RightDockWidgetArea, audit_panel_);
-    addDockWidget(Qt::RightDockWidgetArea, clash_panel_);
+    addDockWidget(Qt::RightDockWidgetArea, rule_dock_);
+    addDockWidget(Qt::LeftDockWidgetArea, rule_library_dock_);
+    addDockWidget(Qt::LeftDockWidgetArea, rule_config_dock_);
+    addDockWidget(Qt::LeftDockWidgetArea, result_dock_);
+    addDockWidget(Qt::LeftDockWidgetArea, result_info_dock_);
     addDockWidget(Qt::RightDockWidgetArea, issues_panel_);
     addDockWidget(Qt::BottomDockWidgetArea, table_panel_);
     // BonsaiViewer16: the Ifc Text Digger, in the bottom tabs with the Table.
@@ -1032,8 +1067,7 @@ void MainWindow::setupPanels() {
     tabifyDockWidget(stored_views_panel_, search_panel_);
     tabifyDockWidget(search_panel_, filters_panel_);
     tabifyDockWidget(filters_panel_, audit_panel_);
-    tabifyDockWidget(audit_panel_, clash_panel_);
-    tabifyDockWidget(clash_panel_, issues_panel_);
+    tabifyDockWidget(audit_panel_, issues_panel_);
     properties_panel_->raise();
 
     layers_panel_->hide();
@@ -1045,7 +1079,11 @@ void MainWindow::setupPanels() {
     ids_panel_->hide();
     tables_panel_->raise();
     audit_panel_->hide();
-    clash_panel_->hide();
+    for (QDockWidget* dock : {static_cast<QDockWidget*>(rule_dock_), static_cast<QDockWidget*>(rule_library_dock_),
+                              static_cast<QDockWidget*>(rule_config_dock_), static_cast<QDockWidget*>(result_dock_),
+                              static_cast<QDockWidget*>(result_info_dock_)}) {
+        dock->hide();
+    }
     issues_panel_->hide();
 
     resizeDocks({models_panel_, properties_panel_}, {290, 330}, Qt::Horizontal);
@@ -1258,6 +1296,22 @@ void MainWindow::setupLoader() {
     ids_view_ = new modules::ids::IdsPanelView(ids_panel_, *session_state_, *ids_bridge_, *action_pipeline_,
                                                *appearance_service_, this);
     ids_view_->setPropertyChecks(ids_property_checks_);
+    // BonsaiViewer09 (TI09): the IfcClash_Plus rules, run on the C++ engine.
+    clash_view_ = new modules::rule::ClashView(
+        modules::rule::ClashView::Services{*session_state_, *viewport_widget_->viewport(), *selection_service_,
+                                           *action_pipeline_, *active_view_, *appearance_service_, *undo_stack_,
+                                           *ids_bridge_},
+        this, this);
+    rule_dock_->addBodyWidget(clash_view_->rulePanel());
+    rule_library_dock_->addBodyWidget(clash_view_->libraryPanel());
+    rule_config_dock_->addBodyWidget(clash_view_->configPanel());
+    result_dock_->addBodyWidget(clash_view_->resultPanel());
+    result_info_dock_->addBodyWidget(clash_view_->resultInfoPanel());
+    connect(clash_view_, &modules::rule::ClashView::showResultsRequested, this, [this]() {
+        if (workspace_ids_.size() <= 5) return;
+        const int index = ribbonIndexOf(workspace_ids_.at(5));
+        if (index >= 0) ribbon_tabs_->setCurrentIndex(index);
+    });
     // TI12: the Ifc Class Tree (B12 tree over the open models' IFC classes).
     auto* class_tree_data = new modules::class_tree::ClassTreeDataSource(
         *session_state_, *selection_service_, *action_pipeline_, this);
@@ -1464,8 +1518,16 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Tables"), tables_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("audit"),
                                QStringLiteral("Audit"), audit_panel_, QStringLiteral("Analyze"));
-    panel_manager_->adoptPanel(QStringLiteral("clash"),
-                               QStringLiteral("Clash"), clash_panel_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("rules"),
+                               QStringLiteral("Rule"), rule_dock_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("rule_library"),
+                               QStringLiteral("Rule Library"), rule_library_dock_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("rule_config"),
+                               QStringLiteral("Rule Config"), rule_config_dock_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("results"),
+                               QStringLiteral("Result"), result_dock_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("result_info"),
+                               QStringLiteral("Result Info"), result_info_dock_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("issues"),
                                QStringLiteral("Issues"), issues_panel_, QStringLiteral("Analyze"));
 

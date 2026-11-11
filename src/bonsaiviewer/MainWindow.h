@@ -47,6 +47,7 @@ namespace bonsaiviewer::modules::unified_tree { class UnifiedTreeView; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::ids { class IdsPanelView; }
+namespace bonsaiviewer::modules::rule { class ClashView; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
@@ -103,8 +104,8 @@ private:
     void setupStatus();
     void setupLoader();
     void setupMenuBar();
-    // TI21 phase 1: the workspace tabs (Home, Filter, Table) and their
-    // default panel layouts.
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS,
+    // GeometryRule, Clash Filter) and their default panel layouts.
     void setupWorkspaces();
     void applyWorkspaceDefaults(int index);
     // A ribbon tab became current: a workspace (system or user), Inspect,
@@ -205,7 +206,13 @@ private:
     bonsaiviewer::modules::unified_tree::UnifiedTreePanel* unified_tree_panel_ = nullptr;
     bonsaiviewer::modules::unified_tree::UnifiedTreeView* unified_tree_view_ = nullptr;
     QDockWidget* audit_panel_ = nullptr;
-    QDockWidget* clash_panel_ = nullptr;
+    // BonsaiViewer09 (TI09): the GeometryRule and Clash Filter workspaces.
+    components::Panel* rule_dock_ = nullptr;
+    components::Panel* rule_library_dock_ = nullptr;
+    components::Panel* rule_config_dock_ = nullptr;
+    components::Panel* result_dock_ = nullptr;
+    components::Panel* result_info_dock_ = nullptr;
+    bonsaiviewer::modules::rule::ClashView* clash_view_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;
     bonsaiviewer::modules::models::ModelsPanelView* models_view_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanelView* spatial_view_ = nullptr;
