@@ -56,6 +56,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
+#include <QInputDialog>
 #include <QLabel>
 #include <QJsonDocument>
 #include <QMenu>
@@ -240,6 +241,14 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
     if (auto* loader = s_.session.loader()) connect(loader, &SceneLoader::allLoadsFinished, this, &ClashView::tryRestore);
     connect(results_, &ResultPanel::reviewChanged, this, &ClashView::markProjectDirty);
     connect(results_, &ResultPanel::createTopicsRequested, this, &ClashView::createTopics);
+    connect(results_, &ResultPanel::addToTopicRequested, this, &ClashView::addToTopic);
+    connect(results_, &ResultPanel::openTopicRequested, this, [this](const QString& guid) {
+        if (bcf_ && bcf_->topic(guid)) bcf_->openTopic(guid);
+        else s_.session.setStatusMessage("Clash", "The topic is not in the loaded BCF file: load it in the BCF panel");
+    });
+    connect(results_, &ResultPanel::unlinkTopicRequested, this,
+            [this](const std::vector<int>& rows) { results_->setTopicOf(rows, QString()); });
+    info_->setTopicTitle([this](const QString& guid) { return results_->topicTitle(guid); });
     connect(&document_, &RuleDocument::changed, this, [this]() {
         if (document_.isModified()) markProjectDirty();
     });
@@ -571,8 +580,15 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     }
     if (work != QLatin1String("run")) return;
     clearOverlay();
+    // The topics of the results of the rules run: those left without result are resolved.
+    QSet<QString> topics_before;
+    for (const ResultRow& row : results_->rows()) {
+        if (pending_nodes_.count(row.node_id) && !row.topic_guid.isEmpty()) topics_before.insert(row.topic_guid);
+    }
     // The results of the other rules stay (a click on a rule shows its own).
     results_->mergeResults(std::move(pending_rows_), pending_nodes_);
+    for (const ResultRow& row : results_->rows()) topics_before.remove(row.topic_guid);
+    resolved_topics_.unite(topics_before);
     pending_rows_.clear();
     for (const QString& node : pending_nodes_) rule_inputs_.erase(node);
     for (auto& [node, inputs] : pending_inputs_) rule_inputs_[node] = std::move(inputs);
@@ -604,6 +620,7 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     rule_panel_->tree()->setResultTexts(result_texts_);
     applyColours();
     publishIndex();
+    offerResolvedTopics();
     const size_t count = results_->rows().size();
     QString summary = QString("%1 result(s)%2").arg(count).arg(cancelled ? " (stopped)" : "");
     // The elements the engine could not test, the folders left out, the
@@ -892,6 +909,129 @@ void ClashView::tryRestore() {
 
 void ClashView::setBcf(bcf::BcfView* view) {
     bcf_ = view;
+    if (bcf_) connect(bcf_, &bcf::BcfView::topicsChanged, this, &ClashView::refreshTopics);
+    refreshTopics();
+}
+
+void ClashView::refreshTopics() {
+    QHash<QString, ResultPanel::TopicInfo> topics;
+    QSet<QString> deleted;
+    if (bcf_ && bcf_->file()) {
+        for (const ports::bcf::Topic& t : bcf_->file()->topics) {
+            const bool is_deleted = bcf_->isDeleted(t.guid);
+            topics.insert(t.guid, {t.title, t.topic_status, is_deleted});
+            if (is_deleted) deleted.insert(t.guid);
+        }
+    }
+    // A topic deleted, then saved out of the file: its results are free.
+    std::vector<int> released;
+    for (int i = 0; i < static_cast<int>(results_->rows().size()); ++i) {
+        const QString& guid = results_->rows()[static_cast<size_t>(i)].topic_guid;
+        if (deleted_topics_.contains(guid) && !topics.contains(guid)) released.push_back(i);
+    }
+    deleted_topics_ = deleted;
+    results_->setTopics(std::move(topics));
+    if (!released.empty()) results_->setTopicOf(released, QString());
+    offerResolvedTopics();
+}
+
+void ClashView::addToTopic(const std::vector<int>& indices, const QString& chosen) {
+    if (!bcf_ || !bcf_->file()) {
+        services::popup::information(host_, "Load a BCF file in the BCF panel first (or create a topic).");
+        return;
+    }
+    QString guid = chosen;
+    if (guid.isEmpty()) {
+        QStringList titles;
+        QStringList guids;
+        for (const ports::bcf::Topic& t : bcf_->file()->topics) {
+            if (bcf_->isDeleted(t.guid)) continue;
+            titles << QString("%1  [%2]").arg(t.title, t.topic_status);
+            guids << t.guid;
+        }
+        if (titles.isEmpty()) {
+            services::popup::information(host_, "The BCF file has no topic.");
+            return;
+        }
+        bool ok = false;
+        const QString picked = QInputDialog::getItem(host_, "Add to Topic", "Topic", titles, 0, false, &ok);
+        if (!ok) return;
+        guid = guids.value(titles.indexOf(picked));
+    }
+    ports::bcf::Topic* target = bcf_->topic(guid);
+    if (!target) return;
+    std::vector<const ResultRow*> rows;
+    std::vector<int> kept;
+    int moved = 0;
+    for (int index : indices) {
+        if (index < 0 || index >= static_cast<int>(results_->rows().size())) continue;
+        const ResultRow& row = results_->rows()[static_cast<size_t>(index)];
+        if (row.topic_guid == guid) continue;
+        if (results_->isLinked(row)) ++moved;
+        rows.push_back(&row);
+        kept.push_back(index);
+    }
+    if (rows.empty()) return;
+    if (moved > 0 && !services::popup::confirmation(host_, QString("%1 of the selected results already belong to another "
+                                                                    "topic. Move them to \"%2\"?").arg(moved).arg(target->title))) {
+        return;
+    }
+    const QString author = bcf_->ensureAuthor();
+    if (author.isEmpty()) return;
+    target->description += QString("\n\nAdded on %1:\n%2")
+                               .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm"), topic::description(rows));
+    for (const QString& label : topic::labels(rows)) {
+        if (!target->labels.contains(label)) target->labels << label;
+    }
+    target->modified_date = ports::bcf::now();
+    target->modified_author = author;
+    bcf_->topicChanged(guid);
+    results_->setTopicOf(kept, guid);
+    s_.session.setStatusMessage("Clash", QString("%1 result(s) added to the topic %2").arg(kept.size()).arg(target->title));
+}
+
+void ClashView::offerResolvedTopics() {
+    if (resolved_topics_.isEmpty() || !bcf_ || !bcf_->file()) return;
+    QStringList titles;
+    std::vector<ports::bcf::Topic*> topics;
+    for (const QString& guid : std::as_const(resolved_topics_)) {
+        ports::bcf::Topic* t = bcf_->topic(guid);
+        if (!t || bcf_->isDeleted(guid)) continue;
+        // Still linked to a result (a later run found it again): not resolved.
+        const bool used = std::any_of(results_->rows().begin(), results_->rows().end(),
+                                      [&guid](const ResultRow& row) { return row.topic_guid == guid; });
+        if (used || t->topic_status.compare("Closed", Qt::CaseInsensitive) == 0) continue;
+        titles << "• " + t->title;
+        topics.push_back(t);
+    }
+    // The topics found in the loaded file are offered once.
+    for (auto it = resolved_topics_.begin(); it != resolved_topics_.end();) {
+        it = bcf_->topic(*it) ? resolved_topics_.erase(it) : std::next(it);
+    }
+    if (topics.empty()) return;
+    const auto answer = QMessageBox::question(
+        host_, "Topics without result",
+        QString("The last run found none of the results of these topics any more:\n\n%1\n\n"
+                "Close them, with a comment \"Resolved\"?").arg(titles.join('\n')),
+        QMessageBox::Yes | QMessageBox::No);
+    if (answer != QMessageBox::Yes) return;
+    const QString author = bcf_->ensureAuthor();
+    if (author.isEmpty()) return;
+    const QStringList statuses = bcf_->file()->extensions.topic_statuses;
+    QString closed = QStringLiteral("Closed");
+    for (const QString& status : statuses) {
+        if (status.compare("Closed", Qt::CaseInsensitive) == 0) closed = status;
+    }
+    const QString now = ports::bcf::now();
+    for (ports::bcf::Topic* t : topics) {
+        t->topic_status = closed;
+        t->modified_date = now;
+        t->modified_author = author;
+        t->comments.push_back({ports::bcf::newGuid(), now, author,
+                               "Resolved: the clash rules no longer find the results of this topic.", QString(), QString(),
+                               QString()});
+        bcf_->topicChanged(t->guid);
+    }
 }
 
 std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> ClashView::linesOf(const ResultRow& row) const {

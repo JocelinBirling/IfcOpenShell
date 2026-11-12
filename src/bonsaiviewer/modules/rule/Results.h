@@ -26,6 +26,7 @@
 #include "core/Result.h"
 
 #include <QDialog>
+#include <QHash>
 #include <QString>
 #include <QStringList>
 #include <QWidget>
@@ -108,6 +109,20 @@ public:
 
     explicit ResultPanel(QWidget* parent = nullptr);
 
+    // The BCF topics the results point at (the BCF panel's file). A result
+    // is linked when it has a topic that is not deleted; a topic missing
+    // from the loaded file (or with no file loaded) still counts.
+    struct TopicInfo {
+        QString title;
+        QString status;
+        bool deleted = false;
+    };
+    void setTopics(QHash<QString, TopicInfo> topics);
+    bool isLinked(const ResultRow& row) const;
+    QString topicTitle(const QString& guid) const;
+    // Sets (or clears, with an empty guid) the topic of rows.
+    void setTopicOf(const std::vector<int>& rows, const QString& guid);
+
     void setResults(std::vector<ResultRow> rows);
     // A run: the rows of the rules in `ran` are replaced by `rows` (the
     // results of the other rules are kept, with their review and group). A
@@ -151,6 +166,11 @@ signals:
     void isolateRequested(const std::vector<int>& rows);
     // Right click > Create a BCF Topic (one for all, or one per result).
     void createTopicsRequested(const std::vector<int>& rows, bool per_result);
+    // Right click > Add to Topic (empty guid: "Other topic…"), Open the
+    // Topic, Unlink from the Topic.
+    void addToTopicRequested(const std::vector<int>& rows, const QString& guid);
+    void openTopicRequested(const QString& guid);
+    void unlinkTopicRequested(const std::vector<int>& rows);
     void showRequested(const std::vector<int>& rows);
     void reviewChanged();
 
@@ -167,6 +187,7 @@ private:
     void refreshMessages();
 
     std::vector<ResultRow> rows_;
+    QHash<QString, TopicInfo> topics_;
     GroupMode mode_ = GroupMode::Flat;
     bool only_non_determined_ = false;
     bool hide_excepted_ = false;
@@ -203,6 +224,8 @@ class ResultInfoPanel : public QWidget {
 public:
     explicit ResultInfoPanel(QWidget* parent = nullptr);
     void showRow(const ResultRow* row);
+    // The title of a BCF topic, for the "BCF topic" line.
+    void setTopicTitle(std::function<QString(const QString&)> title) { topic_title_ = std::move(title); }
 
 signals:
     // "Select" by the source or the target: its objects (the Properties
@@ -222,6 +245,7 @@ private:
     QComboBox* review_ = nullptr;
     QLabel* text_ = nullptr;
     std::vector<std::uint32_t> source_objects_, target_objects_;
+    std::function<QString(const QString&)> topic_title_;
 };
 
 QString measureText(const ifcclash::ResultRecord& record);

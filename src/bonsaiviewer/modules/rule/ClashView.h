@@ -36,6 +36,7 @@
 #include <QMap>
 #include <QObject>
 #include <QPointer>
+#include <QSet>
 
 #include <atomic>
 #include <cstdint>
@@ -198,6 +199,14 @@ private:
     };
     std::unique_ptr<TopicJob> topic_job_;
     QPointer<bcf::BcfView> bcf_;
+    // The topics of the BCF file, for the Result panel; a deleted topic
+    // leaves its results at the next save of the BCF.
+    void refreshTopics();
+    void addToTopic(const std::vector<int>& rows, const QString& guid);
+    // The topics left with no result by a run: closed, with a comment, if the user agrees.
+    void offerResolvedTopics();
+    QSet<QString> deleted_topics_;
+    QSet<QString> resolved_topics_;
 
     Services s_;
     QWidget* host_ = nullptr;

@@ -164,6 +164,31 @@ void ResultPanel::mergeResults(std::vector<ResultRow> rows, const std::set<QStri
     rebuild();
 }
 
+void ResultPanel::setTopics(QHash<QString, TopicInfo> topics) {
+    topics_ = std::move(topics);
+    rebuild();
+}
+
+bool ResultPanel::isLinked(const ResultRow& row) const {
+    if (row.topic_guid.isEmpty()) return false;
+    const auto found = topics_.constFind(row.topic_guid);
+    return found == topics_.constEnd() || !found->deleted;
+}
+
+QString ResultPanel::topicTitle(const QString& guid) const {
+    const auto found = topics_.constFind(guid);
+    if (found == topics_.constEnd()) return QString("(topic %1, not in the loaded BCF)").arg(guid.left(8));
+    return found->deleted ? found->title + " (deleted)" : found->title;
+}
+
+void ResultPanel::setTopicOf(const std::vector<int>& rows, const QString& guid) {
+    for (int row : rows) {
+        if (row >= 0 && row < static_cast<int>(rows_.size())) rows_[static_cast<size_t>(row)].topic_guid = guid;
+    }
+    rebuild();
+    emit reviewChanged();
+}
+
 void ResultPanel::updateRows(const std::function<void(ResultRow&)>& update) {
     const std::vector<int> selected = selectedRows();
     for (ResultRow& row : rows_) update(row);
@@ -349,6 +374,10 @@ QTreeWidgetItem* ResultPanel::appendRow(QTreeWidgetItem* parent, int index) {
     if (!row.criticity.isEmpty()) tip << "Criticity: " + row.criticity.join(", ").toHtmlEscaped();
     if (!row.actor.isEmpty()) tip << "Actor: " + row.actor.join(", ").toHtmlEscaped();
     if (!row.manual_group.isEmpty()) tip << "Manual group: " + row.manual_group.toHtmlEscaped();
+    if (isLinked(row)) {
+        tip << "BCF topic: " + topicTitle(row.topic_guid).toHtmlEscaped();
+        item->setIcon(kSource, components::icons::makeAccentSvgIcon(":/icons/check.svg"));
+    }
     for (int c = 0; c < kColumns; ++c) item->setToolTip(c, tip.join("<br>"));
     styleRow(item, row);
     return item;
@@ -481,6 +510,32 @@ void ResultPanel::contextMenu(const QPoint& pos) {
                                        [this, rows]() { emit createTopicsRequested(rows, true); });
         each->setToolTip("One topic for each selected result.");
     }
+    // The topics of the results of the panel, then any topic of the BCF file.
+    QMenu* add_to = menu.addMenu("Add to Topic");
+    add_to->setToolTipsVisible(true);
+    QStringList known;
+    for (const ResultRow& row : rows_) {
+        if (isLinked(row) && !known.contains(row.topic_guid)) known << row.topic_guid;
+    }
+    for (const QString& guid : known) {
+        add_to->addAction(topicTitle(guid), this, [this, rows, guid]() { emit addToTopicRequested(rows, guid); });
+    }
+    if (!known.isEmpty()) add_to->addSeparator();
+    add_to->addAction("Other Topic…", this, [this, rows]() { emit addToTopicRequested(rows, QString()); });
+    QStringList guids;
+    bool any_linked = false;
+    for (int row : rows) {
+        const ResultRow& r = rows_[static_cast<size_t>(row)];
+        if (!isLinked(r)) continue;
+        any_linked = true;
+        if (!guids.contains(r.topic_guid)) guids << r.topic_guid;
+    }
+    QAction* open = menu.addAction("Open the Topic", this, [this, guids]() { emit openTopicRequested(guids.value(0)); });
+    open->setEnabled(guids.size() == 1);
+    open->setToolTip(guids.size() > 1 ? "The selected results belong to several topics." : QString());
+    QAction* unlink = menu.addAction("Unlink from the Topic", this, [this, rows]() { emit unlinkTopicRequested(rows); });
+    unlink->setEnabled(any_linked);
+    unlink->setToolTip("The results leave their topic; the topic stays in the BCF file.");
     menu.addSeparator();
     // The user's own groups (triage): one group per result.
     QMenu* add = menu.addMenu("Add to group");
@@ -655,6 +710,10 @@ void ResultInfoPanel::showRow(const ResultRow* row) {
     QStringList lines;
     if (row->complex) lines << QString("<b>Must</b>: the group %1").arg(row->status ? "passes" : "<span style='color:#E6194B'>fails</span>");
     else if (!row->status) lines << "<b>Status</b>: <span style='color:gray'>excepted</span>";
+    if (!row->topic_guid.isEmpty()) {
+        const QString title = topic_title_ ? topic_title_(row->topic_guid) : row->topic_guid;
+        lines << QString("<b>BCF topic</b>: %1").arg(title.toHtmlEscaped());
+    }
     if (!row->manual_group.isEmpty()) lines << QString("<b>Manual group</b>: %1").arg(row->manual_group.toHtmlEscaped());
     if (!row->group.isEmpty()) lines << QString("<b>Group</b>: %1").arg(row->group.toHtmlEscaped());
     if (!row->criticity.isEmpty()) lines << QString("<b>Criticity</b>: %1").arg(row->criticity.join(", ").toHtmlEscaped());
