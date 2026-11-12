@@ -90,8 +90,15 @@ private:
     void goBack();
     void render();
     QString modelName(std::uint32_t session_model_id) const;
-    // Right click on a Relationships row: Isolate the related elements.
+    // Right click on a Relationships row: Isolate / Show the related elements.
     void showRelationshipMenu(int row, const QPoint& pos);
+    // BonsaiViewer32: Isolate / Show the shown entity (header buttons, right
+    // click on the Attributes): the element, or what a group, a spatial
+    // element or a type contains, recursively.
+    void showAttributeMenu(const QPoint& pos);
+    std::vector<std::uint32_t> shownObjectIds() const;
+    // Isolate (or Show, added to the view) `ids`; a status message when empty.
+    void applyToView(const std::vector<std::uint32_t>& ids, bool isolate);
     // The object ids (with geometry) reached through a Relationships row:
     // the whole model, the occurrences of a type, the content of a spatial
     // element, or the members of a group.

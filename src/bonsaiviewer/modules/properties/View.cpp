@@ -367,6 +367,10 @@ void collectGroup(const express::base& group, std::unordered_set<int>& ids, std:
         if (member.declaration().is("IfcGroup")) collectGroup(member, ids, seen);
         else collectWithParts(member, ids);
     }
+    // IFC4: the sub-systems aggregated under a system.
+    for (const express::base& part : get_parts(group)) {
+        if (part.declaration().is("IfcGroup")) collectGroup(part, ids, seen);
+    }
 }
 
 } // namespace
@@ -416,6 +420,11 @@ PropertiesPanelView::PropertiesPanelView(PropertiesPanel* widget,
         if (clash_index_) emit clash_index_->showResultRequested(row);
     });
     connect(widget_, &PropertiesPanel::clashContextRequested, this, &PropertiesPanelView::showClashMenu);
+    connect(widget_, &PropertiesPanel::entityIsolateRequested, this,
+            [this]() { applyToView(shownObjectIds(), true); });
+    connect(widget_, &PropertiesPanel::entityShowRequested, this,
+            [this]() { applyToView(shownObjectIds(), false); });
+    connect(widget_, &PropertiesPanel::attributeContextRequested, this, &PropertiesPanelView::showAttributeMenu);
     connect(widget_, &PropertiesPanel::relationshipContextRequested, this,
             [this](int row, const QPoint& pos) { showRelationshipMenu(row, pos); });
     connect(widget_, &PropertiesPanel::propertyValueContextRequested, this,
@@ -701,20 +710,42 @@ std::vector<std::uint32_t> PropertiesPanelView::relatedObjectIds(const Relations
     return object_ids;
 }
 
+void PropertiesPanelView::applyToView(const std::vector<std::uint32_t>& ids, bool isolate) {
+    if (ids.empty()) {
+        session_state_->setStatusMessage("Properties", isolate ? "No element to isolate" : "No element to show");
+        return;
+    }
+    actions_.run(ids, isolate ? services::ActionPipeline::Action::Isolate : services::ActionPipeline::Action::AddToView);
+}
+
 void PropertiesPanelView::showRelationshipMenu(int row, const QPoint& pos) {
     if (row < 0 || row >= relationships_.size()) return;
     const RelationshipRow target = relationships_.at(row);
     services::ContextMenuBuilder menu;
-    menu.addItem("isolate_related",
-                 "Isolate",
-                 [this, target] {
-                     const auto ids = relatedObjectIds(target);
-                     if (ids.empty()) {
-                         session_state_->setStatusMessage("Properties", "No element to isolate");
-                         return;
-                     }
-                     actions_.run(ids, services::ActionPipeline::Action::Isolate);
-                 });
+    menu.addItem("isolate_related", "Isolate", [this, target] { applyToView(relatedObjectIds(target), true); });
+    menu.addItem("show_related", "Show", [this, target] { applyToView(relatedObjectIds(target), false); });
+    menu.exec(pos, widget_);
+}
+
+std::vector<std::uint32_t> PropertiesPanelView::shownObjectIds() const {
+    // An entity of a model: the same reach as a Relationships link to it.
+    if (shown_.session_model_id != 0 && shown_.ifc_id != 0) {
+        RelationshipRow row;
+        row.session_model_id = shown_.session_model_id;
+        row.ifc_id = shown_.ifc_id;
+        auto ids = relatedObjectIds(row);
+        if (!ids.empty()) return ids;
+    }
+    // A viewport object without its IFC data (yet).
+    if (shown_.object_id != 0) return {shown_.object_id};
+    return {};
+}
+
+void PropertiesPanelView::showAttributeMenu(const QPoint& pos) {
+    if (shown_.ifc_id == 0 && shown_.object_id == 0) return;
+    services::ContextMenuBuilder menu;
+    menu.addItem("isolate_entity", "Isolate", [this] { applyToView(shownObjectIds(), true); });
+    menu.addItem("show_entity", "Show", [this] { applyToView(shownObjectIds(), false); });
     menu.exec(pos, widget_);
 }
 

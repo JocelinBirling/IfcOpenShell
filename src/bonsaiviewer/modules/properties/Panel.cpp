@@ -94,7 +94,8 @@ QWidget* makeSetContainer(QWidget* parent) {
     return container;
 }
 
-QWidget* makeAttributeList(const QList<bonsaiviewer::modules::properties::KeyValueRow>& rows, QWidget* parent = nullptr) {
+bonsaiviewer::components::KeyValueTable* makeAttributeList(
+    const QList<bonsaiviewer::modules::properties::KeyValueRow>& rows, QWidget* parent = nullptr) {
     QList<bonsaiviewer::components::KeyValueTableRow> table_rows;
     for (const auto& row : rows) {
         table_rows.append(tableRow(row));
@@ -150,6 +151,8 @@ QWidget* makeFilterWrapper(QLineEdit** field_out, QWidget* parent = nullptr) {
 QFrame* makeEntityBox(const bonsaiviewer::modules::properties::EntitySummary& entity,
                       bool can_go_back,
                       QToolButton** back_out,
+                      QToolButton** isolate_out,
+                      QToolButton** show_out,
                       QWidget* parent = nullptr) {
     auto* entity_box = new QFrame(parent);
     entity_box->setObjectName("entityClassBox");
@@ -186,6 +189,27 @@ QFrame* makeEntityBox(const bonsaiviewer::modules::properties::EntitySummary& en
     entity_text_layout->addWidget(entity_type_label);
     entity_layout->addWidget(entity_icon, 0, Qt::AlignVCenter);
     entity_layout->addWidget(entity_text, 1, Qt::AlignVCenter);
+
+    // Isolate / Show the entity, or the elements it contains.
+    *isolate_out = nullptr;
+    *show_out = nullptr;
+    if (!entity.entity_class.isEmpty()) {
+        const auto makeAction = [entity_box, entity_layout](const QString& text, const QString& icon,
+                                                            const QString& tooltip) {
+            auto* button = new QToolButton(entity_box);
+            button->setText(text);
+            button->setIcon(bonsaiviewer::components::icons::makeSvgIcon(icon));
+            button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+            button->setToolTip(tooltip);
+            button->setAutoRaise(true);
+            entity_layout->addWidget(button, 0, Qt::AlignVCenter);
+            return button;
+        };
+        *isolate_out = makeAction("Isolate", ":/icons/box-3d-center.svg",
+                                  "Show only this element, or the elements it contains (group, spatial element, type)");
+        *show_out = makeAction("Show", ":/icons/eye.svg",
+                               "Show this element, or the elements it contains, with what is already visible");
+    }
     return entity_box;
 }
 
@@ -209,13 +233,20 @@ void PropertiesPanel::render(const PropertiesPanelState& state) {
 
     auto* entity_section = new components::Section("", components::SectionHeaderMode::Hidden, this);
     QToolButton* back = nullptr;
-    entity_section->addBodyWidget(makeEntityBox(state.entity, state.can_go_back, &back, this));
+    QToolButton* isolate = nullptr;
+    QToolButton* show = nullptr;
+    entity_section->addBodyWidget(makeEntityBox(state.entity, state.can_go_back, &back, &isolate, &show, this));
     if (back) {
         connect(back, &QToolButton::clicked, this, &PropertiesPanel::backRequested);
     }
+    if (isolate) connect(isolate, &QToolButton::clicked, this, &PropertiesPanel::entityIsolateRequested);
+    if (show) connect(show, &QToolButton::clicked, this, &PropertiesPanel::entityShowRequested);
 
     auto* attributes_section = new components::Section("Attributes", components::SectionHeaderMode::Visible, this);
-    attributes_section->addBodyWidget(makeAttributeList(state.attributes, this));
+    auto* attribute_list = makeAttributeList(state.attributes, this);
+    connect(attribute_list, &components::KeyValueTable::contextMenuRequested, this,
+            [this](int, bool, const QPoint& pos) { emit attributeContextRequested(pos); });
+    attributes_section->addBodyWidget(attribute_list);
     attributes_section->setExpanded(attributes_expanded_);
 
     auto* relationships_section = new components::Section("Relationships", components::SectionHeaderMode::Visible, this);

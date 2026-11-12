@@ -53,6 +53,12 @@ signals:
     // Right click on a Relationships row (key or value).
     void relationshipContextRequested(int row, const QPoint& global_pos);
     void backRequested();
+    // BonsaiViewer32: Isolate / Show the shown entity (the elements it
+    // contains for a group, a spatial element or a type), from the header
+    // buttons or the right click on the Attributes.
+    void entityIsolateRequested();
+    void entityShowRequested();
+    void attributeContextRequested(const QPoint& global_pos);
     // BonsaiViewer09: the Clash section — the link of a result row, and the
     // right click on a row (result_row: the result in the Result panel).
     void clashResultActivated(int result_row);
