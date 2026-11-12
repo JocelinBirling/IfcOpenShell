@@ -47,7 +47,9 @@ bool PersistenceService::saveDocument(const QString& name, const QJsonDocument& 
     if (!file.open(QIODevice::WriteOnly)) {
         return false;
     }
-    return file.write(document.toJson()) == document.toJson().size();
+    // Serialize once: toJson() on a large document is not free.
+    const QByteArray bytes = document.toJson();
+    return file.write(bytes) == bytes.size();
 }
 
 std::optional<QJsonDocument> PersistenceService::loadDocument(const QString& name) const {
@@ -75,7 +77,8 @@ bool PersistenceService::exportDocument(const QString& name, const QString& file
     if (!file.open(QIODevice::WriteOnly)) {
         return false;
     }
-    return file.write(document->toJson()) == document->toJson().size();
+    const QByteArray bytes = document->toJson();
+    return file.write(bytes) == bytes.size();
 }
 
 } // namespace bonsaiviewer::services
