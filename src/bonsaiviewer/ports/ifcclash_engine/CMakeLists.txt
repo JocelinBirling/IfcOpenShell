@@ -57,3 +57,10 @@ else()
     message(WARNING "ifcclash_engine: GEOS not found (install libgeos-dev): "
                     "the clash rules that need polygon operations are disabled")
 endif()
+
+# BonsaiViewer: the unit tests of the copy (not built by default):
+#   cmake --build <build> --target ifcclash_engine_tests && <build>/.../ifcclash_engine_tests
+add_executable(ifcclash_engine_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_obb_modifications.cpp)
+target_link_libraries(ifcclash_engine_tests PRIVATE ifcclash_engine)
+add_test(NAME ifcclash_engine_tests COMMAND ifcclash_engine_tests)

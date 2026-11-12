@@ -15,6 +15,7 @@
 
 #include "../geometry/Faces.h"
 #include "../geometry/Obb.h"
+#include "../geometry/ObbModifications.h"
 
 #include <BRepIntCurveSurface_Inter.hxx>
 #include <gp_Lin.hxx>
@@ -272,77 +273,20 @@ struct CustomParams {
     std::vector<std::string> list_of_modifications;
 };
 
-// Rules._modification_value: "name:value", a percentage kept as such.
-geometry::ObbChange modification_value(const std::string& modification) {
-    const auto colon = modification.find(':');
-    if (colon == std::string::npos) {
-        throw ConfigError("OBB_Custom: modification '" + modification + "' has no ':value'");
-    }
-    std::string value = modification.substr(colon + 1);
-    const auto next = value.find(':');
-    if (next != std::string::npos) value = value.substr(0, next);  // split(":")[1]
-    if (!value.empty() && value.back() == '%') {
-        value.pop_back();
-        return {std::stod(value) / 100.0, true};
-    }
-    return {std::stod(value), false};
-}
-
 class ObbCustom final : public ZoneRule<CustomParams> {
 public:
     void setup() override {
-        // Fail on a bad declaration before any computation.
-        for (const auto& m : params().list_of_modifications) {
-            if (m.find("NEW_OBB") == std::string::npos && is_known(m)) modification_value(m);
-        }
+        // BonsaiViewer: the list is parsed once, strictly (geometry/ObbModifications).
+        steps_ = geometry::parse_obb_modifications(params().list_of_modifications, "OBB_Custom");
     }
 
 protected:
-    static bool is_known(const std::string& m) {
-        for (const char* name : {"expand_sides", "detach_top_by_extrude", "detach_bottom_by_extrude", "extend_up",
-                                 "extend_down"}) {
-            if (m.find(name) != std::string::npos) return true;
-        }
-        return false;
+    std::vector<Bnd_OBB> zones(const TopoDS_Shape&, const Bnd_OBB& base) const override {
+        return geometry::obb_zones(base, steps_);
     }
 
-    std::vector<Bnd_OBB> zones(const TopoDS_Shape& shape, const Bnd_OBB& base) const override {
-        Bnd_OBB obb = base;
-        std::vector<Bnd_OBB> out;
-        for (const auto& m : params().list_of_modifications) {
-            auto has = [&](const char* name) { return m.find(name) != std::string::npos; };
-            if (has("expand_sides")) {
-                // Python assigns the None returned by expand_sides (and then
-                // fails): the intended in-place expansion is applied here.
-                geometry::expand_sides(obb, modification_value(m));
-                continue;
-            }
-            if (has("detach_top_by_extrude")) {
-                obb = geometry::detach_by_extrude(obb, modification_value(m), true);
-                continue;
-            }
-            if (has("detach_bottom_by_extrude")) {
-                obb = geometry::detach_by_extrude(obb, modification_value(m), false);
-                continue;
-            }
-            if (has("extend_up")) {
-                obb = geometry::extend_vertically(obb, modification_value(m), true);
-                continue;
-            }
-            if (has("extend_down")) {
-                obb = geometry::extend_vertically(obb, modification_value(m), false);
-                continue;
-            }
-            if (has("NEW_OBB")) {
-                // Python recomputes the OBB of the (already meshed) shape:
-                // the same box as `base`. The shared shape is not touched.
-                out.push_back(obb);
-                obb = base;
-            }
-        }
-        out.push_back(obb);
-        return out;
-    }
+private:
+    std::vector<geometry::ObbStep> steps_;
 };
 
 const std::vector<std::string> kAboveTypes{"Above_MinToMax", "Above_MinToMin", "Above_MaxToMin", "Above_MaxToMax"};
