@@ -42,6 +42,10 @@ QWidget* makeButtonGroup(const QString& title,
 // adjacent groups but never after the last one. Centralising the decision
 // here means a row can't end up with a dangling trailing separator.
 void addButtonGroups(QBoxLayout* row, const QList<QWidget*>& groups);
+// Marks the checkable ribbon buttons under `root` (property toggle = true):
+// the stylesheet outlines them, and frames them in the accent colour when
+// pressed. Called once the ribbons and panels are built.
+void markToggleButtons(QWidget* root);
 
 } // namespace bonsaiviewer::components::buttons
 

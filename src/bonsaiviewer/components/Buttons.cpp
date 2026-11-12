@@ -26,6 +26,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -79,6 +80,17 @@ void addButtonGroups(QBoxLayout* row, const QList<QWidget*>& groups) {
         // trailing one. The stylesheet keys off this dynamic property.
         groups[i]->setProperty("separator", i + 1 < groups.size());
         row->addWidget(groups[i]);
+    }
+}
+
+void markToggleButtons(QWidget* root) {
+    if (root == nullptr) return;
+    for (auto* button : root->findChildren<QToolButton*>(QStringLiteral("ribbonButton"))) {
+        const bool toggle = button->isCheckable();
+        if (button->property("toggle").toBool() == toggle) continue;
+        button->setProperty("toggle", toggle);
+        button->style()->unpolish(button); // the stylesheet reads the property again
+        button->style()->polish(button);
     }
 }
 

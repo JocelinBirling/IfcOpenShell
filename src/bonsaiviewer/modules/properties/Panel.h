@@ -53,6 +53,10 @@ signals:
     // Right click on a Relationships row (key or value).
     void relationshipContextRequested(int row, const QPoint& global_pos);
     void backRequested();
+    // BonsaiViewer09: the Clash section — the link of a result row, and the
+    // right click on a row (result_row: the result in the Result panel).
+    void clashResultActivated(int result_row);
+    void clashContextRequested(int result_row, const QPoint& global_pos);
 
 private:
     PropertyContextHandler contextHandler();
@@ -69,6 +73,7 @@ private:
     bool relationships_expanded_ = true;
     bool properties_expanded_ = true;
     bool quantities_expanded_ = true;
+    bool clash_expanded_ = true;
     bool properties_filter_visible_ = false;
     bool quantities_filter_visible_ = false;
     QString properties_filter_text_;

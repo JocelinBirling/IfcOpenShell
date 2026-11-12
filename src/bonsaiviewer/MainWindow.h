@@ -49,6 +49,7 @@ namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::ids { class IdsPanelView; }
 namespace bonsaiviewer::modules::diff { class DiffPanelView; }
 namespace bonsaiviewer::services::ifcdiff { class DiffMarks; }
+namespace bonsaiviewer::modules::rule { class ClashView; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
@@ -66,6 +67,7 @@ namespace bonsaiviewer::services { class IdsBridge; }
 namespace bonsaiviewer::services { class IfcDataAccess; }
 namespace bonsaiviewer::services { class PanelManager; }
 namespace bonsaiviewer::services { class IdsPropertyChecks; }
+namespace bonsaiviewer::services::clash { class ObjectClashIndex; }
 namespace bonsaiviewer::services { class PickingService; }
 namespace bonsaiviewer::services { class PropertyCatalog; }
 namespace bonsaiviewer::services { class PropertyIndex; }
@@ -105,10 +107,12 @@ private:
     void setupStatus();
     void setupLoader();
     void setupMenuBar();
-    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS, Diff) and
-    // their default panel layouts.
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS, Diff,
+    // GeometryRule, Clash Filter) and their default panel layouts.
     void setupWorkspaces();
     void applyWorkspaceDefaults(int index);
+    // The Clash Filter Tools panel on the top of the window (its default place).
+    void placeClashFilterTools();
     // A ribbon tab became current: a workspace (system or user), Inspect,
     // or the "+" tab, which adds a user tab (TI21 phase 2).
     void onRibbonTabChanged(int index);
@@ -207,7 +211,16 @@ private:
     bonsaiviewer::modules::unified_tree::UnifiedTreePanel* unified_tree_panel_ = nullptr;
     bonsaiviewer::modules::unified_tree::UnifiedTreeView* unified_tree_view_ = nullptr;
     QDockWidget* audit_panel_ = nullptr;
-    QDockWidget* clash_panel_ = nullptr;
+    // BonsaiViewer09 (TI09): the GeometryRule and Clash Filter workspaces.
+    components::Panel* rule_dock_ = nullptr;
+    components::Panel* rule_library_dock_ = nullptr;
+    components::Panel* rule_config_dock_ = nullptr;
+    components::Panel* result_dock_ = nullptr;
+    components::Panel* result_info_dock_ = nullptr;
+    // BonsaiViewer09: the Clash Filter buttons, a dock panel (top of the
+    // Clash Filter workspace by default, movable / floatable).
+    components::Panel* clash_filter_tools_dock_ = nullptr;
+    bonsaiviewer::modules::rule::ClashView* clash_view_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;
     bonsaiviewer::modules::models::ModelsPanelView* models_view_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanelView* spatial_view_ = nullptr;
@@ -223,6 +236,7 @@ private:
     components::Panel* diff_panel_ = nullptr;
     bonsaiviewer::modules::diff::DiffPanelView* diff_view_ = nullptr;
     bonsaiviewer::services::ifcdiff::DiffMarks* diff_marks_ = nullptr;
+    bonsaiviewer::services::clash::ObjectClashIndex* clash_index_ = nullptr; // TI09: the Clash section of Properties
     bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
     bonsaiviewer::services::PropertyCatalog* property_catalog_ = nullptr;
     bonsaiviewer::modules::table::TablePanelView* table_view_ = nullptr;

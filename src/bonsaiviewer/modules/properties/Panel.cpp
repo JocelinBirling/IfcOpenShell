@@ -313,6 +313,49 @@ void PropertiesPanel::render(const PropertiesPanelState& state) {
     addBodyWidget(relationships_section);
     addBodyWidget(properties_section);
     addBodyWidget(quantities_section);
+
+    // BonsaiViewer09: the clash rules of the session that checked the element.
+    if (!state.clash_summary.isEmpty()) {
+        auto* clash_section = new components::Section("Clash", components::SectionHeaderMode::Visible, this);
+        auto* summary = new QLabel(state.clash_summary, clash_section);
+        summary->setWordWrap(true);
+        summary->setObjectName("panelSectionEmptyLabel");
+        clash_section->addBodyWidget(summary);
+        auto* container = makeSetContainer(clash_section);
+        for (const ClashSet& set : state.clash_sets) {
+            auto* group = new QGroupBox(set.title, container);
+            group->setObjectName("propertySetBox");
+            auto* layout = new QVBoxLayout(group);
+            layout->setContentsMargins(10, 10, 10, 10);
+            layout->setSpacing(0);
+            QList<components::KeyValueTableRow> rows;
+            for (const ClashRow& row : set.rows) {
+                const bool link = row.result_row >= 0;
+                components::KeyValueTableRow table_row{row.key, row.value, "keyValueValueLabel",
+                                                       link ? ":/icons/cursor-pointer.svg" : "",
+                                                       "keyValueTrailingIconLabel", 0, link};
+                table_row.status_color = row.colour;
+                table_row.tooltip = row.tooltip;
+                rows.append(table_row);
+            }
+            auto* table = new components::KeyValueTable(rows, group);
+            const QList<ClashRow> data = set.rows;
+            connect(table, &components::KeyValueTable::linkActivated, this, [this, data](int row) {
+                if (row >= 0 && row < data.size() && data[row].result_row >= 0) emit clashResultActivated(data[row].result_row);
+            });
+            connect(table, &components::KeyValueTable::contextMenuRequested, this, [this, data](int row, bool, const QPoint& pos) {
+                if (row >= 0 && row < data.size() && data[row].result_row >= 0) emit clashContextRequested(data[row].result_row, pos);
+            });
+            layout->addWidget(table);
+            container->layout()->addWidget(group);
+        }
+        clash_section->addBodyWidget(container);
+        clash_section->setExpanded(clash_expanded_);
+        if (auto* button = clash_section->findChild<QToolButton*>("panelSectionHeaderButton")) {
+            connect(button, &QToolButton::toggled, this, [this](bool expanded) { clash_expanded_ = expanded; });
+        }
+        addBodyWidget(clash_section);
+    }
 }
 
 namespace {
