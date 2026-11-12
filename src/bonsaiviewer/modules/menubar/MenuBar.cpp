@@ -90,6 +90,14 @@ void MenuBar::setOpenRecentPopulator(std::function<void(QMenu*)> populator) {
     recent_populator_ = std::move(populator);
 }
 
+void MenuBar::setWindowMenuExtras(std::function<void(QMenu*)> extras) {
+    window_extras_ = std::move(extras);
+    if (panel_manager_ && window_extras_) {
+        panel_manager_->buildWindowMenu(window_menu_);
+        window_extras_(window_menu_);
+    }
+}
+
 void MenuBar::buildFileMenu(QMenu* menu) {
     connect(menu->addAction(icon("plus-square"), QStringLiteral("New")), &QAction::triggered, this, [this]() {
         modules::project::commands::newProject(*session_state_, *window_, *viewport_);
@@ -171,6 +179,7 @@ void MenuBar::buildWindowMenu() {
             this, [this]() {
                 if (!panel_manager_) return;
                 panel_manager_->buildWindowMenu(window_menu_);
+                if (window_extras_) window_extras_(window_menu_);
             });
 }
 

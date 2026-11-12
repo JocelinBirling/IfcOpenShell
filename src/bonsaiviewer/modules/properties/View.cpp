@@ -29,6 +29,7 @@
 #include "../../services/EntitySetStore.h"
 #include "../../services/IdsPropertyChecks.h"
 #include "../../services/IfcDataAccess.h"
+#include "../../services/IfcDiff/DiffMarks.h"
 #include "../../services/SelectionService.h"
 #include "../../../ifcviewer/Federation.h"
 #include "../../../ifcviewer/SceneLoader.h"
@@ -141,6 +142,70 @@ void applyIdsChecks(bonsaiviewer::modules::properties::PropertiesPanelState& sta
             if (!set.rows.isEmpty()) kept.append(set);
         }
         *sets = kept;
+    }
+}
+
+// BonsaiViewer34: colours the rows the last IfcDiff run changed on the shown
+// element. A change on a property or attribute the element does not show (a
+// property of the other model only, or an empty value) adds a row for it.
+void applyDiffMarks(bonsaiviewer::modules::properties::PropertiesPanelState& state,
+                    const bonsaiviewer::services::ifcdiff::DiffMarks::Mark& mark) {
+    namespace df = bonsaiviewer::services::ifcdiff;
+    using bonsaiviewer::modules::properties::KeyValueRow;
+    using bonsaiviewer::modules::properties::PropertySet;
+    const auto describe = [](const std::string& old_value, const std::string& new_value) {
+        const auto shown = [](const std::string& value) {
+            return value.empty() ? QStringLiteral("(none)") : QString::fromStdString(value);
+        };
+        return QString("IfcDiff: %1 → %2").arg(shown(old_value), shown(new_value));
+    };
+    for (const df::AttributeChange& change : mark.change->attributes) {
+        const QString name = QString::fromStdString(change.name);
+        auto row = std::find_if(state.attributes.begin(), state.attributes.end(),
+                                [&](const KeyValueRow& r) { return r.key == name; });
+        if (row == state.attributes.end()) {
+            state.attributes.append({name, QStringLiteral("(none)")});
+            row = state.attributes.end() - 1;
+        }
+        row->diff_status = 2;
+        row->diff_text = describe(change.old_value, change.new_value);
+    }
+    for (const df::PropertyChange& change : mark.change->properties) {
+        int status = 2;
+        if (change.kind == df::PropertyChangeKind::PropertyAdded || change.kind == df::PropertyChangeKind::ValueAdded) status = 1;
+        if (change.kind == df::PropertyChangeKind::PropertyRemoved || change.kind == df::PropertyChangeKind::ValueRemoved) status = -1;
+        const QString pset = QString::fromStdString(change.pset);
+        const QString property = QString::fromStdString(change.property);
+        KeyValueRow* found = nullptr;
+        for (QList<PropertySet>* sets : {&state.property_sets, &state.quantity_sets}) {
+            for (PropertySet& set : *sets) {
+                if (set.title != pset) continue;
+                for (KeyValueRow& row : set.rows) {
+                    if (row.key == property) found = &row;
+                }
+            }
+        }
+        if (found == nullptr) {
+            // Not shown on this element: the value of the other model.
+            QString value;
+            if (change.kind == df::PropertyChangeKind::PropertyAdded) value = QString("(added in After: %1)").arg(QString::fromStdString(change.new_value));
+            else if (change.kind == df::PropertyChangeKind::PropertyRemoved) value = QString("(removed, was %1)").arg(QString::fromStdString(change.old_value));
+            else value = QString::fromStdString(mark.before ? change.old_value : change.new_value);
+            if (value.isEmpty()) value = QStringLiteral("(none)");
+            bool in_quantities = pset.startsWith("Qto_") || pset == QLatin1String("BaseQuantities");
+            for (const PropertySet& set : state.quantity_sets) in_quantities = in_quantities || set.title == pset;
+            QList<PropertySet>& sets = in_quantities ? state.quantity_sets : state.property_sets;
+            auto set = std::find_if(sets.begin(), sets.end(), [&](const PropertySet& s) { return s.title == pset; });
+            if (set == sets.end()) {
+                sets.append(PropertySet{pset, {}});
+                set = sets.end() - 1;
+            }
+            set->rows.append({property, value});
+            found = &set->rows.last();
+        }
+        found->diff_status = status;
+        found->diff_text = QString("%1\n%2").arg(QString::fromStdString(df::changeKindName(change.kind)),
+                                                 describe(change.old_value, change.new_value));
     }
 }
 
@@ -454,8 +519,18 @@ void PropertiesPanelView::render() {
         const auto* checks = ids_checks_->checksOf(shown_.session_model_id, shown_.ifc_id);
         applyIdsChecks(state, checks ? *checks : none, ids_checks_->colour(), ids_checks_->filter());
     }
+    if (diff_marks_ != nullptr && shown_.ifc_id != 0) {
+        if (const auto* mark = diff_marks_->markOf(shown_.session_model_id, shown_.ifc_id)) applyDiffMarks(state, *mark);
+    }
     relationships_ = state.relationships;
     widget_->render(state);
+}
+
+void PropertiesPanelView::setDiffMarks(bonsaiviewer::services::ifcdiff::DiffMarks* marks) {
+    diff_marks_ = marks;
+    if (diff_marks_ != nullptr) {
+        connect(diff_marks_, &bonsaiviewer::services::ifcdiff::DiffMarks::changed, this, [this]() { render(); });
+    }
 }
 
 void PropertiesPanelView::setIdsChecks(bonsaiviewer::services::IdsPropertyChecks* checks) {

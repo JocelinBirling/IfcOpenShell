@@ -54,6 +54,8 @@
 #include "modules/table/View.h"
 #include "modules/ids/Editor.h"
 #include "modules/ids/View.h"
+#include "modules/diff/View.h"
+#include "services/IfcDiff/DiffMarks.h"
 #include "modules/text_digger/Panel.h"
 #include "modules/text_digger/View.h"
 #include "services/ActionPipeline.h"
@@ -665,19 +667,21 @@ void MainWindow::setupRibbon() {
     shell_layout->setContentsMargins(0, 0, 0, 0);
     shell_layout->setSpacing(0);
 
-    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS) and the
-    // Inspect tab share one row. Workspace tabs are indexes 0 to 3, Inspect is 4.
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS, Diff) and
+    // the Inspect tab share one row. Workspace tabs are indexes 0 to 4,
+    // Inspect is 5.
     ribbon_tabs_ = new components::TabBar(shell);
     ribbon_tabs_->addTab("Home");
     ribbon_tabs_->addTab("Filter");
     ribbon_tabs_->addTab("Table");
     ribbon_tabs_->addTab("IDS");
+    ribbon_tabs_->addTab("Diff"); // BonsaiViewer34
     ribbon_tabs_->addTab("Inspect");
     // TI21 phase 2: the last tab adds a user tab; tabs can be reordered.
     ribbon_tabs_->addTab("+");
-    ribbon_tabs_->setTabToolTip(5, "Add a tab");
-    ribbon_tabs_->setTabData(4, QStringLiteral("inspect"));
-    ribbon_tabs_->setTabData(5, QStringLiteral("add"));
+    ribbon_tabs_->setTabToolTip(6, "Add a tab");
+    ribbon_tabs_->setTabData(5, QStringLiteral("inspect"));
+    ribbon_tabs_->setTabData(6, QStringLiteral("add"));
     ribbon_tabs_->setMovable(true);
     ribbon_tabs_->setContextMenuPolicy(Qt::CustomContextMenu);
     ribbon_tabs_->setCurrentIndex(0);
@@ -691,7 +695,7 @@ void MainWindow::setupRibbon() {
 
     ribbon_pages_ = new QStackedWidget(ribbon_band);
     // Workspaces: no ribbon content, the band is hidden on these tabs.
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         ribbon_pages_->addWidget(new QWidget(ribbon_pages_));
     }
     ribbon_pages_->addWidget(buildInspectRibbonPage());
@@ -720,6 +724,7 @@ void MainWindow::setupRibbon() {
     specific_panel->addTab(QStringLiteral("Filter"));
     specific_panel->addTab(QStringLiteral("Table"));
     specific_panel->addTab(QStringLiteral("IDS"));
+    specific_panel->addTab(QStringLiteral("Diff"));
     specific_index_.insert(QStringLiteral("inspect"), specific_panel->addTab(QStringLiteral("Inspect")));
     // Order below the tabs: the tab ribbon, then the specific panel.
     shell_layout->addWidget(ribbon_band);
@@ -741,7 +746,7 @@ void MainWindow::setupRibbon() {
 // user tabs ("+"), rename / delete / reorder, and the saved layouts.
 void MainWindow::setupWorkspaces() {
     const QStringList names{QStringLiteral("Home"), QStringLiteral("Filter"), QStringLiteral("Table"),
-                            QStringLiteral("IDS")};
+                            QStringLiteral("IDS"), QStringLiteral("Diff")};
     for (int i = 0; i < names.size(); ++i) {
         const QString id = panel_manager_->addTab(names.at(i));
         workspace_ids_.append(id);
@@ -789,7 +794,7 @@ void MainWindow::onRibbonTabChanged(int index) {
     }
     const bool inspect = key == QLatin1String("inspect");
     ribbon_band_->setVisible(inspect);
-    ribbon_pages_->setCurrentIndex(inspect ? 4 : 0);
+    ribbon_pages_->setCurrentIndex(inspect ? 5 : 0);
     specific_panel_->setCurrentIndex(specific_index_.value(key, 0));
     // Inspect keeps the panels of the workspace it was opened from.
     if (inspect || key.isEmpty()) return;
@@ -845,7 +850,7 @@ void MainWindow::showRibbonTabMenu(const QPoint& pos) {
 }
 
 // Saved layouts: one JSON array in QSettings, in ribbon order. A workspace
-// entry is {"kind": "workspace", "index": 0..3, "layout": base64}, a user tab
+// entry is {"kind": "workspace", "index": 0..4, "layout": base64}, a user tab
 // {"kind": "user", "name", "layout"}, Inspect {"kind": "inspect"}.
 namespace {
 const char* kSavedLayoutsKey = "layouts/tabs";
@@ -927,6 +932,8 @@ void MainWindow::restoreSavedLayouts() {
 // Filter / Table: the tree group on the top left, Filters / Tables on the
 // bottom left. Table and IDS: the Table / IDS panel on the whole bottom
 // (the bottom corners belong to the bottom area, Qt's default).
+// Diff (BonsaiViewer34): the tree group on the top left, IfcDiff on the
+// bottom left.
 void MainWindow::applyWorkspaceDefaults(int index) {
     addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
     tabifyDockWidget(models_panel_, spatial_panel_);
@@ -943,6 +950,9 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         visible << QStringLiteral("tables") << QStringLiteral("sheets");
     } else if (index == 3) {
         visible << QStringLiteral("ids");
+    } else if (index == 4) {
+        splitDockWidget(models_panel_, diff_panel_, Qt::Vertical);
+        visible << QStringLiteral("diff");
     }
     for (const QString& id : panel_manager_->registeredPanels()) {
         panel_manager_->setPanelVisible(id, visible.contains(id));
@@ -990,6 +1000,7 @@ void MainWindow::setupPanels() {
     table_panel_ = new modules::table::TablePanel(this);
     text_digger_panel_ = new modules::text_digger::TextDiggerPanel(this);
     ids_panel_ = new components::Panel("IDS", nullptr, this);
+    diff_panel_ = new components::Panel("IfcDiff", nullptr, this, false, true);
     tables_panel_ = new modules::table::TablesPanel(this);
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     clash_panel_ = new components::Panel("Clash", new modules::todo::TodoPanel("Clash", this), this);
@@ -1023,6 +1034,8 @@ void MainWindow::setupPanels() {
     // BonsaiViewer24: the IDS panel, in the same bottom tabs.
     addDockWidget(Qt::BottomDockWidgetArea, ids_panel_);
     tabifyDockWidget(text_digger_panel_, ids_panel_);
+    // BonsaiViewer34: the IfcDiff panel, on the left (Diff workspace only).
+    addDockWidget(Qt::LeftDockWidgetArea, diff_panel_);
     // Tables: on the left, tabbed with Models, and shown at start-up.
     addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
     tabifyDockWidget(models_panel_, tables_panel_);
@@ -1043,6 +1056,7 @@ void MainWindow::setupPanels() {
     table_panel_->hide();
     text_digger_panel_->hide();
     ids_panel_->hide();
+    diff_panel_->hide();
     tables_panel_->raise();
     audit_panel_->hide();
     clash_panel_->hide();
@@ -1258,6 +1272,12 @@ void MainWindow::setupLoader() {
     ids_view_ = new modules::ids::IdsPanelView(ids_panel_, *session_state_, *ids_bridge_, *action_pipeline_,
                                                *appearance_service_, this);
     ids_view_->setPropertyChecks(ids_property_checks_);
+    // BonsaiViewer34: the IfcDiff panel; its property changes colour the Properties panel.
+    diff_marks_ = new bonsaiviewer::services::ifcdiff::DiffMarks(this);
+    properties_view_->setDiffMarks(diff_marks_);
+    diff_view_ = new modules::diff::DiffPanelView(diff_panel_, *session_state_, *selection_service_, *action_pipeline_,
+                                                  *appearance_service_, *undo_stack_, *property_catalog_,
+                                                  *diff_marks_, this);
     // TI12: the Ifc Class Tree (B12 tree over the open models' IFC classes).
     auto* class_tree_data = new modules::class_tree::ClassTreeDataSource(
         *session_state_, *selection_service_, *action_pipeline_, this);
@@ -1460,6 +1480,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Ifc Text Digger"), text_digger_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("ids"),
                                QStringLiteral("IDS"), ids_panel_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("diff"),
+                               QStringLiteral("IfcDiff"), diff_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("tables"),
                                QStringLiteral("Tables"), tables_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("audit"),
@@ -1474,6 +1496,15 @@ void MainWindow::setupMenuBar() {
         category_filter_, panel_manager_, this);
     menu_bar_->setOpenRecentPopulator(
         [this](QMenu* menu) { populateRecentMenu(menu); });
+    // BonsaiViewer34: Window > Diff switches to the Diff workspace.
+    menu_bar_->setWindowMenuExtras([this](QMenu* menu) {
+        menu->addSeparator();
+        menu->addAction(QStringLiteral("Diff"), this, [this]() {
+            if (workspace_ids_.size() <= 4) return;
+            const int index = ribbonIndexOf(workspace_ids_.at(4));
+            if (index >= 0) ribbon_tabs_->setCurrentIndex(index);
+        });
+    });
 }
 
 void MainWindow::updateWindowTitle() {

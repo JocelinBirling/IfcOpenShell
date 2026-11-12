@@ -175,6 +175,16 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsPropertyChecks.h
+    # BonsaiViewer34: C++ port of IfcDiff and the Diff panel.
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDiff/IfcDiff.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDiff/IfcDiff.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/IfcDiff/DiffMarks.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/diff/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/diff/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/diff/ReportDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/diff/ReportDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/diff/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/diff/View.h
     # C++ ports of ifcopenshell.util and IfcTester (BonsaiViewer24 IDS).
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.h

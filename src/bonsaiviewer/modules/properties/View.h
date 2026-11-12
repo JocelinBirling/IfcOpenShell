@@ -40,6 +40,7 @@ class EntitySetStore;
 class IdsPropertyChecks;
 class IfcDataAccess;
 class SelectionService;
+namespace ifcdiff { class DiffMarks; }
 }
 namespace bonsaiviewer::modules::table { class TablePanelView; }
 
@@ -65,6 +66,8 @@ public:
     void setTableView(table::TablePanelView* table_view) { table_view_ = table_view; }
     // BonsaiViewer24 "Color Properties": the IDS checks that colour the rows.
     void setIdsChecks(bonsaiviewer::services::IdsPropertyChecks* checks);
+    // BonsaiViewer34: the changes of the last IfcDiff run that colour the rows.
+    void setDiffMarks(bonsaiviewer::services::ifcdiff::DiffMarks* marks);
 
 private:
     // The entity shown in the panel: a model entity (session_model_id +
@@ -108,6 +111,7 @@ private:
     bonsaiviewer::services::EntitySetStore& box_;
     table::TablePanelView* table_view_ = nullptr;
     bonsaiviewer::services::IdsPropertyChecks* ids_checks_ = nullptr;
+    bonsaiviewer::services::ifcdiff::DiffMarks* diff_marks_ = nullptr;
     Shown shown_;
     QList<Shown> history_;
     QList<RelationshipRow> relationships_;  // as rendered, for the link clicks

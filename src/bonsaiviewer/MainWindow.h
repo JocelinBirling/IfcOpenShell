@@ -47,6 +47,8 @@ namespace bonsaiviewer::modules::unified_tree { class UnifiedTreeView; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::ids { class IdsPanelView; }
+namespace bonsaiviewer::modules::diff { class DiffPanelView; }
+namespace bonsaiviewer::services::ifcdiff { class DiffMarks; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
@@ -103,8 +105,8 @@ private:
     void setupStatus();
     void setupLoader();
     void setupMenuBar();
-    // TI21 phase 1: the workspace tabs (Home, Filter, Table) and their
-    // default panel layouts.
+    // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS, Diff) and
+    // their default panel layouts.
     void setupWorkspaces();
     void applyWorkspaceDefaults(int index);
     // A ribbon tab became current: a workspace (system or user), Inspect,
@@ -216,6 +218,11 @@ private:
     components::Panel* ids_panel_ = nullptr;
     bonsaiviewer::modules::ids::IdsPanelView* ids_view_ = nullptr;
     bonsaiviewer::services::IdsPropertyChecks* ids_property_checks_ = nullptr;
+    // BonsaiViewer34: the IfcDiff panel (Diff workspace) and the property
+    // changes it publishes for the Properties panel.
+    components::Panel* diff_panel_ = nullptr;
+    bonsaiviewer::modules::diff::DiffPanelView* diff_view_ = nullptr;
+    bonsaiviewer::services::ifcdiff::DiffMarks* diff_marks_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanelView* filters_view_ = nullptr;
     bonsaiviewer::services::PropertyCatalog* property_catalog_ = nullptr;
     bonsaiviewer::modules::table::TablePanelView* table_view_ = nullptr;
