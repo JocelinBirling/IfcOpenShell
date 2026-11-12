@@ -61,11 +61,17 @@ QString title(const QString& pattern, const std::vector<const ResultRow*>& rows)
     text.replace("{target}", first.target_name);
     text.replace("{measure}", first.measure);
     text.replace("{n}", QString::number(rows.size()));
+    QStringList ids;
+    for (const ResultRow* row : rows) {
+        if (row->number > 0) ids << resultNumberText(row->number);
+    }
+    text.replace("{id}", ids.join(", "));
     return text.simplified();
 }
 
 QString describe(const ResultRow& row) {
     QStringList lines;
+    if (row.number > 0) lines << "ID: " + resultNumberText(row.number);
     lines << QString("Rule: %1%2").arg(row.rule_label, row.rule_type.isEmpty() ? QString() : QString(" (%1)").arg(row.rule_type));
     if (row.complex) {
         lines << QString("Group: %1 — %2 source(s), %3 target(s), %4")
@@ -98,7 +104,11 @@ QString description(const std::vector<const ResultRow*>& rows) {
     for (const ResultRow* row : rows) addOnce(rules, row->rule_label);
     QStringList parts{QString("%1 clash results (%2).").arg(rows.size()).arg(rules.join(", "))};
     int number = 1;
-    for (const ResultRow* row : rows) parts << QString("Result %1\n%2").arg(number++).arg(describe(*row));
+    for (const ResultRow* row : rows) {
+        const QString name = row->number > 0 ? resultNumberText(row->number) : QString::number(number);
+        ++number;
+        parts << QString("Result %1\n%2").arg(name, describe(*row));
+    }
     return parts.join("\n\n");
 }
 

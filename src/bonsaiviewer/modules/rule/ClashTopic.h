@@ -33,9 +33,10 @@ namespace bonsaiviewer::modules::rule::topic {
 using PriorityTable = std::vector<std::pair<QString, QString>>;
 
 // The title: {rule}, {source}, {target}, {measure}, {n} (the number of
-// results) replaced by the values of the first result.
+// results) replaced by the values of the first result; {id}: the short
+// numbers of the results (R-0042, comma separated).
 QString title(const QString& pattern, const std::vector<const ResultRow*>& rows);
-// The text of one result: the rule, the source, the target, the measures,
+// The text of one result: its short number (ID), the rule, the source, the target, the measures,
 // the criticity, the actor, the groups, the review, and a last line
 // "Result key: <key>" (the link can be found again from the topic).
 QString describe(const ResultRow& row);

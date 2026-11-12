@@ -32,7 +32,7 @@ namespace bonsaiviewer::modules::rule {
 
 namespace {
 
-const QString kOnePattern = QStringLiteral("{rule} — {source} / {target}");
+const QString kOnePattern = QStringLiteral("{id} {rule} — {source} / {target}");
 const QString kGroupPattern = QStringLiteral("{rule} — {n} clashes");
 const QString kFromCriticity = QStringLiteral("(from the criticity)");
 
@@ -86,7 +86,7 @@ ClashTopicDialog::ClashTopicDialog(std::vector<const ResultRow*> rows, bool per_
     auto* form = new QFormLayout(fields);
     title_ = new QLineEdit(fields);
     title_->setToolTip("{rule}, {source}, {target}, {measure} and {n} (the number of results) are replaced by the "
-                       "values of the first result of each topic.");
+                       "values of the first result of each topic; {id} by the IDs of its results (R-0042).");
     form->addRow("Title", title_);
     type_ = valueBox(extensions.topic_types, "Clash", fields);
     form->addRow("Type", type_);

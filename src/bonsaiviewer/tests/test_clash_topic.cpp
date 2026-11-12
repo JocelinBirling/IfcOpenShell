@@ -55,10 +55,14 @@ ResultRow pair(const QString& source, const QString& criticity, const QString& a
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     const ResultRow a = pair("Wall 1", "Low", "HVAC");
-    const ResultRow b = pair("Wall 2", "High", "Structure");
+    ResultRow b = pair("Wall 2", "High", "Structure");
+    b.number = 42;
 
     check(topic::title("{rule} — {source} / {target}", {&a}) == "Duct vs Wall — Wall 1 / Duct 3", "title of one result");
     check(topic::title("{rule} — {n} clash(es)", {&a, &b}) == "Duct vs Wall — 2 clash(es)", "title of several results");
+    check(topic::title("{id} {rule}", {&b}) == "R-0042 Duct vs Wall", "{id}: the short number");
+    check(topic::title("{id} {rule}", {&a}) == "Duct vs Wall", "{id} of a result without number: nothing");
+    check(topic::describe(b).startsWith("ID: R-0042\nRule: Duct vs Wall"), "the ID line first");
 
     const QString one = topic::describe(a);
     check(one.startsWith("Rule: Duct vs Wall (Intersection)\n"), "the rule first");
@@ -72,6 +76,7 @@ int main(int argc, char** argv) {
     const QString both = topic::description({&a, &b});
     check(both.startsWith("2 clash results (Duct vs Wall).\n\nResult 1\nRule:"), "several: a count, then each result");
     check(both.count("Result key: ") == 2, "several: one key line per result");
+    check(both.contains("\n\nResult R-0042\nID: R-0042\n"), "several: a result named by its ID");
 
     check(topic::labels({&a, &b}) == QStringList({"Clash", "Duct vs Wall", "Low", "High", "HVAC", "Structure"}),
           "labels: Clash, the rules, the criticities, the actors, each once");
