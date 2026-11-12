@@ -34,6 +34,7 @@ class QLabel;
 class QTableWidget;
 class QDoubleSpinBox;
 class QLineEdit;
+class QPlainTextEdit;
 class QShowEvent;
 class QSpinBox;
 class QWidget;
@@ -102,6 +103,7 @@ private:
     QTableWidget* shortcut_table_ = nullptr;
     QLabel* shortcut_warning_ = nullptr;
     QLineEdit* bcf_author_edit_ = nullptr;
+    QPlainTextEdit* bcf_priorities_edit_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::settings

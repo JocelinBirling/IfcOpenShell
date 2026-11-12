@@ -44,6 +44,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
@@ -412,6 +413,13 @@ QWidget* SettingsDialog::buildBcfTab() {
     bcf_author_edit_->setToolTip("Written as the author of the BCF topics and comments you create or modify "
                                  "(BCF 3.0 expects an e-mail address).");
     form->addRow("Author (e-mail)", bcf_author_edit_);
+    bcf_priorities_edit_ = new QPlainTextEdit(bcf::criticityPrioritiesText(), body);
+    bcf_priorities_edit_->setPlaceholderText("High = Critical\nMedium = Normal\nLow = Minor");
+    bcf_priorities_edit_->setToolTip("The priority of a topic made from clash results, by the criticity of its results: "
+                                     "one line per criticity, \"criticity = priority\". The first lines rank highest: "
+                                     "the highest criticity of the results gives the priority.");
+    bcf_priorities_edit_->setMaximumHeight(110);
+    form->addRow("Priority by criticity", bcf_priorities_edit_);
     section->addBodyWidget(body);
     layout->addWidget(section);
     return tab;
@@ -684,6 +692,7 @@ void SettingsDialog::onAccepted() {
         interface_settings.setCustomColor(editor.key, editor.edit->text());
     }
     bcf::setAuthor(bcf_author_edit_->text());
+    bcf::setCriticityPrioritiesText(bcf_priorities_edit_->toPlainText());
     accept();
 }
 
