@@ -164,7 +164,7 @@ std::uint32_t UnifiedTreeView::defaultReferenceModel() const {
 void UnifiedTreeView::openSettings() {
     const QList<std::uint32_t> models = session_.sessionModelIds();
     if (models.isEmpty()) {
-        panel_->setStatus("No model is open.");
+        setStatus("No model is open.");
         return;
     }
     if (!settings_chosen_ || !models.contains(settings_.levels_model) || !models.contains(settings_.rooms_model)) {
@@ -221,7 +221,7 @@ void UnifiedTreeView::openSettings() {
     settings_.merge_same_name = merge_names->isChecked();
     settings_.one_level_per_element = one_level->isChecked();
     settings_chosen_ = true;
-    panel_->setStatus("Settings changed. Run to compute.");
+    setStatus("Settings changed. Run to compute.");
 }
 
 bool UnifiedTreeView::collect(unified::Input& input, QString& error) const {
@@ -358,10 +358,17 @@ bool UnifiedTreeView::collect(unified::Input& input, QString& error) const {
     return true;
 }
 
+void UnifiedTreeView::setStatus(const QString& text) {
+    status_ = text;
+    panel_->setStatus(text);
+    emit statusChanged();
+}
+
 void UnifiedTreeView::clear(const QString& status) {
     result_ = {};
     panel_->tree()->clear();
-    panel_->setStatus(status);
+    setStatus(status);
+    emit resultChanged();
 }
 
 void UnifiedTreeView::run() {
@@ -376,7 +383,8 @@ void UnifiedTreeView::run() {
         settings_chosen_ = true;
     }
     panel_->setRunning(true);
-    panel_->setStatus("Computing…");
+    running_ = true;
+    setStatus("Computing…");
     QApplication::setOverrideCursor(Qt::WaitCursor);
     QApplication::processEvents();
 
@@ -388,6 +396,7 @@ void UnifiedTreeView::run() {
     }
     QApplication::restoreOverrideCursor();
     panel_->setRunning(false);
+    running_ = false;
 
     if (!error.isEmpty()) {
         clear("Not computed: " + error);
@@ -395,6 +404,7 @@ void UnifiedTreeView::run() {
         return;
     }
     populate();
+    emit resultChanged();
     int levels = 0, rooms = 0;
     for (const auto& node : result_.nodes) {
         if (node.kind == unified::Node::Kind::Level) ++levels;
@@ -405,7 +415,7 @@ void UnifiedTreeView::run() {
                                 .arg(rooms)
                                 .arg(input.elements.size())
                                 .arg(result_.diagnostics.size());
-    panel_->setStatus(summary);
+    setStatus(summary);
     session_.setStatusMessage("Unified Tree", summary);
 }
 

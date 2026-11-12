@@ -101,7 +101,7 @@ void IndexedSource::reindex() {
     if (index.size() == 0) {
         index.add(-1, messageNode(models.isEmpty() ? QStringLiteral("No model is open.") : emptyText()));
     }
-    index.finish();
+    index.finish(sorted());
     index_ = std::move(index);
     int matches = 0;
     shown_ = index_.match(filter_, &matches);

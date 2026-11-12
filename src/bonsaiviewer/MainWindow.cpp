@@ -1669,7 +1669,8 @@ void MainWindow::setupMenuBar() {
 }
 
 void MainWindow::attachTreeExplorer(modules::tree_explorer::TreeExplorerPanel* panel) {
-    const modules::tree_explorer::Context context{*session_state_, *selection_service_, *action_pipeline_};
+    const modules::tree_explorer::Context context{*session_state_, *selection_service_, *action_pipeline_,
+                                                  unified_tree_view_};
     new modules::tree_explorer::TreeExplorerView(panel, context, panel);
 }
 

@@ -22,6 +22,7 @@
 
 #include "../../ElementRegistry.h"
 #include "../../SessionState.h"
+#include "../unified_tree/View.h"
 #include "../../../ifcviewer/Federation.h"
 #include "../../../ifcviewer/SceneLoader.h"
 
@@ -49,6 +50,7 @@ const QList<TreeKind>& treeKinds() {
         {QStringLiteral("zones"), QStringLiteral("Zones")},
         {QStringLiteral("groups"), QStringLiteral("Groups")},
         {QStringLiteral("materials"), QStringLiteral("Materials")},
+        {QStringLiteral("unified"), QStringLiteral("Unified")},
     };
     return kinds;
 }
@@ -56,6 +58,7 @@ const QList<TreeKind>& treeKinds() {
 IndexedSource* makeSource(const QString& tree_id, const Context& context, QObject* parent) {
     if (tree_id == QLatin1String("models")) return new ModelsSource(context, parent);
     if (tree_id == QLatin1String("classes")) return new ClassesSource(context, parent);
+    if (tree_id == QLatin1String("unified") && context.unified) return new UnifiedSource(context, parent);
     if (tree_id == QLatin1String("spatial")) {
         return new IfcRelationSource(context, ifc_trees::buildSpatial, true,
                                      QStringLiteral("No spatial structure in the models."), parent);
@@ -152,6 +155,69 @@ void ClassesSource::build(TreeIndex& index, const QList<std::uint32_t>& models) 
             index.add(folder, node);
         }
     }
+}
+
+// ---- Unified ----------------------------------------------------------------
+
+UnifiedSource::UnifiedSource(const Context& context, QObject* parent)
+    : IndexedSource(context, parent)
+{
+    connect(context_.unified, &unified_tree::UnifiedTreeView::resultChanged, this, [this]() { scheduleRebuild(); });
+    connect(context_.unified, &unified_tree::UnifiedTreeView::statusChanged, this,
+            &IndexedSource::computeStatusChanged);
+}
+
+void UnifiedSource::openComputeSettings() {
+    context_.unified->openSettings();
+}
+
+void UnifiedSource::runCompute() {
+    context_.unified->run();
+}
+
+QString UnifiedSource::computeStatus() const {
+    return context_.unified->status();
+}
+
+bool UnifiedSource::isComputing() const {
+    return context_.unified->isRunning();
+}
+
+void UnifiedSource::build(TreeIndex& index, const QList<std::uint32_t>&) {
+    namespace unified = bonsaiviewer::services::unified;
+    const unified::Result& result = context_.unified->result();
+    if (!result.ok) return;
+    // Depth first from the roots, in the builder's order.
+    const auto add = [&](int node_index, int parent, auto&& self) -> void {
+        const unified::Node& source = result.nodes[node_index];
+        IndexNode node;
+        switch (source.kind) {
+        case unified::Node::Kind::Element: node.kind = IndexNode::Kind::Element; break;
+        case unified::Node::Kind::Message: node.kind = IndexNode::Kind::Message; break;
+        default: node.kind = IndexNode::Kind::Folder; break;
+        }
+        node.id = QString::number(node_index);
+        node.label = QString::fromStdString(source.label);
+        node.model = source.model;
+        node.ifc_id = source.ifc_id;
+        node.object_id = source.object_id;
+        node.tooltip = QString::fromStdString(source.reason_text);
+        switch (source.kind) {
+        case unified::Node::Kind::Site: node.icon = QStringLiteral(":/icons/frame-alt.svg"); node.expanded = true; break;
+        case unified::Node::Kind::Building: node.icon = QStringLiteral(":/icons/city.svg"); node.expanded = true; break;
+        case unified::Node::Kind::Level: node.icon = QStringLiteral(":/icons/planimetry.svg"); break;
+        case unified::Node::Kind::Room: node.icon = QStringLiteral(":/icons/square3d-from-center.svg"); break;
+        case unified::Node::Kind::Element: node.icon = kElementIcon; break;
+        case unified::Node::Kind::Diagnostics: node.icon = QStringLiteral(":/icons/xmark-circle.svg"); break;
+        case unified::Node::Kind::Message: break;
+        default: node.icon = kFolderIcon; break;
+        }
+        // A deduced node says so, the reason in its tooltip.
+        if (source.reason != unified::Reason::None) node.label += QStringLiteral(" *");
+        const int added_index = index.add(parent, node);
+        for (int child : source.children) self(child, added_index, self);
+    };
+    for (int root : result.roots) add(root, -1, add);
 }
 
 // ---- IFC relations ----------------------------------------------------------

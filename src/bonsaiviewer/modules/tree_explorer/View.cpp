@@ -51,6 +51,12 @@ TreeExplorerView::TreeExplorerView(TreeExplorerPanel* panel, const Context& cont
         active_only_ = active_only;
         if (source_) source_->setActiveModelOnly(active_only);
     });
+    connect(panel_, &TreeExplorerPanel::computeSettingsRequested, this, [this]() {
+        if (source_) source_->openComputeSettings();
+    });
+    connect(panel_, &TreeExplorerPanel::computeRunRequested, this, [this]() {
+        if (source_) source_->runCompute();
+    });
     connect(panel_, &TreeExplorerPanel::searchChanged, this, [this](const QString& text) {
         filter_ = text;
         if (tree_panel_) tree_panel_->forgetExpandedState();
@@ -80,6 +86,13 @@ void TreeExplorerView::setTree(const QString& tree_id) {
     selector->setCurrentIndex(selector->findData(tree_id));
     panel_->setScopeEnabled(source_->supportsScope());
     panel_->setInterpreted(source_->interpreted());
+    panel_->setComputeRowVisible(source_->hasCompute());
+    const auto showComputeStatus = [this]() {
+        panel_->setComputeStatus(source_->computeStatus());
+        panel_->setComputeRunning(source_->isComputing());
+    };
+    showComputeStatus();
+    connect(source_, &IndexedSource::computeStatusChanged, this, showComputeStatus);
 
     source_->setActiveModelOnly(active_only_);
     source_->setFilter(filter_);
