@@ -215,9 +215,6 @@ The examples are ordinary tables: they can be modified, moved or deleted. They a
 
 ## Open Subject
 
-Phase 3: done (Sort and Filter).
-
-
 Phase 4:
 
 - Relations (spatial relation).

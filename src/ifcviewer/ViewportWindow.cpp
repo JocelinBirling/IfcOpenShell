@@ -456,12 +456,14 @@ void ViewportWindow::saveScreenshotRgba8(const std::string& path,
     // alpha the two formats describe the same bytes.
     QImage img(rgba, w, h, w * 4, QImage::Format_RGBA8888_Premultiplied);
     const QString qpath = QString::fromStdString(path);
-    if (img.save(qpath, "PNG")) {
+    const bool ok = img.save(qpath, "PNG");
+    if (ok) {
         Log::info() << "[wgpu] saved screenshot: "
                     << path << " (" << w << "x" << h << ")";
     } else {
         Log::warn() << "[wgpu] QImage::save failed for " << path;
     }
+    emit imageCaptured(qpath, ok);
 }
 
 void ViewportWindow::setBackgroundColor(float r, float g, float b, float a) {

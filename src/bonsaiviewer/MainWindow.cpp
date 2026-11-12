@@ -79,6 +79,9 @@
 #include "services/ContextMenuBuilder.h"
 #include "services/EntitySetStore.h"
 #include "services/FilterRunner.h"
+#include "services/BcfViewpoints.h"
+#include "modules/bcf/Panel.h"
+#include "modules/bcf/View.h"
 #include "services/ActiveFilters.h"
 #include "services/RelationValues.h"
 #include "services/FilterStore.h"
@@ -301,6 +304,12 @@ void MainWindow::populateRecentMenu(QMenu* menu) {
     connect(clear, &QAction::triggered, this, []() {
         modules::project::RecentProjects::clear();
     });
+}
+
+// TI21: the number of workspace tabs (Home, Filter, Table, IDS, Diff,
+// GeometryRule, Clash Filter, BCF); the Inspect tab comes right after them.
+namespace {
+constexpr int kWorkspaceCount = 8;
 }
 
 // TI05: the generic top panel hosts the search bar's neighbours — the
@@ -676,8 +685,8 @@ void MainWindow::setupRibbon() {
     shell_layout->setSpacing(0);
 
     // TI21 phase 1: the workspace tabs (Home, Filter, Table, IDS, Diff,
-    // GeometryRule, Clash Filter) and the Inspect tab share one row.
-    // Workspace tabs are indexes 0 to 6, Inspect is 7.
+    // GeometryRule, Clash Filter, BCF) and the Inspect tab share one row.
+    // Workspace tabs are indexes 0 to kWorkspaceCount - 1, then Inspect.
     ribbon_tabs_ = new components::TabBar(shell);
     ribbon_tabs_->addTab("Home");
     ribbon_tabs_->addTab("Filter");
@@ -686,12 +695,13 @@ void MainWindow::setupRibbon() {
     ribbon_tabs_->addTab("Diff"); // BonsaiViewer34
     ribbon_tabs_->addTab("GeometryRule"); // BonsaiViewer09
     ribbon_tabs_->addTab("Clash Filter"); // BonsaiViewer09
+    ribbon_tabs_->addTab("BCF"); // BonsaiViewer10
     ribbon_tabs_->addTab("Inspect");
     // TI21 phase 2: the last tab adds a user tab; tabs can be reordered.
     ribbon_tabs_->addTab("+");
-    ribbon_tabs_->setTabToolTip(8, "Add a tab");
-    ribbon_tabs_->setTabData(7, QStringLiteral("inspect"));
-    ribbon_tabs_->setTabData(8, QStringLiteral("add"));
+    ribbon_tabs_->setTabToolTip(kWorkspaceCount + 1, "Add a tab");
+    ribbon_tabs_->setTabData(kWorkspaceCount, QStringLiteral("inspect"));
+    ribbon_tabs_->setTabData(kWorkspaceCount + 1, QStringLiteral("add"));
     ribbon_tabs_->setMovable(true);
     ribbon_tabs_->setContextMenuPolicy(Qt::CustomContextMenu);
     ribbon_tabs_->setCurrentIndex(0);
@@ -705,7 +715,7 @@ void MainWindow::setupRibbon() {
 
     ribbon_pages_ = new QStackedWidget(ribbon_band);
     // Workspaces: no ribbon content, the band is hidden on these tabs.
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < kWorkspaceCount; ++i) {
         ribbon_pages_->addWidget(new QWidget(ribbon_pages_));
     }
     ribbon_pages_->addWidget(buildInspectRibbonPage());
@@ -740,6 +750,7 @@ void MainWindow::setupRibbon() {
     specific_panel->setContent(specific_panel->addTab(QStringLiteral("GeometryRule")), clash_view_->geometryRuleRibbon());
     // The Clash Filter buttons are a dock panel (Clash Filter Tools), not a band.
     specific_panel->addTab(QStringLiteral("Clash Filter"));
+    specific_panel->addTab(QStringLiteral("BCF"));
     specific_index_.insert(QStringLiteral("inspect"), specific_panel->addTab(QStringLiteral("Inspect")));
     // Order below the tabs: the tab ribbon, then the specific panel.
     shell_layout->addWidget(ribbon_band);
@@ -762,7 +773,7 @@ void MainWindow::setupRibbon() {
 void MainWindow::setupWorkspaces() {
     const QStringList names{QStringLiteral("Home"), QStringLiteral("Filter"), QStringLiteral("Table"),
                             QStringLiteral("IDS"), QStringLiteral("Diff"), QStringLiteral("GeometryRule"),
-                            QStringLiteral("Clash Filter")};
+                            QStringLiteral("Clash Filter"), QStringLiteral("BCF")};
     for (int i = 0; i < names.size(); ++i) {
         const QString id = panel_manager_->addTab(names.at(i));
         workspace_ids_.append(id);
@@ -810,7 +821,7 @@ void MainWindow::onRibbonTabChanged(int index) {
     }
     const bool inspect = key == QLatin1String("inspect");
     ribbon_band_->setVisible(inspect);
-    ribbon_pages_->setCurrentIndex(inspect ? 7 : 0);
+    ribbon_pages_->setCurrentIndex(inspect ? kWorkspaceCount : 0);
     specific_panel_->setCurrentIndex(specific_index_.value(key, 0));
     // Inspect keeps the panels of the workspace it was opened from.
     if (inspect || key.isEmpty()) return;
@@ -883,14 +894,14 @@ void MainWindow::showRibbonTabMenu(const QPoint& pos) {
 }
 
 // Saved layouts: one JSON array in QSettings, in ribbon order. A workspace
-// entry is {"kind": "workspace", "index": 0..6, "name", "layout": base64}, a user tab
+// entry is {"kind": "workspace", "index": 0..7, "name", "layout": base64}, a user tab
 // {"kind": "user", "name", "layout"}, Inspect {"kind": "inspect"}.
 namespace {
 const char* kSavedLayoutsKey = "layouts/tabs";
 // The workspaces, in their index order (setupWorkspaces).
 const QStringList kWorkspaceNames{QStringLiteral("Home"),  QStringLiteral("Filter"), QStringLiteral("Table"),
                                   QStringLiteral("IDS"),   QStringLiteral("Diff"),   QStringLiteral("GeometryRule"),
-                                  QStringLiteral("Clash Filter")};
+                                  QStringLiteral("Clash Filter"), QStringLiteral("BCF")};
 }
 
 void MainWindow::saveLayouts() {
@@ -969,12 +980,13 @@ void MainWindow::restoreSavedLayouts() {
 // Default panels of each workspace (BonsaiViewer21, phase 1).
 // Every workspace: Models, Spatial Tree and USpatial Tree tabbed on the
 // left (Models in front), Properties on the whole right, 3D view in the
-// centre. Home and IDS: the tree group fills the whole left.
+// centre. Home, IDS and BCF: the tree group fills the whole left.
 // Filter / Table: the tree group on the top left, Filters / Tables on the
-// bottom left. Table and IDS: the Table / IDS panel on the whole bottom
-// (the bottom corners belong to the bottom area, Qt's default).
+// bottom left. Table, IDS and BCF: the Table / IDS / BCF panel on the whole
+// bottom (the bottom corners belong to the bottom area, Qt's default).
 // Diff (BonsaiViewer34): the tree group on the top left, IfcDiff on the
-// bottom left.
+// bottom left. GeometryRule and Clash Filter (BonsaiViewer09): the rule
+// panels on the left, Properties over Rule on the right.
 void MainWindow::applyWorkspaceDefaults(int index) {
     addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
     tabifyDockWidget(models_panel_, spatial_panel_);
@@ -1011,6 +1023,10 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
         visible = QStringList{QStringLiteral("results"), QStringLiteral("result_info"),
                               QStringLiteral("properties"), QStringLiteral("rules"), QStringLiteral("clash_filter_tools")};
+    } else if (index == 7) {
+        // The BCF panel docks on the right in the other workspaces: here at the bottom.
+        addDockWidget(Qt::BottomDockWidgetArea, issues_panel_);
+        visible << QStringLiteral("issues");
     }
     for (const QString& id : panel_manager_->registeredPanels()) {
         panel_manager_->setPanelVisible(id, visible.contains(id));
@@ -1069,7 +1085,8 @@ void MainWindow::setupPanels() {
     result_dock_ = new components::Panel("Result", nullptr, this);
     result_info_dock_ = new components::Panel("Result Info", nullptr, this);
     clash_filter_tools_dock_ = new components::Panel("Clash Filter Tools", nullptr, this);
-    issues_panel_ = new components::Panel("Issues", new modules::todo::TodoPanel("Issues", this), this);
+    // BonsaiViewer10: the BCF panel takes the place of the former Issues panel.
+    issues_panel_ = new modules::bcf::BcfPanel(this);
     class_tree_widget_ = new QTreeWidget(this);
     class_tree_panel_ = new components::Panel("Ifc Tree", class_tree_widget_, this);
 
@@ -1288,6 +1305,11 @@ void MainWindow::setupLoader() {
     filters_view_ = new modules::filters::FiltersPanelView(
         filters_panel_, *session_state_, *filter_store_, *filter_runner_, *ids_bridge_, this);
     filters_view_->setActionPipeline(action_pipeline_);
+    // BonsaiViewer10: the BCF panel, and the bridge between viewpoints and the viewer.
+    auto* bcf_viewpoints = new bonsaiviewer::services::BcfViewpoints(
+        *session_state_, *viewport_widget_->viewport(), *selection_service_, *active_view_, *appearance_service_,
+        *category_filter_, this);
+    new modules::bcf::BcfView(static_cast<modules::bcf::BcfPanel*>(issues_panel_), *bcf_viewpoints, this);
     // BonsaiViewer06 Activate: the colours of the activated filters, forced,
     // applied by a runner of their own so they never touch the view.
     auto* forced_runner = new bonsaiviewer::services::FilterRunner(
@@ -1611,7 +1633,7 @@ void MainWindow::setupMenuBar() {
     panel_manager_->adoptPanel(QStringLiteral("clash_filter_tools"),
                                QStringLiteral("Clash Filter Tools"), clash_filter_tools_dock_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("issues"),
-                               QStringLiteral("Issues"), issues_panel_, QStringLiteral("Analyze"));
+                               QStringLiteral("BCF"), issues_panel_, QStringLiteral("Analyze"));
 
     menu_bar_ = new modules::menubar::MenuBar(
         this, session_state_, viewport_widget_->viewport(),

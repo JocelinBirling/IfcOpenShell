@@ -64,6 +64,8 @@ private:
     QWidget* buildKeybindingsTab();
     // TI21 phase 2: Save Layouts (the start-up layout of every tab).
     QWidget* buildLayoutsTab();
+    // BonsaiViewer10: the author of the BCF topics and comments.
+    QWidget* buildBcfTab();
     void refreshShortcutRows();
     void applyShortcutFilter(const QString& text);
     void onShortcutEdited(const QString& id, const QKeySequence& sequence);
@@ -99,6 +101,7 @@ private:
     QLineEdit* shortcut_filter_ = nullptr;
     QTableWidget* shortcut_table_ = nullptr;
     QLabel* shortcut_warning_ = nullptr;
+    QLineEdit* bcf_author_edit_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::settings

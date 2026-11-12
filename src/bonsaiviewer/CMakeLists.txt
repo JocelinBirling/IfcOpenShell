@@ -28,7 +28,7 @@ set(QT_VERSION 6 CACHE STRING "Qt version")
 # target ends up available either way for the link step below.
 find_package(Qt${QT_VERSION} REQUIRED
              COMPONENTS Core Gui Widgets Svg
-             OPTIONAL_COMPONENTS CorePrivate
+             OPTIONAL_COMPONENTS CorePrivate GuiPrivate
              PATHS ${QT_DIR})
 
 set(BONSAIVIEWER_FILES
@@ -172,6 +172,24 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/RelationValues.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveFilters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/ActiveFilters.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/BcfViewpoints.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/BcfViewpoints.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/View.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/TopicDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/TopicDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/ElementListDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/ElementListDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/ImageEditor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/ImageEditor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/bcf/BcfXml.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/bcf/BcfXml.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/bcf/Zip.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/bcf/Zip.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/bcf/Author.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/bcf/Bcf.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/IdsEngine.cpp
@@ -334,6 +352,9 @@ target_link_libraries(BonsaiViewer PRIVATE
     plugin
     Qt${QT_VERSION}::Core
     Qt${QT_VERSION}::CorePrivate
+    # BonsaiViewer10 (BCF): QZipReader / QZipWriter live in QtGui's private
+    # module before Qt 6.5, in QtCore's after.
+    $<TARGET_NAME_IF_EXISTS:Qt${QT_VERSION}::GuiPrivate>
     Qt${QT_VERSION}::Gui
     Qt${QT_VERSION}::Svg
     Qt${QT_VERSION}::Widgets
