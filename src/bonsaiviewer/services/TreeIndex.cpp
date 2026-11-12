@@ -97,11 +97,22 @@ void TreeIndex::finish(bool sort) {
     }
 
     // Counts: distinct elements below each folder, children before parents.
+    // The largest child set is moved (merge) into the parent's instead of
+    // being copied, so the total work stays close to O(total identities)
+    // rather than O(sum of subtree sizes).
     std::vector<std::unordered_set<std::uint64_t>> below(nodes_.size());
     for (int index = size() - 1; index >= 0; --index) {
         IndexNode& node = nodes_[index];
         if (node.kind == IndexNode::Kind::Element) below[index].insert(identity(node));
+        int biggest_child = -1;
         for (int child : node.children) {
+            if (biggest_child < 0 || below[child].size() > below[biggest_child].size()) {
+                biggest_child = child;
+            }
+        }
+        if (biggest_child >= 0) below[index].merge(below[biggest_child]);
+        for (int child : node.children) {
+            if (child == biggest_child) continue;
             below[index].insert(below[child].begin(), below[child].end());
             below[child].clear();
         }
