@@ -236,6 +236,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashTopic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashTopic.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Measures.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.h
@@ -408,6 +410,16 @@ add_executable(bonsaiviewer_result_store_tests EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_result_store_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bonsaiviewer_result_store_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core Qt${QT_VERSION}::Widgets)
 add_test(NAME bonsaiviewer_result_store_tests COMMAND bonsaiviewer_result_store_tests)
+# The content of the BCF topics made from clash results.
+add_executable(bonsaiviewer_clash_topic_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashTopic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultKey.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Measures.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_clash_topic.cpp)
+target_include_directories(bonsaiviewer_clash_topic_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_clash_topic_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core Qt${QT_VERSION}::Widgets)
+add_test(NAME bonsaiviewer_clash_topic_tests COMMAND bonsaiviewer_clash_topic_tests)
 
 ifcopenshell_deploy_qt_runtime(BonsaiViewer)
 ifcopenshell_stage_app_bundle_dylibs(BonsaiViewer)
