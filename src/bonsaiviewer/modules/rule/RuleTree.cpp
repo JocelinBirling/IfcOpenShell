@@ -68,6 +68,15 @@ bool containsFolder(const clash::RuleFolder& folder, const QString& id) {
     return false;
 }
 
+// The Results column holds only the number ("8 results" -> "8"); the full text is its tooltip.
+void setResultText(QTreeWidgetItem* item, const QString& text) {
+    int digits = 0;
+    while (digits < text.size() && text.at(digits).isDigit()) ++digits;
+    item->setText(kResults, digits > 0 ? text.left(digits) : (text == QLatin1String("error") ? "!" : "–"));
+    item->setTextAlignment(kResults, Qt::AlignRight | Qt::AlignVCenter);
+    item->setToolTip(kResults, text);
+}
+
 } // namespace
 
 clash::Select* TreeRef::select() const {
@@ -80,9 +89,11 @@ clash::Select* TreeRef::select() const {
 
 RuleTreeWidget::RuleTreeWidget(RuleDocument& document, QWidget* parent) : QTreeWidget(parent), document_(document) {
     setColumnCount(2);
-    setHeaderLabels({"Rule", "Results"});
+    setHeaderLabels({"Rule", "#"});
+    headerItem()->setToolTip(kResults, "Results");
     header()->setSectionResizeMode(kName, QHeaderView::Stretch);
     header()->setSectionResizeMode(kResults, QHeaderView::ResizeToContents);
+    header()->setMinimumSectionSize(16);
     header()->setStretchLastSection(false);
     setSelectionMode(QAbstractItemView::ExtendedSelection);
     setDragEnabled(true);
@@ -168,7 +179,7 @@ QTreeWidgetItem* RuleTreeWidget::addNode(QTreeWidgetItem* parent, const clash::R
             for (int column = 0; column < columnCount(); ++column) item->setForeground(column, QBrush(QColor(Qt::gray)));
             item->setToolTip(kName, "<b>Folder (deactivated)</b><br>Its rules do not run. Double click: edit it.");
         }
-        if (result_texts_.contains(folder->id)) item->setText(kResults, result_texts_.value(folder->id));
+        if (result_texts_.contains(folder->id)) setResultText(item, result_texts_.value(folder->id));
         refs_.insert(item, TreeRef{TreeRef::Kind::Folder, folder});
         keys_.insert(item, "folder:" + folder->id);
         for (const clash::RuleNode& child : folder->contains) addNode(item, child);
@@ -198,7 +209,7 @@ QTreeWidgetItem* RuleTreeWidget::addRuleItem(QTreeWidgetItem* parent, const std:
     item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled |
                    (nested ? Qt::NoItemFlags : Qt::ItemIsDragEnabled));
     if (!nested) {
-        if (result_texts_.contains(rule->id)) item->setText(kResults, result_texts_.value(rule->id));
+        if (result_texts_.contains(rule->id)) setResultText(item, result_texts_.value(rule->id));
     } else {
         QFont underlined = item->font(kName);
         underlined.setUnderline(true);
