@@ -88,30 +88,6 @@ std::vector<std::uint32_t> ResultRow::objects() const {
     return ids;
 }
 
-QString measureUnit(ifcclash::Measure measure) {
-    switch (measure) {
-    case ifcclash::Measure::Distance:
-    case ifcclash::Measure::PenetrationDepth:
-    case ifcclash::Measure::Offset: return QStringLiteral("m");
-    case ifcclash::Measure::ContactArea:
-    case ifcclash::Measure::Area: return QStringLiteral("m²");
-    case ifcclash::Measure::Volume: return QStringLiteral("m³");
-    case ifcclash::Measure::Angle: return QStringLiteral("°");
-    case ifcclash::Measure::Ratio:
-    case ifcclash::Measure::HitRatio: return QString();
-    }
-    return {};
-}
-
-QString measureText(const ifcclash::ResultRecord& record) {
-    if (record.measures.empty()) return {};
-    const auto& [measure, value] = record.measures.items().front();
-    const QString unit = measureUnit(measure);
-    return QString("%1 = %2%3").arg(QString::fromLatin1(ifcclash::measure_name(measure)))
-        .arg(value, 0, 'g', 4)
-        .arg(unit.isEmpty() ? QString() : " " + unit);
-}
-
 // --- ResultPanel ---------------------------------------------------------------------------
 
 ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {

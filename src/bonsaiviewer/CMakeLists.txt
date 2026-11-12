@@ -236,6 +236,7 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Measures.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.h
     # C++ ports of ifcopenshell.util and IfcTester (BonsaiViewer24 IDS).
