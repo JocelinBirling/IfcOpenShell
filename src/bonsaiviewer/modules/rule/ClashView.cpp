@@ -1778,6 +1778,10 @@ QWidget* ClashView::buildClashFilterRibbon() {
     excepted->setCheckable(true);
     describe(excepted, "Hide the results an exception invalidated.");
     connect(excepted, &QToolButton::toggled, results_, &ResultPanel::setHideExcepted);
+    auto* with_topic = components::buttons::makeButton("Hide With Topic", ":/icons/eye-closed.svg", page);
+    with_topic->setCheckable(true);
+    describe(with_topic, "Hide the results already in a BCF topic (a closed topic counts, a deleted one does not).");
+    connect(with_topic, &QToolButton::toggled, results_, &ResultPanel::setHideLinked);
     auto* categories = components::buttons::makeButton("Categories", ":/icons/filter.svg", page);
     describe(categories, "Hide the results by category (rule, IFC classes, models, criticity, actor, review, manual "
                          "group): uncheck the values to hide, to work on a small set.");
@@ -1807,7 +1811,8 @@ QWidget* ClashView::buildClashFilterRibbon() {
              {"Rule", ResultPanel::GroupMode::ByRule},
              {"Criticity", ResultPanel::GroupMode::ByCriticity},
              {"Rule grouping", ResultPanel::GroupMode::ByRuleGroup},
-             {"Manual group", ResultPanel::GroupMode::ByManualGroup}}) {
+             {"Manual group", ResultPanel::GroupMode::ByManualGroup},
+             {"BCF topic", ResultPanel::GroupMode::ByTopic}}) {
         QAction* action = menu->addAction(label, this, [this, mode = mode]() { results_->setGroupMode(mode); });
         action->setCheckable(true);
         action->setChecked(mode == ResultPanel::GroupMode::Flat);
@@ -1845,7 +1850,7 @@ QWidget* ClashView::buildClashFilterRibbon() {
     connect(save, &QToolButton::clicked, this, &ClashView::saveResults);
     const QList<QWidget*> groups{
         flowGroup("CONTEXT VIEW", {save_context, show_context, always, colour, everything}),
-        flowGroup("REGROUP RESULT", {reset, undetermined, excepted, categories, group}),
+        flowGroup("REGROUP RESULT", {reset, undetermined, excepted, with_topic, categories, group}),
         flowGroup("RESULT GEOMETRY", geometry),
         flowGroup("EXPORT", {save}),
     };

@@ -97,13 +97,13 @@ class ResultPanel : public QWidget {
     Q_OBJECT
 
 public:
-    enum class GroupMode { Flat, BySource, ByTarget, BySourceModel, ByRule, ByCriticity, ByRuleGroup, ByManualGroup };
+    enum class GroupMode { Flat, BySource, ByTarget, BySourceModel, ByRule, ByCriticity, ByRuleGroup, ByManualGroup, ByTopic };
     // The categories the user hides results by (Categories window, right click).
-    enum class Category { Rule, SourceClass, TargetClass, SourceModel, TargetModel, Criticity, Actor, Review, ManualGroup };
+    enum class Category { Rule, SourceClass, TargetClass, SourceModel, TargetModel, Criticity, Actor, Review, ManualGroup, Topic };
     static const std::vector<Category>& categories();
     static QString categoryName(Category category);
     // The values of a row in a category ("(none)" when it has none).
-    static QStringList valuesOf(const ResultRow& row, Category category);
+    QStringList valuesOf(const ResultRow& row, Category category) const;
     // Category -> the values hidden: a row is hidden when one of its values is.
     using HiddenValues = std::map<Category, std::set<QString>>;
 
@@ -148,6 +148,8 @@ public:
     void setGroupMode(GroupMode mode);
     void setFilterOnlyNonDetermined(bool on);
     void setHideExcepted(bool on);
+    // Hides the results linked to a BCF topic.
+    void setHideLinked(bool on);
     void clearFilters();
     void setHiddenValues(HiddenValues hidden);
     const HiddenValues& hiddenValues() const { return hidden_; }
@@ -191,6 +193,7 @@ private:
     GroupMode mode_ = GroupMode::Flat;
     bool only_non_determined_ = false;
     bool hide_excepted_ = false;
+    bool hide_linked_ = false;
     HiddenValues hidden_;
     std::optional<std::set<QString>> scope_;
     std::set<QString> run_nodes_;

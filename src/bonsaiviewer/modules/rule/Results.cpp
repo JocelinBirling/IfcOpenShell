@@ -244,7 +244,8 @@ void ResultPanel::refreshMessages() {
 const std::vector<ResultPanel::Category>& ResultPanel::categories() {
     static const std::vector<Category> all{Category::Rule,        Category::SourceClass, Category::TargetClass,
                                            Category::SourceModel, Category::TargetModel, Category::Criticity,
-                                           Category::Actor,       Category::Review,      Category::ManualGroup};
+                                           Category::Actor,       Category::Review,      Category::ManualGroup,
+                                           Category::Topic};
     return all;
 }
 
@@ -259,11 +260,12 @@ QString ResultPanel::categoryName(Category category) {
     case Category::Actor: return QStringLiteral("Actor");
     case Category::Review: return QStringLiteral("Review");
     case Category::ManualGroup: return QStringLiteral("Manual group");
+    case Category::Topic: return QStringLiteral("BCF topic");
     }
     return {};
 }
 
-QStringList ResultPanel::valuesOf(const ResultRow& row, Category category) {
+QStringList ResultPanel::valuesOf(const ResultRow& row, Category category) const {
     const auto one = [](const QString& value) { return QStringList{value.isEmpty() ? kNone : value}; };
     switch (category) {
     case Category::Rule: return one(row.rule_label);
@@ -278,6 +280,7 @@ QStringList ResultPanel::valuesOf(const ResultRow& row, Category category) {
                 : row.review == ReviewStatus::Invalid ? QStringLiteral("Invalid")
                                                       : QStringLiteral("Non Determined")};
     case Category::ManualGroup: return one(row.manual_group);
+    case Category::Topic: return one(isLinked(row) ? topicTitle(row.topic_guid) : QString());
     }
     return {};
 }
@@ -327,9 +330,15 @@ void ResultPanel::setHideExcepted(bool on) {
     rebuild();
 }
 
+void ResultPanel::setHideLinked(bool on) {
+    hide_linked_ = on;
+    rebuild();
+}
+
 void ResultPanel::clearFilters() {
     only_non_determined_ = false;
     hide_excepted_ = false;
+    hide_linked_ = false;
     hidden_.clear();
     scope_.reset();
     scope_label_->setVisible(false);
@@ -345,6 +354,7 @@ std::vector<int> ResultPanel::shownRows() const {
         const ResultRow& row = rows_[static_cast<size_t>(i)];
         if (only_non_determined_ && row.review != ReviewStatus::NonDetermined) continue;
         if (hide_excepted_ && !row.status) continue;
+        if (hide_linked_ && isLinked(row)) continue;
         if (scope_ && scope_->count(row.node_id) == 0) continue;
         bool hidden = false;
         for (const auto& [category, values] : hidden_) {
@@ -417,6 +427,7 @@ void ResultPanel::rebuild() {
         case GroupMode::ByCriticity: keys = row.criticity.isEmpty() ? QStringList{"(no criticity)"} : row.criticity; break;
         case GroupMode::ByRuleGroup: keys << (row.group.isEmpty() ? QStringLiteral("(no group)") : row.group); break;
         case GroupMode::ByManualGroup: keys << (row.manual_group.isEmpty() ? QStringLiteral("(no group)") : row.manual_group); break;
+        case GroupMode::ByTopic: keys << (isLinked(row) ? topicTitle(row.topic_guid) : QStringLiteral("(no topic)")); break;
         case GroupMode::Flat: break;
         }
         for (const QString& key : keys) {
@@ -583,7 +594,7 @@ CategoryFilterDialog::CategoryFilterDialog(const ResultPanel& panel, QWidget* pa
     for (ResultPanel::Category category : ResultPanel::categories()) {
         std::map<QString, int> counts;
         for (const ResultRow& row : panel.rows()) {
-            for (const QString& value : ResultPanel::valuesOf(row, category)) ++counts[value];
+            for (const QString& value : panel.valuesOf(row, category)) ++counts[value];
         }
         auto* parent_item = new QTreeWidgetItem(tree_);
         parent_item->setText(0, ResultPanel::categoryName(category));
