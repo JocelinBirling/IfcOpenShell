@@ -108,11 +108,11 @@ void SpatialHierarchyPanel::showEvent(QShowEvent* event) {
             // The branch arrows and item icons consume ~45px of the Name
             // column, and indented levels consume more; when the column is
             // narrower than an item's indent Qt is left with an empty text
-            // rect and the name silently stops rendering. Keep a floor of
-            // 130px so Site/Building/Storey names stay visible, but leave
-            // at least 100px for the Info column.
-            const int wanted = std::max(available * 3 / 5, 130);
-            const int upper = std::max(130, available - 100);
+            // rect and the name silently stops rendering. Three quarters of
+            // the width, with a floor of 160px so Site/Building/Storey
+            // names stay visible, but leave at least 80px for the Info column.
+            const int wanted = std::max(available * 3 / 4, 160);
+            const int upper = std::max(160, available - 80);
             tree_->header()->resizeSection(0, std::min(wanted, upper));
             column_widths_initialized_ = true;
         }

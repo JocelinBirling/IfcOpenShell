@@ -15,7 +15,7 @@ The goal is to describe the overall UI of BonsaiViewer: the main principles for 
 The menu bar is always displayed by the software. It sits at the top left of the screen.
 
 #### Tabs Ribbon Bar
-A tabs ribbon bar, below the menu bar and spanning the full length, is always present. It holds the workspace tabs (Home, Filter, Table, see BonsaiViewer21) and the Inspect tab.
+A tabs ribbon bar, below the menu bar and spanning the full length, is always present. It holds the workspace tabs (Home, Filter, Table, IDS, BCF, see BonsaiViewer21) and the Inspect tab.
 
 ### Generic Function Bar
 A generic function bar is always attached to the top of the 3D view, inside the central area. It stays reachable whatever the tab, so the section, box, colour and selection functions are always at hand. It holds:

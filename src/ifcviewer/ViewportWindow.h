@@ -297,6 +297,9 @@ public:
     // PNG is written. Use this for headless verification and pixel-diff
     // parity testing against the GL backend.
     void captureNextFrameToPng(const std::string& path, bool quit_after = true);
+    // BonsaiViewer10 (BCF): the vertical field of view of the perspective
+    // camera, in degrees (also sizes the orthographic view).
+    float fieldOfViewDeg() const { return camera_fov_y_deg_; }
 
     // Benchmark mode: render N timed frames (after a small warmup), yaw-
     // sweeping the camera at 0.5°/frame, then print a stats block on
@@ -440,6 +443,8 @@ public:
     void  removeSectionPlane(int index);
     void  clearSectionPlanes();
     int   sectionPlaneCount() const { return int(section_planes_.size()); }
+    // BonsaiViewer10 (BCF clipping planes): the planes in render coordinates.
+    std::vector<SectionPlane> sectionPlanes() const { return section_planes_; }
     // Overlay primitives. Mirror GL ViewportWindow so the Measurement +
     // dimension tools can target either backend through one API.
     // Empty inputs clears the corresponding set.
@@ -597,6 +602,9 @@ signals:
     // Backspace/Delete pressed while a tool is active. Length tool's
     // remove-last-point; other tools may ignore.
     void toolBackspacePressed();
+    // A frame asked with captureNextFrameToPng was written (BonsaiViewer10:
+    // the BCF snapshots).
+    void imageCaptured(const QString& path, bool ok);
 
 public:
 

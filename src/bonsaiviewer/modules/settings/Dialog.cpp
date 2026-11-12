@@ -20,6 +20,8 @@
 
 #include "Dialog.h"
 
+#include "../bcf/Author.h"
+
 #include "../../SessionState.h"
 #include "../../ViewerSettings.h"
 #include "../../../ifcviewer/AppSettings.h"
@@ -356,6 +358,7 @@ void SettingsDialog::setupUi() {
     addTab("Interface", interface_tab);
     addTab("Keybindings", buildKeybindingsTab());
     addTab("Layouts", buildLayoutsTab());
+    addTab("BCF", buildBcfTab());
     addTab("Graphics", graphics_tab);
     addTab("Connectors", buildConnectorsTab());
     addTab("About", make_about_tab());
@@ -395,6 +398,23 @@ void SettingsDialog::syncFromSettings() {
         orbit_preset_combo_->findData(static_cast<int>(viewer_settings.orbitPreset())));
     syncThemeSettings();
     refreshShortcutRows();
+}
+
+QWidget* SettingsDialog::buildBcfTab() {
+    auto* tab = new QWidget(this);
+    auto* layout = new QVBoxLayout(tab);
+    layout->setAlignment(Qt::AlignTop);
+    auto* section = new components::Section("BCF", components::SectionHeaderMode::Visible, tab);
+    auto* body = new QWidget(section);
+    auto* form = new QFormLayout(body);
+    bcf_author_edit_ = new QLineEdit(bcf::author(), body);
+    bcf_author_edit_->setPlaceholderText("name@company.com");
+    bcf_author_edit_->setToolTip("Written as the author of the BCF topics and comments you create or modify "
+                                 "(BCF 3.0 expects an e-mail address).");
+    form->addRow("Author (e-mail)", bcf_author_edit_);
+    section->addBodyWidget(body);
+    layout->addWidget(section);
+    return tab;
 }
 
 QWidget* SettingsDialog::buildLayoutsTab() {
@@ -663,6 +683,7 @@ void SettingsDialog::onAccepted() {
     for (const auto& editor : theme_color_editors_) {
         interface_settings.setCustomColor(editor.key, editor.edit->text());
     }
+    bcf::setAuthor(bcf_author_edit_->text());
     accept();
 }
 
