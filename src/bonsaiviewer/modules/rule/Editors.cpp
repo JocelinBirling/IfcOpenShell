@@ -19,6 +19,7 @@
  ********************************************************************************/
 
 #include "Editors.h"
+#include "ObbModificationsEditor.h"
 
 #include "../../services/IdsEngine.h"
 
@@ -241,7 +242,12 @@ void ParamForm::setRule(const clash::RuleSpec* spec, QJsonObject* params) {
                 });
             }
             editor = row;
-        } else if (p.kind == QLatin1String("string_list") || p.kind == QLatin1String("obb_modifications")) {
+        } else if (p.kind == QLatin1String("obb_modifications")) {
+            // The OBB_Custom steps: a dedicated editor, the operations from the catalogue.
+            auto* steps = new ObbModificationsEditor(p.values, value.toArray(), this);
+            connect(steps, &ObbModificationsEditor::changed, this, [store](const QJsonArray& entries) { store(entries); });
+            editor = steps;
+        } else if (p.kind == QLatin1String("string_list")) {
             auto* text = new QPlainTextEdit(this);
             QStringList lines;
             for (const QJsonValue& v : value.toArray()) lines << v.toString();

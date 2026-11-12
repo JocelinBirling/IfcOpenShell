@@ -218,6 +218,10 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleDocument.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Editors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Editors.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ObbModifications.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ObbModifications.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ObbModificationsEditor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ObbModificationsEditor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleTree.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RuleTree.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/RulePanels.cpp
@@ -376,5 +380,14 @@ install(TARGETS BonsaiViewer
     RUNTIME DESTINATION bin
     BUNDLE  DESTINATION .
 )
+# BonsaiViewer09: the unit tests of the OBB_Custom steps editor model (Qt Core
+# only; not built by default): cmake --build <build> --target bonsaiviewer_obb_tests
+add_executable(bonsaiviewer_obb_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ObbModifications.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_obb_rows.cpp)
+target_include_directories(bonsaiviewer_obb_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_obb_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core)
+add_test(NAME bonsaiviewer_obb_tests COMMAND bonsaiviewer_obb_tests)
+
 ifcopenshell_deploy_qt_runtime(BonsaiViewer)
 ifcopenshell_stage_app_bundle_dylibs(BonsaiViewer)
