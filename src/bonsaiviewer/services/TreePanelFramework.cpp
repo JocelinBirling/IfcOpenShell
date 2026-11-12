@@ -22,6 +22,7 @@
 
 #include "ContextMenuBuilder.h"
 
+#include <QApplication>
 #include <QHeaderView>
 #include <QIcon>
 #include <QSet>
@@ -252,7 +253,46 @@ void TreePanelWidget::buildChildren(const QString& parent_key, QTreeWidgetItem* 
 void TreePanelWidget::onContextMenu(const QPoint& global_pos, const QString& key) {
     ContextMenuBuilder menu;
     data_source_->populateContextMenu(key, menu);
+    if (expand_menu_) {
+        // The item is found again by its key: a refresh may replace it.
+        const QTreeWidgetItem* item = key.isEmpty() ? nullptr : findItem(key);
+        if (item && item->childCount() > 0) {
+            menu.addSeparator();
+            menu.addItem("expand-subtree", "Expand Subtree", [this, key]() {
+                if (QTreeWidgetItem* found = findItem(key)) setSubtreeExpanded(found, true);
+            });
+            menu.addItem("collapse-subtree", "Collapse Subtree", [this, key]() {
+                if (QTreeWidgetItem* found = findItem(key)) setSubtreeExpanded(found, false);
+            });
+        }
+        if (!key.isEmpty()) menu.addSeparator();
+        menu.addItem("expand-all", "Expand All", [this]() {
+            for (int i = 0; i < widget_->topLevelItemCount(); ++i) setSubtreeExpanded(widget_->topLevelItem(i), true);
+        });
+        menu.addItem("collapse-all", "Collapse All", [this]() {
+            for (int i = 0; i < widget_->topLevelItemCount(); ++i) setSubtreeExpanded(widget_->topLevelItem(i), false);
+        });
+    }
     menu.exec(global_pos, widget_);
+}
+
+QTreeWidgetItem* TreePanelWidget::findItem(const QString& key) const {
+    for (QTreeWidgetItemIterator it(widget_); *it; ++it) {
+        if ((*it)->data(0, kKeyRole).toString() == key) return *it;
+    }
+    return nullptr;
+}
+
+void TreePanelWidget::setSubtreeExpanded(QTreeWidgetItem* item, bool expanded) {
+    if (!item->data(0, kFolderRole).toBool()) return;
+    // A large tree takes a moment to build: the wait cursor, once.
+    const bool outermost = !QApplication::overrideCursor();
+    if (outermost && expanded) QApplication::setOverrideCursor(Qt::WaitCursor);
+    // Expanding first builds the children (itemExpanded, lazy mode).
+    if (expanded) item->setExpanded(true);
+    for (int i = 0; i < item->childCount(); ++i) setSubtreeExpanded(item->child(i), expanded);
+    if (!expanded) item->setExpanded(false);
+    if (outermost && expanded) QApplication::restoreOverrideCursor();
 }
 
 } // namespace bonsaiviewer::services::tree

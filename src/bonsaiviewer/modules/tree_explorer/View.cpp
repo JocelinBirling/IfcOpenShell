@@ -98,6 +98,7 @@ void TreeExplorerView::setTree(const QString& tree_id) {
     tree_panel_ = new bonsaiviewer::services::tree::TreePanelWidget(panel_->tree(), source_, this);
     tree_panel_->setLazyChildren(true);
     tree_panel_->setEyeColumn(true);
+    tree_panel_->setExpandMenu(true);
     // Several nodes at once (Ctrl / Shift); the viewport selection follows.
     // After the TreePanelWidget, which sets single selection.
     QTreeWidget* tree = panel_->tree();
