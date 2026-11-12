@@ -291,6 +291,36 @@ void BcfViewpoints::apply(const bcf::VisualizationInfo& info, Parts parts) {
     }
 }
 
+bcf::VisualizationInfo BcfViewpoints::focus(const Focus& focus) {
+    std::vector<std::uint32_t> objects = focus.sources;
+    objects.insert(objects.end(), focus.targets.begin(), focus.targets.end());
+    std::vector<std::uint32_t> visible = objects;
+    visible.insert(visible.end(), focus.context.begin(), focus.context.end());
+    if (!visible.empty()) view_.isolate(visible);
+    zoomTo(objects);
+    selection_.setSelection(objects, SelectionSource::Service);
+
+    bcf::VisualizationInfo info = capture(); // the camera of that view
+    info.selection = components(objects);
+    info.default_visibility = false;
+    info.exceptions = components(visible);
+    info.coloring.clear();
+    const auto colour = [&info, this](const std::vector<std::uint32_t>& ids, const QString& hex) {
+        bcf::Coloring coloring;
+        coloring.color = hex;
+        coloring.components = components(ids);
+        if (!coloring.components.empty()) info.coloring.push_back(std::move(coloring));
+    };
+    colour(focus.sources, QStringLiteral("FFE6194B"));
+    colour(focus.targets, QStringLiteral("FFF58231"));
+    const Eigen::Matrix4d to_model = modelToRender(session_, viewport_).inverse();
+    for (const auto& [start, end] : focus.lines) {
+        info.lines.push_back(bcf::Line{toBcf(transformPoint(to_model, start)), toBcf(transformPoint(to_model, end))});
+    }
+    info.clipping_planes.clear();
+    return info;
+}
+
 void BcfViewpoints::isolate(const std::vector<std::uint32_t>& ids) {
     if (!ids.empty()) view_.isolate(ids);
 }

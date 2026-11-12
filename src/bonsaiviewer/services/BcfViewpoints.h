@@ -19,6 +19,8 @@
 #include <QHash>
 #include <QObject>
 
+#include <Eigen/Dense>
+
 #include <cstdint>
 #include <functional>
 #include <utility>
@@ -76,6 +78,18 @@ public:
     // The viewpoint's relevant elements: its selection, else its coloured
     // elements, else its visible exceptions.
     std::vector<std::uint32_t> relevantIds(const ports::bcf::VisualizationInfo& info) const;
+
+    // The view of some elements, for a topic made from clash results: they
+    // are shown alone (with the context), framed and selected in the viewer,
+    // and the viewpoint of that view is returned — its camera, the elements
+    // selected, only them (and the context) visible, the sources in red and
+    // the targets in orange, and the lines (render coordinates: the closest
+    // points of the results). The snapshot taken next shows the same view.
+    struct Focus {
+        std::vector<std::uint32_t> sources, targets, context;
+        std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> lines;
+    };
+    ports::bcf::VisualizationInfo focus(const Focus& focus);
 
     void isolate(const std::vector<std::uint32_t>& ids);
     // Frames the elements, keeping the direction of the view.
