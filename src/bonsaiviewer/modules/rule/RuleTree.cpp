@@ -49,9 +49,7 @@ namespace bonsaiviewer::modules::rule {
 namespace {
 
 constexpr int kName = 0;
-constexpr int kType = 1;
-constexpr int kCascade = 2;
-constexpr int kResults = 3;
+constexpr int kResults = 1;
 
 const QStringList kFamilies{"OneObjectRule", "TwoObjectRule", "ComplexRule"};
 
@@ -81,11 +79,9 @@ clash::Select* TreeRef::select() const {
 }
 
 RuleTreeWidget::RuleTreeWidget(RuleDocument& document, QWidget* parent) : QTreeWidget(parent), document_(document) {
-    setColumnCount(4);
-    setHeaderLabels({"Rule", "Type", "Cascade", "Results"});
+    setColumnCount(2);
+    setHeaderLabels({"Rule", "Results"});
     header()->setSectionResizeMode(kName, QHeaderView::Stretch);
-    header()->setSectionResizeMode(kType, QHeaderView::ResizeToContents);
-    header()->setSectionResizeMode(kCascade, QHeaderView::ResizeToContents);
     header()->setSectionResizeMode(kResults, QHeaderView::ResizeToContents);
     header()->setStretchLastSection(false);
     setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -163,13 +159,12 @@ QTreeWidgetItem* RuleTreeWidget::addNode(QTreeWidgetItem* parent, const clash::R
         const auto& folder = *f;
         auto* item = new QTreeWidgetItem(parent);
         item->setText(kName, RuleDocument::labelOf(*folder));
-        item->setText(kType, QStringLiteral("folder"));
         item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
-        item->setToolTip(kName, "<b>Folder</b><br>Double click: edit it (active or not, activation rule).");
-        if (folder->activation_tree || !folder->activation_select.empty()) item->setText(kCascade, QStringLiteral("activation rule"));
+        const bool activation = folder->activation_tree || !folder->activation_select.empty();
+        item->setToolTip(kName, QString("<b>Folder</b>%1<br>Double click: edit it (active or not, activation rule).")
+                                    .arg(activation ? "<br>Runs only when its activation rule holds." : ""));
         if (!folder->active) {
             // Deactivated in its Edit window: shown grey, left out of the runs.
-            item->setText(kCascade, QStringLiteral("deactivated"));
             for (int column = 0; column < columnCount(); ++column) item->setForeground(column, QBrush(QColor(Qt::gray)));
             item->setToolTip(kName, "<b>Folder (deactivated)</b><br>Its rules do not run. Double click: edit it.");
         }
@@ -188,21 +183,21 @@ QTreeWidgetItem* RuleTreeWidget::addRuleItem(QTreeWidgetItem* parent, const std:
     const clash::RuleSpec* spec = clash::RuleCatalogue::instance().find(rule->type);
     auto* item = new QTreeWidgetItem(parent);
     item->setText(kName, RuleDocument::labelOf(*rule));
-    item->setText(kType, spec ? clash::familyBadge(spec->family) : QStringLiteral("unknown rule"));
-    QString tip = QString("<b>%1</b>").arg(spec ? spec->label : rule->type);
+    QString tip = QString("<b>%1</b> — %2").arg(spec ? spec->label : rule->type,
+                                                 spec ? clash::familyBadge(spec->family) : QStringLiteral("unknown rule"));
     if (spec) tip += "<br>" + spec->doc.toHtmlEscaped();
+    if (!nested) {
+        const QStringList fed_by = document_.fedBy(*rule);
+        const QStringList feeds = document_.feeds(*rule);
+        if (!fed_by.isEmpty()) tip += "<br><b>Fed by:</b> " + fed_by.join(", ").toHtmlEscaped();
+        if (!feeds.isEmpty()) tip += "<br><b>Feeds:</b> " + feeds.join(", ").toHtmlEscaped();
+    }
     tip += "<br><i>Double click: edit the rule (exceptions, Must, criticity, actor, grouping).</i>";
     item->setToolTip(kName, tip);
-    if (!spec) item->setForeground(kType, QBrush(QColor("#E6194B")));
+    if (!spec) item->setForeground(kName, QBrush(QColor("#E6194B")));
     item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled |
                    (nested ? Qt::NoItemFlags : Qt::ItemIsDragEnabled));
     if (!nested) {
-        QStringList cascade;
-        const QStringList fed_by = document_.fedBy(*rule);
-        const QStringList feeds = document_.feeds(*rule);
-        if (!fed_by.isEmpty()) cascade << "fed by " + fed_by.join(", ");
-        if (!feeds.isEmpty()) cascade << "feeds " + feeds.join(", ");
-        item->setText(kCascade, cascade.join(" · "));
         if (result_texts_.contains(rule->id)) item->setText(kResults, result_texts_.value(rule->id));
     } else {
         QFont underlined = item->font(kName);

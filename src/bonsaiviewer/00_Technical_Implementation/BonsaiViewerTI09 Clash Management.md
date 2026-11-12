@@ -43,7 +43,7 @@ Decisions of the user where the two UIs differed:
 | Workspace names | GeometryRule, Clash Filter | 2026-11-12: "Rule Config" and "Manage Rule Result"; the layouts saved under the former names are still restored (aliases in `MainWindow.cpp`). The Rule Config panel keeps its name; the Clash Filter Tools panel becomes "Rule Result Tools" (its object name stays "Clash Filter Tools", for the saved layouts) |
 | OBB_Custom steps | a text field, one step per line | 2026-11-12: a dedicated editor (`ObbModificationsEditor`, kind `obb_modifications`): an operation of the catalogue, a value (point or comma), m or %, what the step does; "New zone" separators; ↑ ↓ ✕; the zones titled and counted; the rows the engine would refuse framed in orange with its message; an entry it cannot read kept as text in red. The model (`modules/rule/ObbModifications`, Qt Core) is tested by `tests/test_obb_rows.cpp` (target `bonsaiviewer_obb_tests`). The tooltip of a parameter keeps the line breaks of its doc |
 | Save | Save, and Save As | Save always asks the location (the current file proposed); no separate Save As (2026-11-11) |
-| Folder on / off | (none) | spec 09's check box removed from the tree (2026-11-11): "Active" in the folder's Edit window; a deactivated folder is grey, "deactivated" in the Cascade column |
+| Folder on / off | (none) | spec 09's check box removed from the tree (2026-11-11): "Active" in the folder's Edit window; a deactivated folder is grey (the Type and Cascade columns were removed on 2026-11-12: family, "fed by" and "feeds" are in the tooltip of the name) |
 
 Added from the branch: Color Red (GeometryRule, every object red; off: the
 results' colours back), Display Everything (Clash Filter, show all, colours
