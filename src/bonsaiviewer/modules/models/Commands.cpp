@@ -868,7 +868,9 @@ void exportGeometryDatabase(SessionState& session, QWidget& host) {
                         throw ifcopenshell::exception(
                             ("Failed to read .ifcview " + tmp_ifcview).toStdString());
                     }
-                    writer.addFile("model.ifcview", sf.readAll());
+                    // Stream from the device: readAll() would hold the whole
+                    // .ifcview (or .rdb file) in memory on top of the zip.
+                    writer.addFile("model.ifcview", &sf);
                 }
 
                 QDirIterator it(tmp_rdb_dir, QDir::Files | QDir::NoDotAndDotDot,
@@ -882,7 +884,7 @@ void exportGeometryDatabase(SessionState& session, QWidget& host) {
                         throw ifcopenshell::exception(
                             ("Failed to read " + file_path + " for zip").toStdString());
                     }
-                    writer.addFile(QString("model.rdb/%1").arg(rel), f.readAll());
+                    writer.addFile(QString("model.rdb/%1").arg(rel), &f);
                 }
 
                 writer.close();
