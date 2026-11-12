@@ -7,7 +7,9 @@
 #include "../sources/ifcview/IfcViewSource.h"
 
 #include <algorithm>
+#include <set>
 #include <thread>
+#include <tuple>
 #include <unordered_set>
 
 namespace ifcclash {
@@ -245,7 +247,33 @@ RunResult Session::evaluate_pairs(const RunRequest& request, const std::vector<K
     NullProgress quiet;
     RunContext ctx{*provider_, never, quiet, result.diagnostics, result.stats, request.prefilter};
     ctx.threads = rule_threads(options_);
-    result.results = PairPipeline::evaluate(static_cast<const PairRuleBase&>(*rule), resolved, ctx);
+    const auto& pair_rule = static_cast<const PairRuleBase&>(*rule);
+    result.results = PairPipeline::evaluate(pair_rule, resolved, ctx);
+    // BonsaiViewer: an Unordered rule gives one record for (a, b) and (b, a);
+    // the caller asked both (an exception per result): the record answers
+    // the reversed pair too, mirrored.
+    if (pair_rule.symmetry() == PairSymmetry::Unordered) {
+        using Id = std::tuple<uint32_t, int, uint32_t, int>; // (file, entity) of the source, of the target
+        const auto id = [](const ElementKey& a, const ElementKey& b) { return Id{a.file_index, a.entity_id, b.file_index, b.entity_id}; };
+        std::set<Id> asked, answered;
+        for (const auto& [s, t] : resolved) asked.insert(id(s, t));
+        for (const auto& record : result.results) {
+            if (record.target) answered.insert(id(record.source, *record.target));
+        }
+        std::vector<ResultRecord> mirrored;
+        for (const auto& record : result.results) {
+            if (!record.target) continue;
+            const Id reversed = id(*record.target, record.source);
+            if (!asked.count(reversed) || answered.count(reversed)) continue;
+            ResultRecord m = record;
+            std::swap(m.source, *m.target);
+            std::swap(m.source_obbs, m.target_obbs);
+            for (auto& point : m.points) std::swap(point.source, point.target);
+            for (auto& face : m.faces) std::swap(face.source, face.target);
+            mirrored.push_back(std::move(m));
+        }
+        for (auto& m : mirrored) result.results.push_back(std::move(m));
+    }
     fill_display(request, {}, result);
     return result;
 }

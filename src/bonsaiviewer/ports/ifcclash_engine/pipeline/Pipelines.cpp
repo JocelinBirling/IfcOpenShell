@@ -490,11 +490,31 @@ std::vector<ResultRecord> PairPipeline::evaluate(const PairRuleBase& rule, const
     const Variant base = rule.base_variant();
     if (base == Variant::MeshLocal) ctx.provider.prepare(unique_keys(all));
     else ctx.provider.prepare_meshes(unique_keys(all), base);
+    for (Variant variant : rule.data_variants()) ctx.provider.prepare_meshes(unique_keys(all), variant);
+    // BonsaiViewer: the triangle rules need the boxes of their triangles, as in
+    // PairPipeline::run (rule_inputs); empty boxes made the prefilter reject
+    // every pair, so an exception leaf never held.
+    std::unordered_map<ElementKey, ElementBoxes, ElementKeyHash> triangle_boxes;
+    if (base == Variant::Triangles) {
+        std::vector<ElementBoxes> boxes;
+        const std::vector<ElementKey> keys = triangle_inputs(unique_keys(all), ctx, boxes);
+        for (size_t i = 0; i < keys.size(); ++i) triangle_boxes.emplace(keys[i], boxes[i]);
+    }
 
     std::vector<ElementKey> ks, kt;
     std::vector<ElementBoxes> bs, bt;
     for (const auto& [s, t] : pairs) {
         if (s == t && rule.skip_self()) continue;
+        if (base == Variant::Triangles) {
+            const auto b1 = triangle_boxes.find(s);
+            const auto b2 = triangle_boxes.find(t);
+            if (b1 == triangle_boxes.end() || b2 == triangle_boxes.end()) continue; // no triangle (reported)
+            ks.push_back(s);
+            kt.push_back(t);
+            bs.push_back(b1->second);
+            bt.push_back(b2->second);
+            continue;
+        }
         if (base != Variant::MeshLocal) {
             ks.push_back(s);
             kt.push_back(t);
