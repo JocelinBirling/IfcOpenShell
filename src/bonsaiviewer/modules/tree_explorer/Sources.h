@@ -45,7 +45,6 @@ class ModelsSource : public IndexedSource {
     Q_OBJECT
 public:
     explicit ModelsSource(const Context& context, QObject* parent = nullptr);
-    bool supportsScope() const override { return false; }
 
 protected:
     void build(bonsaiviewer::services::tree::TreeIndex& index, const QList<std::uint32_t>& models) override;

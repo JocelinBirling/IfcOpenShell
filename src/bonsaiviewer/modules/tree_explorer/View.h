@@ -36,7 +36,7 @@ class TreeExplorerPanel;
 
 // BonsaiViewer32 — drives one Trees panel: the data source of the chosen
 // tree, wired to the panel's tree through the TreePanelFramework (lazy
-// children, eye column), the scope and the search. The chosen tree is
+// children, eye column) and the search. The chosen tree is
 // remembered per panel.
 class TreeExplorerView : public QObject {
     Q_OBJECT
@@ -52,7 +52,6 @@ private:
     QString tree_id_;
     IndexedSource* source_ = nullptr;
     bonsaiviewer::services::tree::TreePanelWidget* tree_panel_ = nullptr;
-    bool active_only_ = false;
     QString filter_;
 };
 

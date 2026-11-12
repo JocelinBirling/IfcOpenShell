@@ -61,15 +61,6 @@ IndexedSource::IndexedSource(const Context& context, QObject* parent)
         hidden_keys_.clear();
         scheduleRebuild();
     });
-    connect(session, &SessionState::activeModelChanged, this, [this](const QString&) {
-        if (active_only_) scheduleRebuild();
-    });
-}
-
-void IndexedSource::setActiveModelOnly(bool active_only) {
-    if (active_only_ == active_only) return;
-    active_only_ = active_only;
-    rebuild();
 }
 
 void IndexedSource::setFilter(const QString& text) {
@@ -96,7 +87,7 @@ void IndexedSource::rebuild() {
 void IndexedSource::reindex() {
     rebuild_pending_ = false;
     TreeIndex index;
-    const QList<std::uint32_t> models = modelsInScope();
+    const QList<std::uint32_t> models = context_.session.sessionModelIds();
     build(index, models);
     if (index.size() == 0) {
         index.add(-1, messageNode(models.isEmpty() ? QStringLiteral("No model is open.") : emptyText()));
@@ -106,14 +97,6 @@ void IndexedSource::reindex() {
     int matches = 0;
     shown_ = index_.match(filter_, &matches);
     expand_matches_ = !filter_.isEmpty() && matches <= kExpandMatchesLimit;
-}
-
-QList<std::uint32_t> IndexedSource::modelsInScope() const {
-    if (!active_only_ || !supportsScope()) return context_.session.sessionModelIds();
-    const QString active = context_.session.activeModelId();
-    if (active.isEmpty()) return {};
-    const std::uint32_t id = context_.session.sessionModelIdForModelId(active);
-    return id != 0 ? QList<std::uint32_t>{id} : QList<std::uint32_t>{};
 }
 
 QString IndexedSource::modelName(std::uint32_t session_model_id) const {

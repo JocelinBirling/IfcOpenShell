@@ -33,7 +33,7 @@ class QWidget;
 
 namespace bonsaiviewer::modules::tree_explorer {
 
-// BonsaiViewer32 — the "Trees" panel: the tree selector, the scope, the
+// BonsaiViewer32 — the "Trees" panel: the tree selector, the
 // search field, the banner of the interpreted trees, the Settings / Run row
 // of the Unified tree, and the tree. The view (TreeExplorerView) fills it.
 class TreeExplorerPanel : public components::Panel {
@@ -44,7 +44,6 @@ public:
     QTreeWidget* tree() const { return tree_; }
     QComboBox* treeSelector() const { return selector_; }
 
-    void setScopeEnabled(bool enabled);
     void setInterpreted(bool interpreted);
     // The Settings / Run row of the Unified tree.
     void setComputeRowVisible(bool visible);
@@ -54,7 +53,6 @@ public:
 
 signals:
     void treeChosen(const QString& tree_id);
-    void activeModelOnlyChanged(bool active_only);
     // Debounced while typing.
     void searchChanged(const QString& text);
     void computeSettingsRequested();
@@ -62,7 +60,6 @@ signals:
 
 private:
     QComboBox* selector_ = nullptr;
-    QComboBox* scope_ = nullptr;
     QLineEdit* search_ = nullptr;
     QTimer* search_timer_ = nullptr;
     QLabel* banner_ = nullptr;

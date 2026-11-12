@@ -47,10 +47,6 @@ TreeExplorerView::TreeExplorerView(TreeExplorerPanel* panel, const Context& cont
     panel_->tree()->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
     connect(panel_, &TreeExplorerPanel::treeChosen, this, &TreeExplorerView::setTree);
-    connect(panel_, &TreeExplorerPanel::activeModelOnlyChanged, this, [this](bool active_only) {
-        active_only_ = active_only;
-        if (source_) source_->setActiveModelOnly(active_only);
-    });
     connect(panel_, &TreeExplorerPanel::searchChanged, this, [this](const QString& text) {
         filter_ = text;
         if (tree_panel_) tree_panel_->forgetExpandedState();
@@ -78,10 +74,8 @@ void TreeExplorerView::setTree(const QString& tree_id) {
 
     QComboBox* selector = panel_->treeSelector();
     selector->setCurrentIndex(selector->findData(tree_id));
-    panel_->setScopeEnabled(source_->supportsScope());
     panel_->setInterpreted(source_->interpreted());
 
-    source_->setActiveModelOnly(active_only_);
     source_->setFilter(filter_);
     tree_panel_ = new bonsaiviewer::services::tree::TreePanelWidget(panel_->tree(), source_, this);
     tree_panel_->setLazyChildren(true);

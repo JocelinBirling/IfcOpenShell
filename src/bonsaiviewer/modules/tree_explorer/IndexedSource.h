@@ -49,10 +49,10 @@ struct Context {
 };
 
 // BonsaiViewer32 — the base of the Tree Explorer data sources. A tree only
-// builds its TreeIndex from the models in scope; this class gives every tree
+// builds its TreeIndex from the open models; this class gives every tree
 // the same interactions: click selects the elements below the selected
 // nodes, double-click isolates, the eye hides / shows, the right-click menu
-// (Isolate, Select, Hide, Show, Show properties), the search and the scope.
+// (Isolate, Select, Hide, Show, Show properties) and the search.
 // A node with a model and no IFC id nor object id stands for the whole model.
 class IndexedSource : public bonsaiviewer::services::tree::TreeDataSource {
     Q_OBJECT
@@ -60,14 +60,11 @@ class IndexedSource : public bonsaiviewer::services::tree::TreeDataSource {
 public:
     explicit IndexedSource(const Context& context, QObject* parent = nullptr);
 
-    // Trees that can show the active model only.
-    virtual bool supportsScope() const { return true; }
     // Trees deduced by a computation, not read from the models.
     virtual bool interpreted() const { return false; }
     // The message of an empty tree when models are open.
     virtual QString emptyText() const { return QStringLiteral("Nothing to show."); }
 
-    void setActiveModelOnly(bool active_only);
     // Filters the nodes by name; the parents of a match stay shown.
     void setFilter(const QString& text);
     // Rebuilds on the next turn of the event loop (several events coalesce).
@@ -88,7 +85,6 @@ protected:
     // Fills `index` (finish() is called afterwards) for `models`.
     virtual void build(bonsaiviewer::services::tree::TreeIndex& index, const QList<std::uint32_t>& models) = 0;
 
-    QList<std::uint32_t> modelsInScope() const;
     QString modelName(std::uint32_t session_model_id) const;
     // A node standing for a whole model (Models and Spatial trees).
     static bonsaiviewer::services::tree::IndexNode modelNode(std::uint32_t session_model_id, const QString& label);
@@ -108,7 +104,6 @@ private:
     std::vector<char> shown_;
     QString filter_;
     bool expand_matches_ = false;
-    bool active_only_ = false;
     bool rebuild_pending_ = false;
     QStringList selected_keys_;
     // The keys of the nodes hidden with the eye; kept across rebuilds.

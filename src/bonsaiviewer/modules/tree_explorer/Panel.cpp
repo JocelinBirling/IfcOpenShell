@@ -45,18 +45,13 @@ TreeExplorerPanel::TreeExplorerPanel(const QString& title, QWidget* parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(6);
 
-    // Tree selector and scope on one row.
+    // The tree selector.
     auto* top = new QWidget(body);
     auto* top_layout = new QHBoxLayout(top);
     top_layout->setContentsMargins(0, 0, 0, 0);
     selector_ = new QComboBox(top);
     selector_->setToolTip("The tree shown in this panel");
-    scope_ = new QComboBox(top);
-    scope_->addItem("All models");
-    scope_->addItem("Active model");
-    scope_->setToolTip("Show all the models, or the active model only");
     top_layout->addWidget(selector_, 1);
-    top_layout->addWidget(scope_);
     layout->addWidget(top);
 
     search_ = new QLineEdit(body);
@@ -105,14 +100,8 @@ TreeExplorerPanel::TreeExplorerPanel(const QString& title, QWidget* parent)
     connect(selector_, qOverload<int>(&QComboBox::activated), this, [this](int index) {
         emit treeChosen(selector_->itemData(index).toString());
     });
-    connect(scope_, qOverload<int>(&QComboBox::currentIndexChanged), this,
-            [this](int index) { emit activeModelOnlyChanged(index == 1); });
     connect(settings, &QPushButton::clicked, this, &TreeExplorerPanel::computeSettingsRequested);
     connect(run_, &QPushButton::clicked, this, &TreeExplorerPanel::computeRunRequested);
-}
-
-void TreeExplorerPanel::setScopeEnabled(bool enabled) {
-    scope_->setEnabled(enabled);
 }
 
 void TreeExplorerPanel::setInterpreted(bool interpreted) {
