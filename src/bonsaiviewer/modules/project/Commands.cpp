@@ -258,6 +258,7 @@ bool openProjectAt(SessionState& session, QWidget& host, ViewportWindow& viewpor
 
 bool saveProjectTo(SessionState& session, QWidget& host, const QString& path) {
     QString err;
+    session.notifyProjectAboutToSave();
     if (!session.federation()->save(path, &err)) {
         QMessageBox::warning(&host, "Save Project",
                              QString("Could not save project:\n%1").arg(err));
@@ -526,6 +527,7 @@ TempProjectFile writeProjectToTemp(SessionState& session, QWidget& host, const Q
         : QFileInfo(session.federation()->filePath()).fileName();
     const QString tmp_path = QDir(out.dir->path()).filePath(name);
     QString err;
+    session.notifyProjectAboutToSave();
     if (!session.federation()->writeCopyTo(tmp_path, &err)) {
         QMessageBox::warning(&host, op_title,
             QString("Failed to write temporary project:\n%1").arg(err));

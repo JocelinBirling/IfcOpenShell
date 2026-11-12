@@ -91,6 +91,9 @@ public:
     void notifyModelGeometryReady(uint32_t session_model_id);
     void notifyModelLoadStateChanged(const QString& model_id);
     void notifyProjectOpened(const QString& path);
+    // Right before the federation is written (Save, Save As, push to the
+    // cloud): the views put their sections in the federation's extensions.
+    void notifyProjectAboutToSave();
     void notifyProjectSaved(const QString& path);
     void notifyProjectReset();
 
@@ -104,6 +107,7 @@ public:
 signals:
     void entityInspectRequested(uint32_t session_model_id, int ifc_id);
     void projectOpened(const QString& path);
+    void projectAboutToSave();
     void projectSaved(const QString& path);
     void projectReset();
     void modelsChanged();

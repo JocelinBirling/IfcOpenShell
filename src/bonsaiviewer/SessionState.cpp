@@ -207,6 +207,10 @@ void SessionState::notifyProjectOpened(const QString& path) {
     emit projectOpened(path);
 }
 
+void SessionState::notifyProjectAboutToSave() {
+    emit projectAboutToSave();
+}
+
 void SessionState::notifyProjectSaved(const QString& path) {
     emit projectSaved(path);
 }
