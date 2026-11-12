@@ -48,6 +48,11 @@ public:
     services::BcfViewpoints& viewpoints() { return viewpoints_; }
     bool isDeleted(const QString& guid) const { return deleted_.contains(guid); }
 
+    // The BCF file, created empty (3.0, a new project) when none is loaded.
+    ports::bcf::BcfFile& ensureFile();
+    // Adds a topic to the file (ensureFile first); returns its guid.
+    QString addTopic(ports::bcf::Topic topic);
+
     // The author of new topics and comments (Settings > BCF), asked once if unset.
     QString ensureAuthor();
     // A topic changed (title, comments...): the list follows, the file is unsaved.
@@ -55,6 +60,11 @@ public:
     void openTopic(const QString& guid);
     // The viewpoint shown for a topic: the lowest index, else the first.
     const ports::bcf::Viewpoint* mainViewpoint(const ports::bcf::Topic& topic) const;
+
+signals:
+    // The topics changed: a file loaded or saved, a topic added, modified,
+    // deleted or restored.
+    void topicsChanged();
 
 private:
     void load();

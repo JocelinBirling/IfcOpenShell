@@ -146,6 +146,7 @@ void BcfView::load() {
     deleted_.clear();
     dirty_ = false;
     refresh();
+    emit topicsChanged();
 }
 
 void BcfView::save() {
@@ -178,6 +179,24 @@ void BcfView::save() {
     deleted_.clear();
     dirty_ = false;
     refresh();
+    emit topicsChanged();
+}
+
+bcf::BcfFile& BcfView::ensureFile() {
+    if (!bcf_) {
+        bcf_ = bcf::BcfFile{};
+        bcf_->project = bcf::Project{bcf::newGuid(), QString()};
+    }
+    return *bcf_;
+}
+
+QString BcfView::addTopic(bcf::Topic topic) {
+    ensureFile();
+    if (topic.guid.isEmpty()) topic.guid = bcf::newGuid();
+    const QString guid = topic.guid;
+    bcf_->topics.push_back(std::move(topic));
+    topicChanged(guid);
+    return guid;
 }
 
 void BcfView::newTopic() {
@@ -186,10 +205,7 @@ void BcfView::newTopic() {
     bool ok = false;
     const QString title = QInputDialog::getText(panel_, "New topic", "Title:", QLineEdit::Normal, QString(), &ok).trimmed();
     if (!ok || title.isEmpty()) return;
-    if (!bcf_) {
-        bcf_ = bcf::BcfFile{};
-        bcf_->project = bcf::Project{bcf::newGuid(), QString()};
-    }
+    ensureFile();
     bcf::Topic topic;
     topic.guid = bcf::newGuid();
     topic.title = title;
@@ -204,9 +220,8 @@ void BcfView::newTopic() {
     viewpoint.info->guid = viewpoint.guid;
     viewpoint.index = 0;
     topic.viewpoints.push_back(viewpoint);
-    const QString guid = topic.guid;
     const QString viewpoint_guid = viewpoint.guid;
-    bcf_->topics.push_back(std::move(topic));
+    const QString guid = addTopic(std::move(topic));
     viewpoints_.captureSnapshot([this, guid, viewpoint_guid](const QByteArray& png) {
         if (bcf::Topic* created = this->topic(guid)) {
             for (auto& entry : created->viewpoints) {
@@ -215,7 +230,6 @@ void BcfView::newTopic() {
             topicChanged(guid);
         }
     });
-    topicChanged(guid);
     openTopic(guid);
 }
 
@@ -223,6 +237,7 @@ void BcfView::topicChanged(const QString& guid) {
     dirty_ = true;
     refresh();
     if (auto page = pages_.value(guid)) page->reload();
+    emit topicsChanged();
 }
 
 void BcfView::openTopic(const QString& guid) {
@@ -380,6 +395,7 @@ void BcfView::setDeleted(const QStringList& guids, bool deleted) {
     }
     dirty_ = true;
     refresh();
+    emit topicsChanged();
 }
 
 } // namespace bonsaiviewer::modules::bcf
