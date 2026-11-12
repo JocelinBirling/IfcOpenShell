@@ -24,6 +24,7 @@
 
 #include <QHeaderView>
 #include <QIcon>
+#include <QSet>
 #include <QSignalBlocker>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -171,6 +172,12 @@ void TreePanelWidget::refresh() {
     }
     forget_expanded_ = false;
     const int top_index = widget_->indexOfTopLevelItem(widget_->currentItem());
+    // Lazy mode: the selected nodes stay selected (Hide / Show on several
+    // nodes refreshes the tree).
+    QSet<QString> selected;
+    if (lazy_) {
+        for (QTreeWidgetItem* item : widget_->selectedItems()) selected.insert(item->data(0, kKeyRole).toString());
+    }
 
     widget_->blockSignals(true);
     rebuilding_ = true;
@@ -196,7 +203,14 @@ void TreePanelWidget::refresh() {
             if (found != expanded.end()) (*it)->setExpanded(found->second);
         }
     }
-    if (top_index >= 0 && top_index < widget_->topLevelItemCount()) {
+    if (lazy_) {
+        // Visual only: the data source still has its selection, and
+        // setCurrentItem would replace the selection with one item.
+        const QSignalBlocker blocker(widget_);
+        for (QTreeWidgetItemIterator it(widget_); *it; ++it) {
+            if (selected.contains((*it)->data(0, kKeyRole).toString())) (*it)->setSelected(true);
+        }
+    } else if (top_index >= 0 && top_index < widget_->topLevelItemCount()) {
         widget_->setCurrentItem(widget_->topLevelItem(top_index));
     }
 }

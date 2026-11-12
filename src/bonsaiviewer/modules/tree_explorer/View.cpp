@@ -44,7 +44,6 @@ TreeExplorerView::TreeExplorerView(TreeExplorerPanel* panel, const Context& cont
 {
     QComboBox* selector = panel_->treeSelector();
     for (const TreeKind& kind : treeKinds()) selector->addItem(kind.title, kind.id);
-    panel_->tree()->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
     connect(panel_, &TreeExplorerPanel::treeChosen, this, &TreeExplorerView::setTree);
     connect(panel_, &TreeExplorerPanel::activeModelOnlyChanged, this, [this](bool active_only) {
@@ -100,7 +99,9 @@ void TreeExplorerView::setTree(const QString& tree_id) {
     tree_panel_->setLazyChildren(true);
     tree_panel_->setEyeColumn(true);
     // Several nodes at once (Ctrl / Shift); the viewport selection follows.
+    // After the TreePanelWidget, which sets single selection.
     QTreeWidget* tree = panel_->tree();
+    tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     connect(tree, &QTreeWidget::itemSelectionChanged, source_, [this, tree]() {
         QStringList keys;
         for (QTreeWidgetItem* item : tree->selectedItems()) keys << item->data(0, Qt::UserRole).toString();
