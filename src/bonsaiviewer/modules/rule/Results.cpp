@@ -50,8 +50,8 @@ namespace {
 constexpr int kRowRole = Qt::UserRole + 10;
 constexpr int kGroupRole = Qt::UserRole + 11;
 
-// Two columns: the source and the target; every other detail is in Result Info.
-enum Column { kSource, kTarget, kColumns };
+// The source, the target and the short number; every other detail is in Result Info.
+enum Column { kSource, kTarget, kId, kColumns };
 constexpr int kGroupNameRole = Qt::UserRole + 12; // a group node: its name
 
 const QString kNone = QStringLiteral("(none)");
@@ -113,7 +113,8 @@ ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {
     layout->addWidget(scope_label_);
     tree_ = new QTreeWidget(this);
     tree_->setColumnCount(kColumns);
-    tree_->setHeaderLabels({"Source", "Target"});
+    tree_->setHeaderLabels({"Source", "Target", "ID"});
+    tree_->headerItem()->setToolTip(kId, "The short number of the result, kept from one run to the next.");
     tree_->headerItem()->setToolTip(kSource, "The rule, the measure, the review, the criticity, the actor… of the "
                                              "selected result: in Result Info.");
     tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -122,6 +123,8 @@ ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {
     tree_->setRootIsDecorated(true);
     tree_->header()->setSectionResizeMode(kSource, QHeaderView::Stretch);
     tree_->header()->setSectionResizeMode(kTarget, QHeaderView::Stretch);
+    tree_->header()->setSectionResizeMode(kId, QHeaderView::ResizeToContents);
+    tree_->header()->setStretchLastSection(false);
     layout->addWidget(tree_, 1);
     connect(tree_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* item, QTreeWidgetItem*) {
         emit currentResultChanged(item ? rowOf(item) : -1);
@@ -363,7 +366,8 @@ std::vector<int> ResultPanel::shownRows() const {
         if (hidden) continue;
         if (!filter_.isEmpty()) {
             const QString haystack = row.source_name + ' ' + row.target_name + ' ' + row.rule_label + ' ' + row.source_class +
-                                     ' ' + row.target_class + ' ' + row.criticity.join(' ') + ' ' + row.actor.join(' ');
+                                     ' ' + row.target_class + ' ' + row.criticity.join(' ') + ' ' + row.actor.join(' ') +
+                                     (row.number > 0 ? ' ' + resultNumberText(row.number) : QString());
             if (!haystack.contains(filter_, Qt::CaseInsensitive)) continue;
         }
         shown.push_back(i);
@@ -376,6 +380,7 @@ QTreeWidgetItem* ResultPanel::appendRow(QTreeWidgetItem* parent, int index) {
     auto* item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(tree_);
     item->setText(kSource, row.source_name);
     item->setText(kTarget, row.target_name);
+    if (row.number > 0) item->setText(kId, resultNumberText(row.number));
     item->setData(0, kRowRole, index);
     // The details as a tooltip; the review as the style of the row.
     QStringList tip{QString("<b>%1</b>").arg(row.rule_label.toHtmlEscaped())};
@@ -686,10 +691,6 @@ ResultInfoPanel::ResultInfoPanel(QWidget* parent) : QWidget(parent) {
     text_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     layout->addWidget(text_, 1);
     showRow(nullptr);
-}
-
-QString resultNumberText(int number) {
-    return QString("R-%1").arg(number, 4, 10, QLatin1Char('0'));
 }
 
 void ResultInfoPanel::showRow(const ResultRow* row) {

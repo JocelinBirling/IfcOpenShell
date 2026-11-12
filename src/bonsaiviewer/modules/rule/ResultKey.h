@@ -41,6 +41,10 @@ struct ResultElement {
 QString resultKey(const QString& rule_id, bool complex, const QString& group,
                   const std::vector<ResultElement>& sources, const std::vector<ResultElement>& targets);
 
+// "R-0042": the short number of a result, given at its first appearance and
+// kept with its key from one run to the next (never reused).
+QString resultNumberText(int number);
+
 } // namespace bonsaiviewer::modules::rule
 
 #endif // IFCINTERFACE_MODULES_RULE_RESULTKEY_H

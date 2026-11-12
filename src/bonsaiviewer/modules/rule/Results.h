@@ -89,10 +89,6 @@ struct ResultRow {
     std::vector<std::uint32_t> objects() const;
 };
 
-// "R-0042": the short number of a result, given at its first appearance and
-// kept with its key from one run to the next (never reused).
-QString resultNumberText(int number);
-
 // BonsaiViewer09 (TI09) — the Result panel of the Clash Filter workspace
 // (branch IfcViewer_Clash): one row per result, a name filter, grouping
 // (by source, target, source model, rule, criticity, rule group), the review

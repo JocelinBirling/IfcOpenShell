@@ -41,4 +41,8 @@ QString resultKey(const QString& rule_id, bool complex, const QString& group,
         .join('|');
 }
 
+QString resultNumberText(int number) {
+    return QString("R-%1").arg(number, 4, 10, QLatin1Char('0'));
+}
+
 } // namespace bonsaiviewer::modules::rule
