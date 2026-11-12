@@ -27,7 +27,6 @@
 #include "../../services/IdsBridge.h"
 #include "../filters/SelectionEditor.h"
 
-#include <QComboBox>
 #include <QFormLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -254,18 +253,6 @@ void RuleConfigPanel::showRef(const std::optional<TreeRef>& requested) {
             layout->addWidget(doc);
         }
         labelField(&ref->rule->viewer.label, &ref->rule->viewer.description);
-        auto* state = new QComboBox(content_);
-        state->addItems({"Final", "Select"});
-        state->setCurrentText(ref->rule->state == QLatin1String("Select") ? "Select" : "Final");
-        state->setToolTip("<b>State</b><br>Final: the results are managed (criticity, actor, grouping or Must). "
-                          "Select: the rule only produces a selection for the rules it feeds.");
-        connect(state, &QComboBox::currentTextChanged, this, [this, rule = ref->rule](const QString& text) {
-            rule->state = text;
-            document_.touch();
-        });
-        auto* state_form = new QFormLayout();
-        state_form->addRow("State", state);
-        layout->addLayout(state_form);
         auto* params = new ParamForm(content_);
         params->setRule(spec, &ref->rule->params);
         connect(params, &ParamForm::edited, &document_, &RuleDocument::touch);

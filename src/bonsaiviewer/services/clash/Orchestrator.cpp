@@ -293,7 +293,9 @@ void Orchestrator::reportRule(const RuleCheck& rule) {
     QElapsedTimer timer;
     timer.start();
     try {
-        RuleRun run = runRule(rule, rule.state == QLatin1String("Select") ? QStringLiteral("Select") : QStringLiteral("Final"));
+        // A tree rule is always managed; its JSON "state" is kept for the Python
+    // engine only (a cascade runs its rule as Select anyway).
+    RuleRun run = runRule(rule, QStringLiteral("Final"));
         outcome.results = std::move(run.results);
         outcome.groups = std::move(run.groups);
         outcome.messages = std::move(run.messages);

@@ -561,13 +561,6 @@ QWidget* RuleEditDialog::buildRulePage(bool two_object) {
     connect(description, &QPlainTextEdit::textChanged, this,
             [this, description]() { copy_->viewer.description = description->toPlainText(); });
     form->addRow("Description", description);
-    auto* state = new QComboBox(page);
-    state->addItems({"Final", "Select"});
-    state->setCurrentText(copy_->state == QLatin1String("Select") ? "Select" : "Final");
-    state->setToolTip("<b>State</b><br>Final: the results are managed (criticity, actor, grouping or Must). "
-                      "Select: the rule only feeds other rules (cascade).");
-    connect(state, &QComboBox::currentTextChanged, this, [this](const QString& text) { copy_->state = text; });
-    form->addRow("State", state);
     layout->addLayout(form);
 
     auto* params_box = new QGroupBox("Parameters", page);

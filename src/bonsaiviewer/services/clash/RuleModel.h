@@ -119,7 +119,7 @@ struct AbsOrRelCheck {
 struct RuleCheck {
     QString type;            // the rule type of the file ("Above"); the engine runs "Above_triang"
     QString id;              // the node id (uuid), kept through Save / Load
-    QString state = "Final"; // Final, Select (Display_* are run as Final)
+    QString state = "Final"; // kept for the Python engine; the viewer runs tree rules as Final
     // The type-specific parameters, by their catalogue / serialization keys
     // (every key of the rule object the viewer does not model itself, so a
     // rule saved by the CLI keeps its unknown keys).
