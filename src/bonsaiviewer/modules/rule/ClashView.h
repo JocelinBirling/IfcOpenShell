@@ -182,7 +182,7 @@ private:
     // A click on a rule (or folder, or the file) of the tree: its results, if it ran.
     void showResultsOf(const std::optional<TreeRef>& ref);
     QMap<QString, QString> result_texts_;
-    QStringList run_messages_;
+    std::vector<ResultPanel::Message> run_messages_; // node id (empty: the run), text
     std::vector<std::uint32_t> coloured_;
     std::vector<std::uint32_t> context_;
     bool always_context_ = false;

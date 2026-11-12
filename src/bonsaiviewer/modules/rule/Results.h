@@ -33,6 +33,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <utility>
 #include <vector>
 
 class QCheckBox;
@@ -106,9 +107,14 @@ public:
     void setScope(std::optional<std::set<QString>> node_ids, const QString& label);
     // Whether the rule ran (it may have no result).
     bool hasRun(const QString& node_id) const { return run_nodes_.count(node_id) > 0; }
-    // The warnings of the run (elements the engine could not test, folders
-    // left out, failed rules): a line above the table, the list as tooltip.
-    void setMessages(const QStringList& messages);
+    // The warnings of a run (elements the engine could not test, folders
+    // left out, failed rules), each with the node it belongs to (empty: the
+    // whole run): a line above the table, the list as tooltip. Only the
+    // warnings of the rules in scope are shown. A run replaces the warnings
+    // of the nodes in `ran` and of the run itself; the others are kept.
+    using Message = std::pair<QString, QString>; // node id, text
+    void mergeMessages(const std::vector<Message>& messages, const std::set<QString>& ran);
+    void clearMessages();
     const std::vector<ResultRow>& rows() const { return rows_; }
     void setGroupMode(GroupMode mode);
     void setFilterOnlyNonDetermined(bool on);
@@ -142,6 +148,7 @@ private:
     void setManualGroup(const std::vector<int>& rows, const QString& name);
     void renameManualGroup(const QString& from, const QString& to);
     void contextMenu(const QPoint& pos);
+    void refreshMessages();
 
     std::vector<ResultRow> rows_;
     GroupMode mode_ = GroupMode::Flat;
@@ -154,6 +161,7 @@ private:
     QString filter_;
     QLineEdit* filter_edit_ = nullptr;
     QLabel* messages_ = nullptr;
+    std::vector<Message> run_messages_;
     QTreeWidget* tree_ = nullptr;
 };
 

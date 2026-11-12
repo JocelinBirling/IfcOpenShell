@@ -165,6 +165,7 @@ void ResultPanel::setResults(std::vector<ResultRow> rows) {
     for (const ResultRow& row : rows_) run_nodes_.insert(row.node_id);
     scope_.reset();
     scope_label_->setVisible(false);
+    refreshMessages();
     rebuild();
 }
 
@@ -180,10 +181,31 @@ void ResultPanel::setScope(std::optional<std::set<QString>> node_ids, const QStr
     scope_ = std::move(node_ids);
     scope_label_->setText(label);
     scope_label_->setVisible(scope_.has_value() && !label.isEmpty());
+    refreshMessages();
     rebuild();
 }
 
-void ResultPanel::setMessages(const QStringList& messages) {
+void ResultPanel::mergeMessages(const std::vector<Message>& messages, const std::set<QString>& ran) {
+    std::set<QString> replaced = ran;
+    replaced.insert(QString());
+    for (const Message& message : messages) replaced.insert(message.first);
+    run_messages_.erase(std::remove_if(run_messages_.begin(), run_messages_.end(),
+                                       [&replaced](const Message& m) { return replaced.count(m.first) > 0; }),
+                        run_messages_.end());
+    run_messages_.insert(run_messages_.end(), messages.begin(), messages.end());
+    refreshMessages();
+}
+
+void ResultPanel::clearMessages() {
+    run_messages_.clear();
+    refreshMessages();
+}
+
+void ResultPanel::refreshMessages() {
+    QStringList messages;
+    for (const auto& [node, text] : run_messages_) {
+        if (node.isEmpty() || !scope_ || scope_->count(node) > 0) messages << text;
+    }
     messages_->setVisible(!messages.isEmpty());
     if (messages.isEmpty()) return;
     messages_->setText(QString("⚠ %1 warning%2 — %3%4")
@@ -289,6 +311,7 @@ void ResultPanel::clearFilters() {
     hidden_.clear();
     scope_.reset();
     scope_label_->setVisible(false);
+    refreshMessages();
     mode_ = GroupMode::Flat;
     filter_edit_->clear();
     rebuild();

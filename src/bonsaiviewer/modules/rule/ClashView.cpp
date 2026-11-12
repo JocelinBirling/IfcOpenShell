@@ -214,7 +214,7 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
         if (!results_->rows().empty()) {
             clearColours();
             results_->setResults({});
-            results_->setMessages({});
+            results_->clearMessages();
             info_->showRow(nullptr);
         }
         result_texts_.clear();
@@ -254,7 +254,9 @@ bool ClashView::prepareModels(QString* error) {
                                    : QStringLiteral("The rules run on IFC files: the loaded models have no IFC file on disk.");
         return false;
     }
-    if (!skipped.isEmpty()) run_messages_ << "Left out (no IFC file on disk): " + skipped.join(", ");
+    if (!skipped.isEmpty()) {
+        run_messages_.emplace_back(QString(), "Left out (no IFC file on disk): " + skipped.join(", "));
+    }
     if (key != engine_key_) {
         engine_.reset(); // the worker opens a new session
         engine_key_ = key;
@@ -434,16 +436,20 @@ void ClashView::showResultsOf(const std::optional<TreeRef>& ref) {
         ids.insert(ref->rule->id);
         label = "Results of " + RuleDocument::labelOf(*ref->rule);
     } else if (ref->kind == TreeRef::Kind::Folder) {
+        std::set<QString> folders{ref->folder->id};
         std::function<void(const std::vector<clash::RuleNode>&)> walk = [&](const std::vector<clash::RuleNode>& nodes) {
             for (const auto& node : nodes) {
-                if (const auto* f = std::get_if<std::shared_ptr<clash::RuleFolder>>(&node)) walk((*f)->contains);
-                else if (results_->hasRun(std::get<std::shared_ptr<clash::RuleCheck>>(node)->id)) {
+                if (const auto* f = std::get_if<std::shared_ptr<clash::RuleFolder>>(&node)) {
+                    folders.insert((*f)->id);
+                    walk((*f)->contains);
+                } else if (results_->hasRun(std::get<std::shared_ptr<clash::RuleCheck>>(node)->id)) {
                     ids.insert(std::get<std::shared_ptr<clash::RuleCheck>>(node)->id);
                 }
             }
         };
         walk(ref->folder->contains);
         if (ids.empty()) return;
+        ids.insert(folders.begin(), folders.end());
         label = "Results of the folder " + RuleDocument::labelOf(*ref->folder);
     } else {
         return;
@@ -471,12 +477,15 @@ void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
     }
     if (!outcome.skipped.isEmpty()) {
         result_texts_[outcome.node_id] = "skipped";
-        run_messages_ << QString("%1: skipped, %2").arg(outcome.label.isEmpty() ? "Folder" : outcome.label, outcome.skipped);
+        const QString label = outcome.label.isEmpty() ? QStringLiteral("Folder") : outcome.label;
+        run_messages_.emplace_back(outcome.node_id, QString("%1: skipped, %2").arg(label, outcome.skipped));
         return;
     }
     if (!outcome.error.isEmpty()) {
         result_texts_[outcome.node_id] = outcome.error == QLatin1String("cancelled") ? "stopped" : "error";
-        if (outcome.error != QLatin1String("cancelled")) run_messages_ << QString("%1: %2").arg(outcome.label, outcome.error);
+        if (outcome.error != QLatin1String("cancelled")) {
+            run_messages_.emplace_back(outcome.node_id, QString("%1: %2").arg(outcome.label, outcome.error));
+        }
         return;
     }
     std::vector<QString> group_of(outcome.results.size());
@@ -498,7 +507,9 @@ void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
         text = QString("%1 group%2, %3 failing").arg(outcome.results.size()).arg(outcome.results.size() == 1 ? "" : "s").arg(excepted);
     }
     result_texts_[outcome.node_id] = text;
-    for (const QString& message : outcome.messages) run_messages_ << QString("%1: %2").arg(outcome.label, message);
+    for (const QString& message : outcome.messages) {
+        run_messages_.emplace_back(outcome.node_id, QString("%1: %2").arg(outcome.label, message));
+    }
 }
 
 void ClashView::onRunFinished(bool cancelled, const QString& error) {
@@ -522,7 +533,12 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     for (const QString& node : pending_nodes_) rule_inputs_.erase(node);
     for (auto& [node, inputs] : pending_inputs_) rule_inputs_[node] = std::move(inputs);
     pending_inputs_.clear();
-    results_->setScope(pending_nodes_, QString("Results of the last run (%1 rule%2) — click a rule of the tree for its own")
+    // The warnings by rule: a rule of the tree shows its own; the folders
+    // left out of this run are in its scope.
+    results_->mergeMessages(run_messages_, pending_nodes_);
+    std::set<QString> last_run = pending_nodes_;
+    for (const auto& message : run_messages_) last_run.insert(message.first);
+    results_->setScope(last_run, QString("Results of the last run (%1 rule%2) — click a rule of the tree for its own")
                                            .arg(pending_nodes_.size()).arg(pending_nodes_.size() == 1 ? "" : "s"));
     info_->showRow(nullptr);
     rule_panel_->tree()->setResultTexts(result_texts_);
@@ -531,12 +547,11 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     const size_t count = results_->rows().size();
     QString summary = QString("%1 result(s)%2").arg(count).arg(cancelled ? " (stopped)" : "");
     // The elements the engine could not test, the folders left out, the
-    // failed rules: above the results, not in a modal box.
-    results_->setMessages(run_messages_);
-    if (!run_messages_.isEmpty()) summary += QString(", %1 warning(s) in the Result panel").arg(run_messages_.size());
+    // failed rules: above the results, not in a modal box (set above).
+    if (!run_messages_.empty()) summary += QString(", %1 warning(s) in the Result panel").arg(run_messages_.size());
     s_.session.setStatusMessage("Clash", summary);
     // The Result panel shows them, even with no result.
-    if (count > 0 || !run_messages_.isEmpty()) emit showResultsRequested();
+    if (count > 0 || !run_messages_.empty()) emit showResultsRequested();
 }
 
 std::vector<std::uint32_t> ClashView::objectsOf(const clash::Elements& keys) const {
