@@ -115,6 +115,7 @@ void Federation::clear() {
     home_view_ = HomeView{};
     has_manifest_ = false;
     manifest_ = QJsonObject{};
+    extensions_ = QJsonObject{};
     setDirty(false);
 }
 
@@ -625,6 +626,8 @@ bool Federation::load(const QString& path,
         has_home_view_ = true;
     }
 
+    extensions_ = root.value("extensions").toObject();
+
     // Best-effort manifest read. Missing file is not a warning — most
     // .ifcfed files are local-only and never have a manifest. A malformed
     // manifest is logged as a warning but does not fail the load.
@@ -651,6 +654,11 @@ bool Federation::load(const QString& path,
 void Federation::setManifest(const QJsonObject& manifest) {
     manifest_ = manifest;
     has_manifest_ = !manifest_.isEmpty();
+}
+
+void Federation::setExtension(const QString& key, const QJsonValue& value) {
+    if (value.isNull() || value.isUndefined()) extensions_.remove(key);
+    else extensions_.insert(key, value);
 }
 
 void Federation::clearManifest() {
@@ -811,6 +819,7 @@ bool Federation::writeJsonAt(const QString& abs_path,
     } else {
         root["home_view"] = QJsonValue();  // null
     }
+    if (!extensions_.isEmpty()) root["extensions"] = extensions_;
 
     QSaveFile f(abs_path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {

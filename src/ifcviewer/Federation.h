@@ -25,6 +25,7 @@
 #include <Eigen/Dense>
 
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -225,6 +226,15 @@ public:
     void setManifest(const QJsonObject& manifest);
     void clearManifest();
 
+    // Sections owned by the applications ("extensions" of the .ifcfed), one
+    // JSON value per key, read and written back verbatim. setExtension does
+    // not mark the federation dirty (an application may refresh its section
+    // right before a save); markDirty() is for its own changes. A null or
+    // undefined value removes the key.
+    QJsonValue extension(const QString& key) const { return extensions_.value(key); }
+    void setExtension(const QString& key, const QJsonValue& value);
+    void markDirty() { setDirty(true); }
+
 signals:
     void dirtyChanged(bool dirty);
 
@@ -289,6 +299,7 @@ private:
     HomeView home_view_;
     bool has_manifest_ = false;
     QJsonObject manifest_;
+    QJsonObject extensions_;
     bool dirty_ = false;
 };
 

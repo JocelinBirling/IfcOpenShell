@@ -736,3 +736,39 @@ TEST_CASE("composeModelTransformation with pivot=B keeps A landing on B",
     REQUIRE(std::abs(r.y() - xf.b.y()) < 1e-9);
     REQUIRE(std::abs(r.z() - xf.b.z()) < 1e-9);
 }
+
+TEST_CASE("extensions round-trip verbatim and do not dirty the federation",
+          "[federation]") {
+    ensureQApp();
+    QTemporaryDir tmp;
+    REQUIRE(tmp.isValid());
+    const QString fed_path = tmp.filePath("project.ifcfed");
+
+    Federation src;
+    REQUIRE_FALSE(src.extension("app").isObject());
+    const QJsonObject section{{"format", 1}, {"items", QJsonArray{1, "two"}}};
+    src.setExtension("app", section);
+    REQUIRE_FALSE(src.isDirty());
+    REQUIRE(src.extension("app").toObject() == section);
+    src.markDirty();
+    REQUIRE(src.isDirty());
+
+    QString err;
+    REQUIRE(src.save(fed_path, &err));
+    REQUIRE(readJsonFile(fed_path).value("extensions").toObject().value("app").toObject() == section);
+
+    Federation dst;
+    QStringList warnings;
+    REQUIRE(dst.load(fed_path, &warnings, &err));
+    REQUIRE(dst.extension("app").toObject() == section);
+
+    // A null value removes the key; an empty section is not written.
+    dst.setExtension("app", QJsonValue());
+    REQUIRE(dst.extension("app").isUndefined());
+    REQUIRE(dst.save(fed_path, &err));
+    REQUIRE_FALSE(readJsonFile(fed_path).contains("extensions"));
+
+    dst.setExtension("app", section);
+    dst.clear();
+    REQUIRE(dst.extension("app").isUndefined());
+}
