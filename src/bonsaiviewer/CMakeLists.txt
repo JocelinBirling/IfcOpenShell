@@ -238,6 +238,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashTopic.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashTopic.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashTopicDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashTopicDialog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Measures.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.h
