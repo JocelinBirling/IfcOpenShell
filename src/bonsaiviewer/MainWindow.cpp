@@ -693,8 +693,8 @@ void MainWindow::setupRibbon() {
     ribbon_tabs_->addTab("Table");
     ribbon_tabs_->addTab("IDS");
     ribbon_tabs_->addTab("Diff"); // BonsaiViewer34
-    ribbon_tabs_->addTab("GeometryRule"); // BonsaiViewer09
-    ribbon_tabs_->addTab("Clash Filter"); // BonsaiViewer09
+    ribbon_tabs_->addTab("Rule Config"); // BonsaiViewer09 (formerly GeometryRule)
+    ribbon_tabs_->addTab("Manage Rule Result"); // BonsaiViewer09 (formerly Clash Filter)
     ribbon_tabs_->addTab("BCF"); // BonsaiViewer10
     ribbon_tabs_->addTab("Inspect");
     // TI21 phase 2: the last tab adds a user tab; tabs can be reordered.
@@ -747,9 +747,9 @@ void MainWindow::setupRibbon() {
     specific_panel->addTab(QStringLiteral("Diff"));
     // BonsaiViewer09: the run, rule file and result buttons of the two
     // clash workspaces.
-    specific_panel->setContent(specific_panel->addTab(QStringLiteral("GeometryRule")), clash_view_->geometryRuleRibbon());
-    // The Clash Filter buttons are a dock panel (Clash Filter Tools), not a band.
-    specific_panel->addTab(QStringLiteral("Clash Filter"));
+    specific_panel->setContent(specific_panel->addTab(QStringLiteral("Rule Config")), clash_view_->geometryRuleRibbon());
+    // Its buttons are a dock panel (Rule Result Tools), not a band.
+    specific_panel->addTab(QStringLiteral("Manage Rule Result"));
     specific_panel->addTab(QStringLiteral("BCF"));
     specific_index_.insert(QStringLiteral("inspect"), specific_panel->addTab(QStringLiteral("Inspect")));
     // Order below the tabs: the tab ribbon, then the specific panel.
@@ -772,8 +772,8 @@ void MainWindow::setupRibbon() {
 // user tabs ("+"), rename / delete / reorder, and the saved layouts.
 void MainWindow::setupWorkspaces() {
     const QStringList names{QStringLiteral("Home"), QStringLiteral("Filter"), QStringLiteral("Table"),
-                            QStringLiteral("IDS"), QStringLiteral("Diff"), QStringLiteral("GeometryRule"),
-                            QStringLiteral("Clash Filter"), QStringLiteral("BCF")};
+                            QStringLiteral("IDS"), QStringLiteral("Diff"), QStringLiteral("Rule Config"),
+                            QStringLiteral("Manage Rule Result"), QStringLiteral("BCF")};
     for (int i = 0; i < names.size(); ++i) {
         const QString id = panel_manager_->addTab(names.at(i));
         workspace_ids_.append(id);
@@ -900,8 +900,11 @@ namespace {
 const char* kSavedLayoutsKey = "layouts/tabs";
 // The workspaces, in their index order (setupWorkspaces).
 const QStringList kWorkspaceNames{QStringLiteral("Home"),  QStringLiteral("Filter"), QStringLiteral("Table"),
-                                  QStringLiteral("IDS"),   QStringLiteral("Diff"),   QStringLiteral("GeometryRule"),
-                                  QStringLiteral("Clash Filter"), QStringLiteral("BCF")};
+                                  QStringLiteral("IDS"),   QStringLiteral("Diff"),   QStringLiteral("Rule Config"),
+                                  QStringLiteral("Manage Rule Result"), QStringLiteral("BCF")};
+// Former names of workspaces, for the layouts saved under them.
+const QMap<QString, QString> kWorkspaceAliases{{QStringLiteral("GeometryRule"), QStringLiteral("Rule Config")},
+                                               {QStringLiteral("Clash Filter"), QStringLiteral("Manage Rule Result")}};
 }
 
 void MainWindow::saveLayouts() {
@@ -951,7 +954,7 @@ void MainWindow::restoreSavedLayouts() {
         } else if (kind == QLatin1String("workspace")) {
             // By name; an entry saved without one (an older version) only for
             // the workspaces whose index never changed (Home, Filter, Table, IDS).
-            const QString name = tab["name"].toString();
+            const QString name = kWorkspaceAliases.value(tab["name"].toString(), tab["name"].toString());
             const int workspace = name.isEmpty() ? tab["index"].toInt(-1) : kWorkspaceNames.indexOf(name);
             if (workspace < 0 || workspace >= workspace_ids_.size() || (name.isEmpty() && workspace > 3)) continue;
             key = workspace_ids_.at(workspace);
@@ -1084,7 +1087,9 @@ void MainWindow::setupPanels() {
     rule_config_dock_ = new components::Panel("Rule Config", nullptr, this);
     result_dock_ = new components::Panel("Result", nullptr, this);
     result_info_dock_ = new components::Panel("Result Info", nullptr, this);
-    clash_filter_tools_dock_ = new components::Panel("Clash Filter Tools", nullptr, this);
+    clash_filter_tools_dock_ = new components::Panel("Rule Result Tools", nullptr, this);
+    // Its former object name: the saved layouts find it again (QMainWindow::restoreState).
+    clash_filter_tools_dock_->setObjectName(QStringLiteral("Clash Filter Tools"));
     // BonsaiViewer10: the BCF panel takes the place of the former Issues panel.
     issues_panel_ = new modules::bcf::BcfPanel(this);
     class_tree_widget_ = new QTreeWidget(this);
@@ -1631,7 +1636,7 @@ void MainWindow::setupMenuBar() {
     panel_manager_->adoptPanel(QStringLiteral("result_info"),
                                QStringLiteral("Result Info"), result_info_dock_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("clash_filter_tools"),
-                               QStringLiteral("Clash Filter Tools"), clash_filter_tools_dock_, QStringLiteral("Analyze"));
+                               QStringLiteral("Rule Result Tools"), clash_filter_tools_dock_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("issues"),
                                QStringLiteral("BCF"), issues_panel_, QStringLiteral("Analyze"));
 

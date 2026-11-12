@@ -166,6 +166,15 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
         s_.selection.setSelection(ids, services::SelectionSource::Table, services::SelectionMode::Replace);
     });
     connect(results_, &ResultPanel::isolateRequested, this, &ClashView::isolateRows);
+    // Result Info: select the source or the target (the Properties panel
+    // shows it), and the review of the result.
+    connect(info_, &ResultInfoPanel::selectRequested, this, [this](const std::vector<std::uint32_t>& objects) {
+        if (!objects.empty()) s_.selection.setSelection(objects, services::SelectionSource::Table, services::SelectionMode::Replace);
+    });
+    connect(info_, &ResultInfoPanel::reviewRequested, this, [this](ReviewStatus status) {
+        const auto rows = results_->selectedRows();
+        if (!rows.empty()) results_->setReviewOf(rows, status);
+    });
     // The Clash section of the Properties panel: kept up to date, its actions.
     connect(results_, &ResultPanel::reviewChanged, this, &ClashView::publishIndex);
     connect(&s_.index, &clash::ObjectClashIndex::showResultRequested, this, [this](int row) {
@@ -1030,7 +1039,7 @@ QWidget* ClashView::buildGeometryRuleRibbon() {
     describe(stop_button_, "Stop the run after the current rule.");
     connect(stop_button_, &QToolButton::clicked, this, &ClashView::stop);
     auto* show = components::buttons::makeButton("Show Results", ":/icons/check.svg", page);
-    describe(show, "Show the Clash Filter workspace with the results of the last run.");
+    describe(show, "Show the Manage Rule Result workspace with the results of the last run.");
     connect(show, &QToolButton::clicked, this, &ClashView::showResultsRequested);
     auto* save = components::buttons::makeButton("Save Rules", ":/icons/floppy-disk.svg", page);
     describe(save, "Save the rule file (JSON, the format of the IfcClash_Plus command line); the location is "
@@ -1062,7 +1071,7 @@ QWidget* ClashView::buildGeometryRuleRibbon() {
 }
 
 QWidget* ClashView::buildClashFilterRibbon() {
-    // A dock panel (Clash Filter Tools): on the top, one row; on a side or
+    // A dock panel (Rule Result Tools): on the top, one row; on a side or
     // floating, the groups — and the buttons of a group too wide — wrap.
     auto* page = new components::FlowFrame(host_);
     auto* row = new components::FlowLayout(page);

@@ -39,6 +39,9 @@ Decisions of the user where the two UIs differed:
 | Clash section of the Properties panel | (none) | 2026-11-12: after Quantities, for the shown element, one set per rule run in the session that checked it: a row per result (→ it is the source / ← the target, the other element, the measure, the review, the manual group, "excepted"), or "Checked — no result ✔", or "Not checked — no geometry"; the summary "n rules · n results (Valid / Invalid / Non Determined) · checked without result by n rules". The arrow of a row shows the result (Clash Filter, rule scope, row selected); right click: Show the result, Isolate the pair, Valid / Non Determined / Invalid (synchronised with the Result panel). Data: `services/clash/ObjectClashIndex`, published by ClashView after every run, review or group change, from the results and the elements each rule checked (`RuleOutcome::sources / targets`). Must rules are left out (their working is to be redesigned) |
 | Clash Filter buttons | the band below the tabs | 2026-11-12: a dock panel "Clash Filter Tools" (Window > Analyze), docked on the top of the Clash Filter workspace by default (full width, as high as its buttons), movable, floatable; a Clash Filter layout saved before gets it on the top once (setting `clash/filterToolsPlaced`). On the top or the bottom: one row (as the band); on a side or floating, the groups wrap on several rows, and so do the buttons of a group wider than the panel (`components/FlowLayout`: FlowLayout + FlowFrame, whose minimum height follows its width). The GeometryRule buttons stay a band |
 | Toggle buttons | no pressed look | 2026-11-12: every checkable ribbon button of the shell (Points, Zones, Color Red, Hide Excepted…) is marked at start-up (`buttons::markToggleButtons`, property `toggle`): a light outline when released, an accent frame (bold text) when pressed (`Style.cpp`) |
+| Result table | 8 columns, then 9 (Review) | 2026-11-12: two columns only, Source and Target (a tooltip sums up the result); the review shows as the style of the row (Valid bold, Invalid struck out and grey). Result Info holds every detail: rule, source and target with a "Select" button each (selects it: the Properties panel shows it), the Review list, measure, criticity, actor, groups, geometry blocks |
+| Workspace names | GeometryRule, Clash Filter | 2026-11-12: "Rule Config" and "Manage Rule Result"; the layouts saved under the former names are still restored (aliases in `MainWindow.cpp`). The Rule Config panel keeps its name; the Clash Filter Tools panel becomes "Rule Result Tools" (its object name stays "Clash Filter Tools", for the saved layouts) |
+| OBB_Custom steps | a text field, one step per line | 2026-11-12: a dedicated editor (`ObbModificationsEditor`, kind `obb_modifications`): an operation of the catalogue, a value (point or comma), m or %, what the step does; "New zone" separators; ↑ ↓ ✕; the zones titled and counted; the rows the engine would refuse framed in orange with its message; an entry it cannot read kept as text in red. The model (`modules/rule/ObbModifications`, Qt Core) is tested by `tests/test_obb_rows.cpp` (target `bonsaiviewer_obb_tests`). The tooltip of a parameter keeps the line breaks of its doc |
 | Save | Save, and Save As | Save always asks the location (the current file proposed); no separate Save As (2026-11-11) |
 | Folder on / off | (none) | spec 09's check box removed from the tree (2026-11-11): "Active" in the folder's Edit window; a deactivated folder is grey, "deactivated" in the Cascade column |
 
@@ -168,6 +171,16 @@ Changes to the engine copy (marked `// BonsaiViewer:`):
   both were asked, the record is mirrored for the reversed pair, so both
   orientations of a result are excepted. Both bugs are in the IfcClash_Plus
   engine itself.
+- `geometry/ObbModifications.*` (new, 2026-11-12): one strict parser for the
+  `list_of_modifications` of OBB_Custom and OBB_Custom_triang (exact names,
+  `std::from_chars` values, one ':', NEW_OBB without value, never first,
+  last or doubled; refused at the creation of the rule with "line N: cause"),
+  read once in `setup()`; the zones of a valid list are unchanged; its
+  documentation (`obb_modifications_doc`) shared by both rules;
+  `ParamBuilder::operations` publishes the parameter as the kind
+  `obb_modifications`. Tests: `tests/test_obb_modifications.cpp` (target
+  `ifcclash_engine_tests`). Kept as IfcClash_Plus: expand_sides (widths set
+  to the height + v; +p/2 % in %); negative values are allowed.
 
 The IfcOpenShell tree plug-ins (`geometry_tree_opencascade_trianglebvh`,
 `..._brep`) are built with the viewer: the clash rules load them at run time.

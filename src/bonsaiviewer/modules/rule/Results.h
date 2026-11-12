@@ -36,6 +36,8 @@
 #include <vector>
 
 class QCheckBox;
+class QComboBox;
+class QToolButton;
 class QLabel;
 class QLineEdit;
 class QTreeWidget;
@@ -133,6 +135,9 @@ signals:
 private:
     void rebuild();
     QTreeWidgetItem* appendRow(QTreeWidgetItem* parent, int row);
+    // The review as the style of a row: Valid bold, Invalid struck out and
+    // grey, excepted grey, a failing Must group red.
+    void styleRow(QTreeWidgetItem* item, const ResultRow& row) const;
     void setReview(const std::vector<int>& rows, ReviewStatus status);
     void setManualGroup(const std::vector<int>& rows, const QString& name);
     void renameManualGroup(const QString& from, const QString& to);
@@ -175,8 +180,24 @@ public:
     explicit ResultInfoPanel(QWidget* parent = nullptr);
     void showRow(const ResultRow* row);
 
+signals:
+    // "Select" by the source or the target: its objects (the Properties
+    // panel follows the selection).
+    void selectRequested(const std::vector<std::uint32_t>& objects);
+    // The Review list.
+    void reviewRequested(ReviewStatus status);
+
 private:
+    QLabel* title_ = nullptr;
+    QLabel* source_ = nullptr;
+    QLabel* target_ = nullptr;
+    QToolButton* select_source_ = nullptr;
+    QToolButton* select_target_ = nullptr;
+    QWidget* target_row_ = nullptr;
+    QWidget* review_row_ = nullptr;
+    QComboBox* review_ = nullptr;
     QLabel* text_ = nullptr;
+    std::vector<std::uint32_t> source_objects_, target_objects_;
 };
 
 QString measureText(const ifcclash::ResultRecord& record);

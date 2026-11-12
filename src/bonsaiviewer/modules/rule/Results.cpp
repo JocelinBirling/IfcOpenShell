@@ -20,29 +20,27 @@
 
 #include "Results.h"
 
+#include "../../components/SvgIcon.h"
+
 #include <QBrush>
-#include <QTimer>
-#include <QStyleOptionComboBox>
-#include <QStyledItemDelegate>
-#include <QPainter>
-#include <QApplication>
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
 #include <QDialogButtonBox>
-#include <QInputDialog>
-#include <QSignalBlocker>
-#include <QColor>
+#include <QHBoxLayout>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
+#include <QSignalBlocker>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
 #include <algorithm>
-#include <functional>
 #include <map>
 
 namespace bonsaiviewer::modules::rule {
@@ -52,7 +50,9 @@ namespace {
 constexpr int kRowRole = Qt::UserRole + 10;
 constexpr int kGroupRole = Qt::UserRole + 11;
 
-enum Column { kRule, kSource, kTarget, kModel, kMeasure, kCriticity, kActor, kManualGroup, kReview, kColumns };
+// Two columns: the source and the target; every other detail is in Result Info.
+enum Column { kSource, kTarget, kColumns };
+constexpr int kGroupNameRole = Qt::UserRole + 12; // a group node: its name
 
 const QString kNone = QStringLiteral("(none)");
 
@@ -75,66 +75,6 @@ QString reviewText(ReviewStatus status) {
                                              : QStringLiteral("Non Determined");
 }
 
-// The Review column: drawn as a drop-down list, the real list opened on a
-// click only (a widget per row made a table of 1000 results take seconds).
-class ReviewDelegate : public QStyledItemDelegate {
-public:
-    ReviewDelegate(std::function<void(int row, ReviewStatus)> chosen, QObject* parent)
-        : QStyledItemDelegate(parent), chosen_(std::move(chosen)) {}
-
-    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        if (!index.sibling(index.row(), 0).data(kRowRole).isValid()) {
-            QStyledItemDelegate::paint(painter, option, index);
-            return;
-        }
-        QStyleOptionViewItem item = option;
-        initStyleOption(&item, index);
-        item.text.clear();
-        QStyle* style = option.widget ? option.widget->style() : QApplication::style();
-        style->drawControl(QStyle::CE_ItemViewItem, &item, painter, option.widget); // the selection background
-        QStyleOptionComboBox combo;
-        combo.rect = option.rect.adjusted(1, 1, -1, -1);
-        combo.state = option.state | QStyle::State_Enabled;
-        combo.currentText = index.data().toString();
-        combo.palette = option.palette;
-        style->drawComplexControl(QStyle::CC_ComboBox, &combo, painter, option.widget);
-        style->drawControl(QStyle::CE_ComboBoxLabel, &combo, painter, option.widget);
-    }
-
-    QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem&, const QModelIndex& index) const override {
-        auto* editor = new QComboBox(parent);
-        editor->addItems({"Valid", "Non Determined", "Invalid"});
-        editor->setItemData(0, "The clash is confirmed.", Qt::ToolTipRole);
-        editor->setItemData(1, "Not reviewed yet.", Qt::ToolTipRole);
-        editor->setItemData(2, "A false positive.", Qt::ToolTipRole);
-        auto* self = const_cast<ReviewDelegate*>(this);
-        connect(editor, &QComboBox::activated, self, [self, editor]() {
-            emit self->commitData(editor);
-            emit self->closeEditor(editor);
-        });
-        Q_UNUSED(index);
-        QTimer::singleShot(0, editor, [editor]() { editor->showPopup(); });
-        return editor;
-    }
-
-    void setEditorData(QWidget* editor, const QModelIndex& index) const override {
-        if (auto* combo = qobject_cast<QComboBox*>(editor)) combo->setCurrentText(index.data().toString());
-    }
-
-    void setModelData(QWidget* editor, QAbstractItemModel*, const QModelIndex& index) const override {
-        auto* combo = qobject_cast<QComboBox*>(editor);
-        const QVariant row = index.sibling(index.row(), 0).data(kRowRole);
-        if (combo && row.isValid()) chosen_(row.toInt(), reviewAt(combo->currentIndex()));
-    }
-
-private:
-    std::function<void(int, ReviewStatus)> chosen_;
-};
-
-QString modelText(const ResultRow& row) {
-    if (row.target_model_name.isEmpty() || row.source_model_name == row.target_model_name) return row.source_model_name;
-    return QString("%1 → %2").arg(row.source_model_name, row.target_model_name);
-}
 
 QString formatPoint(const ifcclash::Point3& p) {
     return QString("(%1, %2, %3)").arg(p[0], 0, 'f', 3).arg(p[1], 0, 'f', 3).arg(p[2], 0, 'f', 3);
@@ -197,23 +137,15 @@ ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {
     layout->addWidget(scope_label_);
     tree_ = new QTreeWidget(this);
     tree_->setColumnCount(kColumns);
-    tree_->setHeaderLabels({"Rule", "Source", "Target", "Model", "Measure", "Criticity", "Actor", "Manual group", "Review"});
-    tree_->headerItem()->setToolTip(kManualGroup, "The group the user put the result in (right click: Add to group).");
+    tree_->setHeaderLabels({"Source", "Target"});
+    tree_->headerItem()->setToolTip(kSource, "The rule, the measure, the review, the criticity, the actor… of the "
+                                             "selected result: in Result Info.");
     tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    // Only the Review column edits, on a click (the double click isolates).
     tree_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tree_->setItemDelegateForColumn(kReview, new ReviewDelegate([this](int row, ReviewStatus status) {
-        QTimer::singleShot(0, this, [this, row, status]() { setReview({row}, status); });
-    }, tree_));
-    connect(tree_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int column) {
-        if (column == kReview && rowOf(item) >= 0) tree_->editItem(item, kReview);
-    });
     tree_->setContextMenuPolicy(Qt::CustomContextMenu);
     tree_->setRootIsDecorated(true);
     tree_->header()->setSectionResizeMode(kSource, QHeaderView::Stretch);
     tree_->header()->setSectionResizeMode(kTarget, QHeaderView::Stretch);
-    tree_->headerItem()->setToolTip(kReview, "Valid: the clash is confirmed. Non Determined: not reviewed yet. "
-                                             "Invalid: a false positive.");
     layout->addWidget(tree_, 1);
     connect(tree_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* item, QTreeWidgetItem*) {
         emit currentResultChanged(item ? rowOf(item) : -1);
@@ -387,29 +319,32 @@ std::vector<int> ResultPanel::shownRows() const {
 QTreeWidgetItem* ResultPanel::appendRow(QTreeWidgetItem* parent, int index) {
     const ResultRow& row = rows_[static_cast<size_t>(index)];
     auto* item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(tree_);
-    item->setText(kRule, row.rule_label);
     item->setText(kSource, row.source_name);
     item->setText(kTarget, row.target_name);
-    item->setText(kModel, modelText(row));
-    item->setText(kMeasure, row.measure);
-    item->setText(kCriticity, row.criticity.join(", "));
-    item->setText(kActor, row.actor.join(", "));
-    item->setText(kManualGroup, row.manual_group);
-    item->setToolTip(kSource, QString("%1\n%2").arg(row.source_class, row.source_guid));
-    item->setToolTip(kTarget, QString("%1\n%2").arg(row.target_class, row.target_guid));
     item->setData(0, kRowRole, index);
-    // The review: a drop-down list on click (ReviewDelegate).
-    item->setText(kReview, reviewText(row.review));
-    item->setFlags(item->flags() | Qt::ItemIsEditable);
-    if (!row.status) {
-        // Excepted (or a failing Must group): shown apart.
-        for (int c = 0; c < kReview; ++c) item->setForeground(c, QBrush(QColor(Qt::gray)));
-        item->setToolTip(kRule, row.complex ? "This group fails the Must check." : "Excepted: this pair matches an exception of the rule.");
-        if (row.complex) {
-            for (int c = 0; c < kReview; ++c) item->setForeground(c, QBrush(QColor("#E6194B")));
-        }
-    }
+    // The details as a tooltip; the review as the style of the row.
+    QStringList tip{QString("<b>%1</b>").arg(row.rule_label.toHtmlEscaped())};
+    if (!row.measure.isEmpty()) tip << row.measure.toHtmlEscaped();
+    tip << "Review: " + reviewText(row.review);
+    if (!row.criticity.isEmpty()) tip << "Criticity: " + row.criticity.join(", ").toHtmlEscaped();
+    if (!row.actor.isEmpty()) tip << "Actor: " + row.actor.join(", ").toHtmlEscaped();
+    if (!row.manual_group.isEmpty()) tip << "Manual group: " + row.manual_group.toHtmlEscaped();
+    for (int c = 0; c < kColumns; ++c) item->setToolTip(c, tip.join("<br>"));
+    styleRow(item, row);
     return item;
+}
+
+void ResultPanel::styleRow(QTreeWidgetItem* item, const ResultRow& row) const {
+    QColor colour;  // default
+    QFont font = tree_->font();
+    if (row.complex && !row.status) colour = QColor("#E6194B"); // a failing Must group
+    else if (!row.status || row.review == ReviewStatus::Invalid) colour = QColor(Qt::gray); // excepted / rejected
+    if (row.review == ReviewStatus::Invalid) font.setStrikeOut(true);
+    if (row.review == ReviewStatus::Valid) font.setBold(true);
+    for (int c = 0; c < kColumns; ++c) {
+        item->setForeground(c, colour.isValid() ? QBrush(colour) : QBrush());
+        item->setFont(c, font);
+    }
 }
 
 void ResultPanel::rebuild() {
@@ -443,12 +378,13 @@ void ResultPanel::rebuild() {
     }
     for (const QString& key : order) {
         auto* group = new QTreeWidgetItem(tree_);
-        group->setText(kRule, key);
-        group->setText(kModel, QString("(%1)").arg(groups[key].size()));
+        group->setText(kSource, QString("%1 (%2)").arg(key).arg(groups[key].size()));
         group->setData(0, kGroupRole, 1);
-        QFont bold = group->font(kRule);
+        group->setData(0, kGroupNameRole, key);
+        QFont bold = group->font(kSource);
         bold.setBold(true);
-        group->setFont(kRule, bold);
+        group->setFont(kSource, bold);
+        group->setFirstColumnSpanned(true);
         for (int i : groups[key]) appendRow(group, i);
         group->setExpanded(true);
     }
@@ -486,9 +422,8 @@ void ResultPanel::setReview(const std::vector<int>& rows, ReviewStatus status) {
     const QSignalBlocker blocker(tree_);
     for (QTreeWidgetItemIterator it(tree_); *it; ++it) {
         const int row = rowOf(*it);
-        if (row >= 0) (*it)->setText(kReview, reviewText(rows_[static_cast<size_t>(row)].review));
+        if (row >= 0) styleRow(*it, rows_[static_cast<size_t>(row)]);
     }
-    tree_->viewport()->update();
     emit reviewChanged();
 }
 
@@ -500,8 +435,8 @@ void ResultPanel::contextMenu(const QPoint& pos) {
     // A group node of "Group by Manual group": rename / ungroup it.
     QTreeWidgetItem* clicked = tree_->itemAt(pos);
     if (clicked && clicked->data(0, kGroupRole).toInt() == 1 && mode_ == GroupMode::ByManualGroup &&
-        clicked->text(kRule) != QLatin1String("(no group)")) {
-        const QString name = clicked->text(kRule);
+        clicked->data(0, kGroupNameRole).toString() != QLatin1String("(no group)")) {
+        const QString name = clicked->data(0, kGroupNameRole).toString();
         menu.addAction("Rename the group…", this, [this, name]() {
             bool ok = false;
             const QString to = QInputDialog::getText(this, "Rename the group", "Name", QLineEdit::Normal, name, &ok).trimmed();
@@ -609,6 +544,46 @@ ResultPanel::HiddenValues CategoryFilterDialog::hidden() const {
 ResultInfoPanel::ResultInfoPanel(QWidget* parent) : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
+    title_ = new QLabel(this);
+    title_->setWordWrap(true);
+    layout->addWidget(title_);
+    // Source / target: the element, and a button selecting it (its properties).
+    const auto elementRow = [this, layout](const QString& role, QLabel** label, QToolButton** button) {
+        auto* row = new QWidget(this);
+        auto* row_layout = new QHBoxLayout(row);
+        row_layout->setContentsMargins(0, 0, 0, 0);
+        *label = new QLabel(row);
+        (*label)->setWordWrap(true);
+        (*label)->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        *button = new QToolButton(row);
+        (*button)->setText("Select");
+        (*button)->setIcon(components::icons::makeSvgIcon(":/icons/cursor-pointer.svg"));
+        (*button)->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        (*button)->setToolTip(QString("<b>Select the %1</b><br>Selects it in the view: the Properties panel shows it.").arg(role));
+        row_layout->addWidget(*label, 1);
+        row_layout->addWidget(*button, 0, Qt::AlignTop);
+        layout->addWidget(row);
+        return row;
+    };
+    elementRow("source", &source_, &select_source_);
+    target_row_ = elementRow("target", &target_, &select_target_);
+    connect(select_source_, &QToolButton::clicked, this, [this]() { emit selectRequested(source_objects_); });
+    connect(select_target_, &QToolButton::clicked, this, [this]() { emit selectRequested(target_objects_); });
+    // The review.
+    review_row_ = new QWidget(this);
+    auto* review_layout = new QHBoxLayout(review_row_);
+    review_layout->setContentsMargins(0, 0, 0, 0);
+    review_layout->addWidget(new QLabel("<b>Review</b>", review_row_));
+    review_ = new QComboBox(review_row_);
+    review_->addItems({"Valid", "Non Determined", "Invalid"});
+    review_->setItemData(0, "The clash is confirmed.", Qt::ToolTipRole);
+    review_->setItemData(1, "Not reviewed yet.", Qt::ToolTipRole);
+    review_->setItemData(2, "A false positive.", Qt::ToolTipRole);
+    review_->setToolTip("<b>Review</b><br>The review of the result (also by the right click on the Result table).");
+    connect(review_, &QComboBox::activated, this, [this](int index) { emit reviewRequested(reviewAt(index)); });
+    review_layout->addWidget(review_);
+    review_layout->addStretch(1);
+    layout->addWidget(review_row_);
     text_ = new QLabel(this);
     text_->setWordWrap(true);
     text_->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -618,30 +593,43 @@ ResultInfoPanel::ResultInfoPanel(QWidget* parent) : QWidget(parent) {
 }
 
 void ResultInfoPanel::showRow(const ResultRow* row) {
-    if (row == nullptr) {
-        text_->setText("<i>Select a result.</i>");
+    const bool shown = row != nullptr;
+    for (QWidget* w : std::initializer_list<QWidget*>{source_->parentWidget(), target_row_, review_row_}) w->setVisible(shown);
+    if (!shown) {
+        title_->setText("<i>Select a result.</i>");
+        text_->clear();
+        source_objects_.clear();
+        target_objects_.clear();
         return;
     }
-    QStringList lines;
-    lines << QString("<b>%1</b> <span style='color:gray'>(%2)</span>").arg(row->rule_label.toHtmlEscaped(), row->rule_type);
+    title_->setText(QString("<b>%1</b> <span style='color:gray'>(%2)</span>").arg(row->rule_label.toHtmlEscaped(), row->rule_type));
     const auto element = [](const QString& role, const QString& name, const QString& cls, const QString& guid, const QString& model,
                             size_t count) {
         if (count > 1) return QString("<b>%1</b>: %2 elements").arg(role).arg(count);
         return QString("<b>%1</b>: %2<br>&nbsp;&nbsp;%3 · %4 · %5").arg(role, name.toHtmlEscaped(), cls, guid, model.toHtmlEscaped());
     };
-    lines << element("Source", row->source_name, row->source_class, row->source_guid, row->source_model_name, row->source_objects.size());
-    if (!row->target_name.isEmpty() || row->target_objects.size() > 1) {
-        lines << element("Target", row->target_name, row->target_class, row->target_guid, row->target_model_name, row->target_objects.size());
+    source_->setText(element("Source", row->source_name, row->source_class, row->source_guid, row->source_model_name, row->source_objects.size()));
+    source_objects_ = row->source_objects;
+    select_source_->setEnabled(!source_objects_.empty());
+    const bool has_target = !row->target_name.isEmpty() || row->target_objects.size() > 1;
+    target_row_->setVisible(has_target);
+    target_->setText(has_target ? element("Target", row->target_name, row->target_class, row->target_guid, row->target_model_name,
+                                          row->target_objects.size())
+                                : QString());
+    target_objects_ = row->target_objects;
+    select_target_->setEnabled(!target_objects_.empty());
+    {
+        const QSignalBlocker block(review_);
+        review_->setCurrentIndex(reviewIndex(row->review));
     }
+    QStringList lines;
     if (row->complex) lines << QString("<b>Must</b>: the group %1").arg(row->status ? "passes" : "<span style='color:#E6194B'>fails</span>");
     else if (!row->status) lines << "<b>Status</b>: <span style='color:gray'>excepted</span>";
-    lines << QString("<b>Review</b>: %1").arg(row->review == ReviewStatus::Valid     ? QStringLiteral("Valid")
-                                              : row->review == ReviewStatus::Invalid ? QStringLiteral("Invalid")
-                                                                                      : QStringLiteral("Non Determined"));
     if (!row->manual_group.isEmpty()) lines << QString("<b>Manual group</b>: %1").arg(row->manual_group.toHtmlEscaped());
     if (!row->group.isEmpty()) lines << QString("<b>Group</b>: %1").arg(row->group.toHtmlEscaped());
     if (!row->criticity.isEmpty()) lines << QString("<b>Criticity</b>: %1").arg(row->criticity.join(", ").toHtmlEscaped());
     if (!row->actor.isEmpty()) lines << QString("<b>Actor</b>: %1").arg(row->actor.join(", ").toHtmlEscaped());
+    if (!row->measure.isEmpty() && !row->record) lines << QString("<b>Measure</b>: %1").arg(row->measure.toHtmlEscaped());
     if (const auto& r = row->record) {
         QStringList measures;
         for (const auto& [measure, value] : r->measures.items()) {

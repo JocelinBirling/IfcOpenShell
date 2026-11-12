@@ -111,7 +111,7 @@ private:
     // GeometryRule, Clash Filter) and their default panel layouts.
     void setupWorkspaces();
     void applyWorkspaceDefaults(int index);
-    // The Clash Filter Tools panel on the top of the window (its default place).
+    // The Rule Result Tools panel on the top of the window (its default place).
     void placeClashFilterTools();
     // A ribbon tab became current: a workspace (system or user), Inspect,
     // or the "+" tab, which adds a user tab (TI21 phase 2).
