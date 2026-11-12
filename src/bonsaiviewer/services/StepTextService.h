@@ -36,8 +36,9 @@ namespace bonsaiviewer { class SessionState; }
 // (#0223=IFCWALL(#2,#3,Text)), hashtag parsing, and the
 // declaration-to-usages navigation. Lines are re-read from the parsed
 // file on demand (the memory-safe default of TI16); the usage index is
-// built lazily per model on the first usagesOf call, from the lines
-// themselves, and always returns ascending order.
+// built lazily per model on the first usagesOf call, by walking the parsed
+// attributes (no STEP line is serialized), and always returns ascending
+// order.
 
 namespace bonsaiviewer::services {
 
