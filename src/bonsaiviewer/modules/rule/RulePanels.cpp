@@ -23,9 +23,14 @@
 #include "Editors.h"
 
 #include "../../services/clash/RuleCatalogue.h"
+#include "../../services/clash/RuleJson.h"
+#include "../../services/IdsBridge.h"
+#include "../filters/SelectionEditor.h"
 
 #include <QComboBox>
 #include <QFormLayout>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -113,6 +118,28 @@ QMimeData* RuleLibraryPanel::mimeData(const QList<QTreeWidgetItem*>& items) cons
 
 // --- RuleConfigPanel ---------------------------------------------------------------------
 
+namespace {
+QString facetsKey(const clash::Select* select) {
+    if (!select || select->kind != clash::Select::Kind::Facet) return {};
+    QJsonArray array;
+    for (const auto& facet : select->applicability) array.append(clash::json::toJson(facet));
+    return QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
+}
+} // namespace
+
+void RuleConfigPanel::setFacetContext(bonsaiviewer::services::IdsBridge* bridge, filters::IfcPathProvider ifc_path) {
+    bridge_ = bridge;
+    ifc_path_ = std::move(ifc_path);
+}
+
+bool RuleConfigPanel::showsSlot(const std::optional<TreeRef>& ref) const {
+    if (!ref || !shown_ || !slot_editor_) return false;
+    const auto slotKind = [](TreeRef::Kind kind) { return kind == TreeRef::Kind::Slot || kind == TreeRef::Kind::Facet; };
+    if (!slotKind(ref->kind) || !slotKind(shown_->kind)) return false;
+    if (ref->rule != shown_->rule || ref->slot != shown_->slot) return false;
+    return facetsKey(ref->select()) == written_;
+}
+
 RuleConfigPanel::RuleConfigPanel(RuleDocument& document, QWidget* parent) : QWidget(parent), document_(document) {
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(4, 4, 4, 4);
@@ -130,6 +157,8 @@ RuleConfigPanel::RuleConfigPanel(RuleDocument& document, QWidget* parent) : QWid
     // again after a change of the document (a facet added, moved, removed).
     connect(&document_, &RuleDocument::changed, this, [this]() {
         if (!shown_ || (shown_->kind != TreeRef::Kind::Slot && shown_->kind != TreeRef::Kind::Facet)) return;
+        // The IDS editor's own writes keep it as it is (no rebuild while typing).
+        if (showsSlot(shown_)) return;
         QTimer::singleShot(0, this, [this]() { showRef(shown_); });
     });
     connect(&document_, &RuleDocument::opened, this, [this]() { showRef(std::nullopt); });
@@ -170,7 +199,13 @@ void RuleConfigPanel::showLibraryRule(const QString& type) {
 
 void RuleConfigPanel::showRef(const std::optional<TreeRef>& requested) {
     const std::optional<TreeRef> ref = requested; // `requested` may be shown_ itself
+    if (showsSlot(ref)) {
+        shown_ = ref; // the same slot (the tree rebuilt after an edit): the editor stays
+        return;
+    }
     shown_ = ref;
+    slot_editor_.clear();
+    written_.clear();
     clear();
     if (!ref) return;
     auto* layout = new QVBoxLayout(content_);
@@ -243,29 +278,9 @@ void RuleConfigPanel::showRef(const std::optional<TreeRef>& requested) {
         break;
     }
     case TreeRef::Kind::Slot:
-    case TreeRef::Kind::Facet: {
-        clash::Select* select = ref->select();
-        layout->addWidget(new QLabel(QString("<b>%1 — %2</b>").arg(RuleDocument::labelOf(*ref->rule), ref->slot), content_));
-        if (!select || select->kind != clash::Select::Kind::Facet) {
-            auto* hint = new QLabel("Drop IDS facets from the Rule Library on the slot, or a rule of the tree to "
-                                    "take its elements (cascade).", content_);
-            hint->setWordWrap(true);
-            layout->addWidget(hint);
-            break;
-        }
-        if (ref->kind == TreeRef::Kind::Facet && ref->facet >= 0 && ref->facet < static_cast<int>(select->applicability.size())) {
-            auto* editor = new FacetEditor(content_);
-            editor->setFacet(&select->applicability[static_cast<size_t>(ref->facet)]);
-            connect(editor, &FacetEditor::edited, &document_, &RuleDocument::touch);
-            layout->addWidget(editor);
-        } else {
-            auto* editor = new FacetListEditor(content_);
-            editor->setFacets(&select->applicability);
-            connect(editor, &FacetListEditor::edited, &document_, &RuleDocument::touch);
-            layout->addWidget(editor);
-        }
+    case TreeRef::Kind::Facet:
+        showSlot(*ref, layout);
         break;
-    }
     case TreeRef::Kind::Link: {
         clash::Select* select = ref->select();
         const auto linked = select && select->rule ? document_.treeRule(select->rule->id) : nullptr;
@@ -281,6 +296,80 @@ void RuleConfigPanel::showRef(const std::optional<TreeRef>& requested) {
         break;
     }
     }
+}
+
+void RuleConfigPanel::showSlot(const TreeRef& ref, QVBoxLayout* layout) {
+    clash::Select* select = ref.select();
+    layout->addWidget(new QLabel(QString("<b>%1 — %2</b>").arg(RuleDocument::labelOf(*ref.rule), ref.slot), content_));
+    const auto hint = [this, layout](const QString& text) {
+        auto* label = new QLabel(text, content_);
+        label->setWordWrap(true);
+        layout->addWidget(label);
+    };
+    if (!select) return;
+    if (select->kind == clash::Select::Kind::Rule) {
+        hint("The slot takes the elements of a rule (shown under the slot). Double click the rule to edit it.");
+        return;
+    }
+    if (!bridge_) {
+        hint(select->empty() ? "Empty slot." : QString("%1 facet(s).").arg(select->applicability.size()));
+        return;
+    }
+    if (select->empty()) {
+        hint("Empty slot: drop IDS facets from the Rule Library or a rule of the tree on it, or start an IDS "
+             "selection here.");
+        auto* start = new QPushButton("Select with IDS facets", content_);
+        start->setToolTip("<b>Select with IDS facets</b><br>Fill the slot with an IDS selection (an entity facet "
+                          "to start from), edited here as in the IDS panel.");
+        connect(start, &QPushButton::clicked, this, [this, r = ref]() {
+            clash::Select* target = r.select();
+            if (!target) return;
+            QString error;
+            auto facets = engineFacets(filters::SelectionEditor::defaultFields(), nullptr, &error);
+            if (facets.empty()) return;
+            target->kind = clash::Select::Kind::Facet;
+            target->applicability = std::move(facets);
+            document_.touch(); // shown again with the editor
+        });
+        layout->addWidget(start, 0, Qt::AlignLeft);
+        return;
+    }
+    // The IDS selection editor of the filters / IDS panel, with its preview.
+    auto* editor = new filters::SelectionEditor(*bridge_, ifc_path_, content_);
+    editor->setFields(idsFields(select->applicability));
+    auto* status = new QLabel(content_);
+    status->setWordWrap(true);
+    status->setProperty("textRole", "secondary");
+    status->hide();
+    slot_editor_ = editor;
+    written_ = facetsKey(select);
+    connect(editor, &filters::SelectionEditor::isolateRequested, this, &RuleConfigPanel::isolateRequested);
+    connect(editor, &filters::SelectionEditor::changed, this, [this, editor, status, r = ref]() {
+        clash::Select* target = r.select();
+        if (!target) return;
+        const QString path = ifc_path_ ? ifc_path_() : QString();
+        ifcopenshell::file* file = path.isEmpty() ? nullptr : bridge_->file(path);
+        QString error;
+        auto facets = engineFacets(editor->fields(), file, &error);
+        if (!error.isEmpty()) {
+            // Not written until it can be built (a class being typed...).
+            status->setText("Not applied yet: " + error);
+            status->show();
+            return;
+        }
+        status->hide();
+        if (facets.empty()) {
+            *target = clash::Select{}; // all the facets removed: the slot is empty
+        } else {
+            target->kind = clash::Select::Kind::Facet;
+            target->applicability = std::move(facets);
+        }
+        written_ = facetsKey(target);
+        if (target->empty()) written_ = QStringLiteral("-"); // shown again (the empty-slot page)
+        document_.touch();
+    });
+    layout->addWidget(editor, 1);
+    layout->addWidget(status);
 }
 
 } // namespace bonsaiviewer::modules::rule

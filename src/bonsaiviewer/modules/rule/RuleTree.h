@@ -46,7 +46,7 @@ struct TreeRef {
 };
 
 // BonsaiViewer09 (TI09) — the Rule tree of the IfcViewer_Clash branch on
-// the rule model: RuleFile > folders (check box: active) > rules (type
+// the rule model: RuleFile > folders (grey: deactivated) > rules (type
 // badge, cascade badge, results) > slots (source / target / context) >
 // facets, a rule nested in the slot, or a link to another rule of the tree.
 // Rules and IDS facets are dropped from the Rule Library; rules and folders
@@ -79,6 +79,8 @@ signals:
     void editRuleRequested(std::shared_ptr<clash::RuleCheck> rule);
     void editFolderRequested(std::shared_ptr<clash::RuleFolder> folder);
     void selectionRequested(const clash::Select& select, const QString& title);
+    // "Display Input": draw the zones and boxes the rule checks.
+    void displayInputRequested(std::shared_ptr<clash::RuleCheck> rule);
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;

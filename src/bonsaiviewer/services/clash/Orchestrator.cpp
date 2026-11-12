@@ -300,6 +300,8 @@ void Orchestrator::reportRule(const RuleCheck& rule) {
         outcome.not_checked = std::move(run.not_checked);
         outcome.source_count = run.sources.size();
         outcome.target_count = run.targets.size();
+        outcome.sources = std::move(run.sources);
+        outcome.targets = std::move(run.targets);
     } catch (const ifcclash::Cancelled&) {
         outcome.error = "cancelled";
     } catch (const std::exception& e) {
@@ -688,6 +690,11 @@ std::vector<ResultGroup> Orchestrator::group(const RuleCheck& rule, const std::v
 
 void Orchestrator::applyMust(const RuleCheck& rule, RuleRun& run) {
     const AbsOrRelCheck& must = *rule.must;
+    if (!must.count_excepted) {
+        // The pairs an exception invalidated stay out of the groups.
+        run.results.erase(std::remove_if(run.results.begin(), run.results.end(), [](const ClashResult& r) { return !r.status; }),
+                          run.results.end());
+    }
     std::vector<ResultGroup> groups = group(rule, run.results);
     if (groups.empty()) {
         // group_by_source: one group per source object.

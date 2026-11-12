@@ -23,8 +23,10 @@
 
 #include "Results.h"
 #include "RuleDocument.h"
+#include "RuleTree.h"
 
 #include "../../ElementRegistry.h"
+#include "../../services/clash/ObjectClashIndex.h"
 #include "../../services/clash/Orchestrator.h"
 
 #include <QHash>
@@ -35,7 +37,9 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
+#include <set>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -80,6 +84,7 @@ public:
         bonsaiviewer::services::AppearanceService& appearance;
         bonsaiviewer::services::UndoStack& undo;
         bonsaiviewer::services::IdsBridge& ids; // the IDS editor of the Edit window
+        bonsaiviewer::services::clash::ObjectClashIndex& index; // the Clash section of the Properties panel
     };
 
     ClashView(Services services, QWidget* host, QObject* parent = nullptr);
@@ -117,11 +122,21 @@ private:
     void drawOverlay(int row);
     void clearOverlay();
     void isolateRows(const std::vector<int>& rows);
-    void saveRules(bool ask_path);
+    void saveRules(); // always asks where to save (a "Save As")
     void loadRules();
     void saveResults();
     void editRule(std::shared_ptr<clash::RuleCheck> rule);
     void editFolder(std::shared_ptr<clash::RuleFolder> folder);
+    // The preview of an IDS editor: EXPRESS ids of the active model -> isolate.
+    void isolateExpressIds(const std::vector<int>& express_ids);
+    // "Display Input": runs a rule and draws the zones and boxes it checked,
+    // without touching the results, the colours or the visibility.
+    void displayInput(std::shared_ptr<clash::RuleCheck> rule);
+    void drawDisplay(const std::vector<std::shared_ptr<const ifcclash::ResultRecord>>& records);
+    void setColourRed(bool on);
+    // The Must "Test" of the Edit window: runs a copy of the rule, answers
+    // "n groups: p pass, f fail" (the Result panel is not touched).
+    void testRule(std::shared_ptr<clash::RuleCheck> rule, std::function<void(const QString&)> answer);
     QWidget* buildGeometryRuleRibbon();
     QWidget* buildClashFilterRibbon();
 
@@ -155,6 +170,17 @@ private:
 
     // The run in progress, then the results shown.
     std::vector<ResultRow> pending_rows_;
+    std::set<QString> pending_nodes_; // the rules of the run (their old rows are replaced)
+    // The elements each rule run checked (viewer object ids), for the Clash
+    // section of the Properties panel ("checked, no result").
+    struct RuleInputs {
+        QString label, type;
+        std::vector<std::uint32_t> sources, targets, not_checked;
+    };
+    std::map<QString, RuleInputs> rule_inputs_, pending_inputs_;
+    void publishIndex();
+    // A click on a rule (or folder, or the file) of the tree: its results, if it ran.
+    void showResultsOf(const std::optional<TreeRef>& ref);
     QMap<QString, QString> result_texts_;
     QStringList run_messages_;
     std::vector<std::uint32_t> coloured_;
@@ -166,7 +192,8 @@ private:
         bool points = false, zones = false, obbs = false, axes = false, faces = false, rays = false;
         bool any() const { return points || zones || obbs || axes || faces || rays; }
     } overlay_;
-    bool overlay_drawn_ = false; // the line slot holds our lines (else: left alone)
+    bool overlay_drawn_ = false;
+    bool colour_red_ = false; // GeometryRule "Color Red": every object red // the line slot holds our lines (else: left alone)
 };
 
 } // namespace bonsaiviewer::modules::rule

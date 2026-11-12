@@ -58,6 +58,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/components/KeyValueTable.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/components/KeyValueTable.h
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Buttons.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/FlowLayout.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/FlowLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Buttons.h
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Section.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/components/Section.h
@@ -179,6 +181,7 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleModel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleCatalogue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleCatalogue.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/ObjectClashIndex.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleJson.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleJson.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/Orchestrator.cpp

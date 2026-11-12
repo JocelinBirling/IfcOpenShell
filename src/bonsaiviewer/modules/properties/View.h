@@ -42,6 +42,7 @@ class IfcDataAccess;
 class SelectionService;
 }
 namespace bonsaiviewer::modules::table { class TablePanelView; }
+namespace bonsaiviewer::services::clash { class ObjectClashIndex; }
 
 namespace bonsaiviewer::modules::properties {
 
@@ -65,6 +66,9 @@ public:
     void setTableView(table::TablePanelView* table_view) { table_view_ = table_view; }
     // BonsaiViewer24 "Color Properties": the IDS checks that colour the rows.
     void setIdsChecks(bonsaiviewer::services::IdsPropertyChecks* checks);
+    // BonsaiViewer09: the clash rules run in the session, per object (the
+    // Clash section).
+    void setClashIndex(bonsaiviewer::services::clash::ObjectClashIndex* index);
 
 private:
     // The entity shown in the panel: a model entity (session_model_id +
@@ -99,6 +103,9 @@ private:
     // Elements with the property are grouped by value (one colour each, grey
     // for an empty value); elements without it are hidden. Shown in the Table panel.
     void colourByProperty(const QString& pset, const QString& property, bool box_only);
+    // The Clash section of the shown element.
+    void appendClash(PropertiesPanelState& state) const;
+    void showClashMenu(int result_row, const QPoint& pos);
 
     PropertiesPanel* widget_ = nullptr;
     bonsaiviewer::SessionState* session_state_ = nullptr;
@@ -108,6 +115,7 @@ private:
     bonsaiviewer::services::EntitySetStore& box_;
     table::TablePanelView* table_view_ = nullptr;
     bonsaiviewer::services::IdsPropertyChecks* ids_checks_ = nullptr;
+    bonsaiviewer::services::clash::ObjectClashIndex* clash_index_ = nullptr;
     Shown shown_;
     QList<Shown> history_;
     QList<RelationshipRow> relationships_;  // as rendered, for the link clicks

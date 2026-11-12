@@ -22,11 +22,17 @@
 #define IFCINTERFACE_MODULES_RULE_RULEPANELS_H
 
 #include "RuleTree.h"
+#include "../filters/FacetPages.h" // IfcPathProvider
+
+#include <QPointer>
 
 #include <QTreeWidget>
 #include <QWidget>
 
 #include <optional>
+
+namespace bonsaiviewer::services { class IdsBridge; }
+namespace bonsaiviewer::modules::filters { class SelectionEditor; }
 
 class QLabel;
 class QVBoxLayout;
@@ -65,18 +71,30 @@ public:
 
     void showRef(const std::optional<TreeRef>& ref);
     void showLibraryRule(const QString& type);
+    // The IDS selection editor of the slots (as the Edit window): the bridge
+    // and the active model's IFC. Without it, the slots are shown read only.
+    void setFacetContext(bonsaiviewer::services::IdsBridge* bridge, filters::IfcPathProvider ifc_path);
 
 signals:
     void editRuleRequested(std::shared_ptr<clash::RuleCheck> rule);
     void editFolderRequested(std::shared_ptr<clash::RuleFolder> folder);
+    // "Isolate in the view" of the IDS editor's preview (EXPRESS ids of the active model).
+    void isolateRequested(const std::vector<int>& express_ids);
 
 private:
     void clear();
+    void showSlot(const TreeRef& ref, class QVBoxLayout* layout);
+    // Whether `ref` is the slot the IDS editor shows, unchanged since its last write.
+    bool showsSlot(const std::optional<TreeRef>& ref) const;
 
     RuleDocument& document_;
     std::optional<TreeRef> shown_;
     QVBoxLayout* body_ = nullptr;
     QWidget* content_ = nullptr;
+    bonsaiviewer::services::IdsBridge* bridge_ = nullptr;
+    filters::IfcPathProvider ifc_path_;
+    QPointer<filters::SelectionEditor> slot_editor_;
+    QString written_; // the slot's facets as last written by the editor (JSON)
 };
 
 } // namespace bonsaiviewer::modules::rule

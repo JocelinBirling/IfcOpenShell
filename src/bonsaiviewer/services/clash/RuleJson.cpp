@@ -411,6 +411,7 @@ QJsonObject toJson(const RuleCheck& rule) {
     if (rule.must) data["abs_or_rel_check"] = mustToJson(rule.must);
     QJsonObject viewer = viewerToJson(rule.viewer);
     if (!rule.exception.empty() && rule.exception.timing != QLatin1String("after")) viewer["exception_timing"] = rule.exception.timing;
+    if (rule.must && !rule.must->count_excepted) viewer["must_count_excepted"] = false;
     if (!viewer.isEmpty()) data["viewer"] = viewer;
     return data;
 }
@@ -433,6 +434,7 @@ std::shared_ptr<RuleCheck> ruleFromJson(const QJsonObject& data) {
     rule->must = mustFromJson(data.value("abs_or_rel_check"));
     rule->viewer = viewerFromJson(data);
     rule->exception.timing = data.value("viewer").toObject().value("exception_timing").toString("after");
+    if (rule->must) rule->must->count_excepted = data.value("viewer").toObject().value("must_count_excepted").toBool(true);
     for (auto i = data.begin(); i != data.end(); ++i) {
         if (!commonRuleKeys().count(i.key())) rule->params[i.key()] = i.value();
     }

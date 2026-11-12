@@ -27,7 +27,7 @@
 //              -> pipeline: Exception -> Criticity -> Actor
 //                           -> (Grouping | Must) -> Select
 //
-// Folders run their content in order when they are active (check box) and
+// Folders run their content in order when they are active (folder Edit window) and
 // their activation rule holds. Only the nodes of the tree report their
 // outcome; the rules run for a cascade, an activation or an exception are
 // run on their own copy and report nothing.
@@ -92,6 +92,7 @@ struct RuleOutcome {
     QString skipped;          // why a folder or rule did not run
     size_t source_count = 0;
     size_t target_count = 0;
+    Elements sources, targets; // the elements the rule checked (its selections)
     double seconds = 0.0;
 };
 

@@ -111,6 +111,9 @@ struct AbsOrRelCheck {
     QString quantity_pset;
     QString quantity_prop;
     QString operation; // with the SOURCE and TARGET keywords, e.g. "TARGET>=2"
+    // Viewer extension: whether the pairs an exception invalidated (timing
+    // "after") count in the groups. The Python counts them.
+    bool count_excepted = true;
 };
 
 struct RuleCheck {
@@ -144,7 +147,7 @@ struct RuleFolder {
     std::shared_ptr<BooleanNode> activation_tree;
     std::vector<RuleNode> contains;
     ViewerMeta viewer;
-    bool active = true; // the check box of the tree (viewer extension)
+    bool active = true; // "Active" of the folder Edit window (viewer extension)
 };
 
 struct RuleFile {

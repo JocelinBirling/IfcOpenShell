@@ -61,6 +61,22 @@ struct PropertySet {
 // (false) was clicked, and the global position.
 using PropertyContextHandler = std::function<void(const PropertySet&, int, bool, const QPoint&)>;
 
+// BonsaiViewer09 (TI09) — the Clash section: one set per clash rule run in the
+// session that checked the element; a row per result it is in (result_row:
+// the result in the Result panel), or one row "checked, no result".
+struct ClashRow {
+    QString key;
+    QString value;
+    QString colour;  // empty: the default style
+    QString tooltip;
+    int result_row = -1;
+};
+
+struct ClashSet {
+    QString title;
+    QList<ClashRow> rows;
+};
+
 struct EntitySummary {
     QString entity_class;
     QString predefined_type;
@@ -72,6 +88,8 @@ struct PropertiesPanelState {
     QList<RelationshipRow> relationships;
     QList<PropertySet> property_sets;
     QList<PropertySet> quantity_sets;
+    QList<ClashSet> clash_sets;
+    QString clash_summary; // empty: no Clash section (no clash index)
     bool can_go_back = false;  // show the Back button
 };
 

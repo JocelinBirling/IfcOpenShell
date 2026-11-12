@@ -25,6 +25,7 @@
 #include "SlotClipboard.h"
 
 #include "../../services/clash/RuleCatalogue.h"
+#include "../../services/clash/Orchestrator.h"
 #include "../../services/clash/RuleJson.h"
 #include "../../services/IdsBridge.h"
 #include "../../services/IdsEngine.h"
@@ -34,6 +35,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -43,8 +45,11 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpression>
+#include <QSignalBlocker>
 #include <QScrollArea>
 #include <QStackedWidget>
 #include <QStandardItemModel>
@@ -430,60 +435,7 @@ RuleEditDialog::RuleEditDialog(std::shared_ptr<clash::RuleCheck> rule, RuleDocum
     tabs->addTab(scrolled(exception_page), "Exception");
 
     // Must (AbsoluteOrRelativeChecking).
-    auto* must_page = new QWidget;
-    auto* must_layout = new QVBoxLayout(must_page);
-    must_layout->addWidget(helpLabel(
-        "A Must rule checks the groups of results (the Grouping tab; one group per source otherwise): the number "
-        "of elements or a summed property quantity, absolute or relative. The operation uses SOURCE and TARGET, "
-        "e.g. TARGET>=1 (every room holds a target), SOURCE==2*TARGET. The groups become the results, passing or "
-        "failing as a whole.", must_page));
-    auto* enabled = new QCheckBox("Must check", must_page);
-    enabled->setChecked(copy_->must.has_value());
-    auto* must_form = new QFormLayout();
-    auto* type = new QComboBox(must_page);
-    type->addItems({"Absolute_Number", "Relative_Number", "Absolute_Quantity", "Relative_Quantity"});
-    type->setToolTip("<b>Kind</b><br>Number: counts the elements of the group. Quantity: sums a property of them. "
-                     "Absolute: one set against a value. Relative: the two sets against each other.");
-    auto* pset = new QLineEdit(must_page);
-    auto* prop = new QLineEdit(must_page);
-    auto* operation = new QLineEdit(must_page);
-    pset->setToolTip("<b>Property set</b><br>Of the summed quantity (Quantity kinds).");
-    prop->setToolTip("<b>Property</b><br>The summed quantity (Quantity kinds).");
-    operation->setToolTip("<b>Operation</b><br>A comparison with SOURCE and TARGET: =, ==, !=, <, <=, >, >=, + - * /, "
-                          "and / or / not.");
-    if (copy_->must) {
-        type->setCurrentText(copy_->must->check_type);
-        pset->setText(copy_->must->quantity_pset);
-        prop->setText(copy_->must->quantity_prop);
-        operation->setText(copy_->must->operation);
-    } else {
-        operation->setText("TARGET>=1");
-    }
-    must_form->addRow("Kind", type);
-    must_form->addRow("Property set", pset);
-    must_form->addRow("Property", prop);
-    must_form->addRow("Operation", operation);
-    must_layout->addWidget(enabled);
-    must_layout->addLayout(must_form);
-    must_layout->addStretch(1);
-    const auto storeMust = [this, enabled, type, pset, prop, operation]() {
-        if (!enabled->isChecked()) {
-            copy_->must.reset();
-            return;
-        }
-        clash::AbsOrRelCheck check;
-        check.check_type = type->currentText();
-        check.quantity_pset = pset->text().trimmed();
-        check.quantity_prop = prop->text().trimmed();
-        check.operation = operation->text().trimmed();
-        copy_->must = check;
-    };
-    connect(enabled, &QCheckBox::toggled, this, storeMust);
-    connect(type, &QComboBox::currentTextChanged, this, storeMust);
-    connect(pset, &QLineEdit::textEdited, this, storeMust);
-    connect(prop, &QLineEdit::textEdited, this, storeMust);
-    connect(operation, &QLineEdit::textEdited, this, storeMust);
-    tabs->addTab(scrolled(must_page), "Must");
+    tabs->addTab(scrolled(buildMustPage(tabs)), "Must");
 
     // Grouping.
     auto* grouping_page = new QWidget;
@@ -754,7 +706,6 @@ QWidget* RuleEditDialog::buildSelectionPage(const QStringList& slot_names, bool 
 }
 
 void RuleEditDialog::loadSlot(SlotState& slot, const clash::Select& select) {
-    namespace engine = bonsaiviewer::services::ids_engine;
     slot.original = select;
     const bool linked = select.kind == clash::Select::Kind::Rule && select.rule && document_ &&
                         document_->treeRule(select.rule->id) && select.rule->id != rule_->id;
@@ -762,13 +713,7 @@ void RuleEditDialog::loadSlot(SlotState& slot, const clash::Select& select) {
     bonsaiviewer::services::IdsBridge::SelectionFields fields;
     if (select.kind == clash::Select::Kind::Facet) {
         mode = 1;
-        for (const auto& facet : select.applicability) {
-            try {
-                fields.facets.push_back(engine::fromFacet(facet));
-            } catch (const std::exception&) {
-                // A facet the editor cannot show: left out (the slot is rebuilt from the editor).
-            }
-        }
+        fields = idsFields(select.applicability);
     } else if (select.kind == clash::Select::Kind::Rule && select.rule) {
         mode = linked ? 2 : 3;
         // A nested rule is edited on a copy, written back on OK.
@@ -814,6 +759,317 @@ void RuleEditDialog::slotMenu(SlotState& slot, const QPoint& global_pos) {
     menu.exec(global_pos);
 }
 
+QWidget* RuleEditDialog::buildMustPage(QTabWidget* tabs) {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+    auto* enabled = new QCheckBox("Turn this rule into a Must check", page);
+    enabled->setToolTip("<b>Must check</b><br>The results of the rule are grouped, each group is measured and "
+                        "checked: the rule then gives one verdict per group (passing or failing), not the pairs.");
+    enabled->setChecked(copy_->must.has_value());
+    layout->addWidget(enabled);
+    auto* body = new QWidget(page);
+    auto* body_layout = new QVBoxLayout(body);
+    body_layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(body);
+    const clash::AbsOrRelCheck initial = copy_->must.value_or(clash::AbsOrRelCheck{});
+
+    // ① The groups checked: a reminder of the Grouping tab.
+    auto* groups_box = new QGroupBox("① Groups checked", body);
+    auto* groups_layout = new QVBoxLayout(groups_box);
+    auto* groups_text = new QLabel(groups_box);
+    groups_text->setWordWrap(true);
+    auto* groups_warning = new QLabel(groups_box);
+    groups_warning->setWordWrap(true);
+    groups_warning->setStyleSheet("color: #B8860B;");
+    auto* change = new QPushButton("Change the grouping…", groups_box);
+    change->setToolTip("Open the Grouping tab: the Must check uses its groups.");
+    connect(change, &QPushButton::clicked, this, [tabs]() {
+        for (int t = 0; t < tabs->count(); ++t) {
+            if (tabs->tabText(t) == QLatin1String("Grouping")) tabs->setCurrentIndex(t);
+        }
+    });
+    groups_layout->addWidget(groups_text);
+    groups_layout->addWidget(groups_warning);
+    groups_layout->addWidget(change, 0, Qt::AlignLeft);
+    const auto refreshGroups = [this, groups_text, groups_warning]() {
+        const clash::Grouping& g = copy_->grouping;
+        QString text;
+        switch (g.kind) {
+        case clash::Grouping::Kind::None: text = "One group per <b>source element</b> (no grouping set in the Grouping tab)."; break;
+        case clash::Grouping::Kind::Name: text = QString("Grouping tab: by <b>%1</b>.").arg(g.name.toHtmlEscaped()); break;
+        case clash::Grouping::Kind::Facet:
+            text = QString("Grouping tab: by <b>%1</b>.").arg(g.facet ? facetSummary(*g.facet).toHtmlEscaped() : QString("?"));
+            break;
+        case clash::Grouping::Kind::SelectFacet: {
+            QStringList facets;
+            for (const auto& facet : g.select.applicability) facets << facetSummary(facet).toHtmlEscaped();
+            text = QString("Grouping tab: one group per element of the <b>grouping set</b> (%1), empty groups included.")
+                       .arg(facets.join(", "));
+            break;
+        }
+        }
+        groups_text->setText(text);
+        const bool warn = g.kind != clash::Grouping::Kind::SelectFacet;
+        groups_warning->setVisible(warn);
+        groups_warning->setText("⚠ The elements with no result form no group and are not checked. To check them "
+                                "too (e.g. a room with no socket), use a grouping set in the Grouping tab.");
+    };
+    refreshGroups();
+    connect(tabs, &QTabWidget::currentChanged, this, [refreshGroups](int) { refreshGroups(); });
+    body_layout->addWidget(groups_box);
+
+    // ② What is measured in each group.
+    auto* measure_box = new QGroupBox("② What is measured in each group", body);
+    auto* measure_layout = new QVBoxLayout(measure_box);
+    auto* by_number = new QRadioButton("The number of elements", measure_box);
+    auto* by_quantity = new QRadioButton("The sum of a property of the elements", measure_box);
+    by_number->setToolTip("SOURCE / TARGET are the numbers of source / target elements of the group.");
+    by_quantity->setToolTip("SOURCE / TARGET are the sums of the property over the source / target elements of the "
+                            "group (a missing or non numeric value counts 0).");
+    auto* property_row = new QWidget(measure_box);
+    auto* property_form = new QFormLayout(property_row);
+    property_form->setContentsMargins(24, 0, 0, 0);
+    auto* pset = new QComboBox(property_row);
+    auto* prop = new QComboBox(property_row);
+    pset->setEditable(true);
+    prop->setEditable(true);
+    pset->setToolTip("The property set (the list: those of the source and target elements in the active model).");
+    prop->setToolTip("The numeric property summed.");
+    pset->setCurrentText(initial.quantity_pset);
+    prop->setCurrentText(initial.quantity_prop);
+    property_form->addRow("Property set", pset);
+    property_form->addRow("Property", prop);
+    measure_layout->addWidget(by_number);
+    measure_layout->addWidget(by_quantity);
+    measure_layout->addWidget(property_row);
+    (initial.check_type.contains("Quantity") ? by_quantity : by_number)->setChecked(true);
+    property_row->setVisible(by_quantity->isChecked());
+    body_layout->addWidget(measure_box);
+    // The property sets of the slots' elements, from the active model.
+    auto psets = std::make_shared<QMap<QString, QStringList>>();
+    const auto fillProperties = [this, pset, prop, psets]() {
+        const QString path = context_.ifc_path ? context_.ifc_path() : QString();
+        if (path.isEmpty()) return;
+        for (const clash::Select* select : {&copy_->source, &copy_->target}) {
+            if (select->kind != clash::Select::Kind::Facet || select->applicability.empty()) continue;
+            QPointer<QComboBox> guard_pset = pset, guard_prop = prop;
+            context_.bridge.selectionProperties(
+                path, idsFields(select->applicability),
+                [guard_pset, guard_prop, psets](bool ok, const bonsaiviewer::services::IdsBridge::PropertyMap& map,
+                                                 const auto&, const QString&) {
+                    if (!ok || !guard_pset || !guard_prop) return;
+                    for (auto it = map.begin(); it != map.end(); ++it) {
+                        QStringList& props = (*psets)[it.key()];
+                        for (auto p = it.value().begin(); p != it.value().end(); ++p) {
+                            if (!props.contains(p.key())) props << p.key();
+                        }
+                    }
+                    const QString current = guard_pset->currentText();
+                    const QSignalBlocker block(guard_pset);
+                    guard_pset->clear();
+                    guard_pset->addItems(psets->keys());
+                    guard_pset->setCurrentText(current);
+                });
+        }
+    };
+    connect(pset, &QComboBox::currentTextChanged, this, [prop, psets](const QString& name) {
+        const QString current = prop->currentText();
+        const QSignalBlocker block(prop);
+        prop->clear();
+        QStringList props = psets->value(name);
+        props.sort();
+        prop->addItems(props);
+        prop->setCurrentText(current);
+    });
+
+    // ③ The condition to pass.
+    auto* condition_box = new QGroupBox("③ Condition to pass", body);
+    auto* condition_layout = new QVBoxLayout(condition_box);
+    auto* simple = new QWidget(condition_box);
+    auto* simple_row = new QHBoxLayout(simple);
+    simple_row->setContentsMargins(0, 0, 0, 0);
+    auto* left = new QComboBox(simple);
+    left->addItem("TARGET", "TARGET");
+    left->addItem("SOURCE", "SOURCE");
+    left->setToolTip("The measure of the targets or of the sources of the group.");
+    auto* op = new QComboBox(simple);
+    for (const auto& [text, symbol] : std::vector<std::pair<QString, QString>>{
+             {"≥", ">="}, {">", ">"}, {"=", "=="}, {"≤", "<="}, {"<", "<"}, {"≠", "!="}}) {
+        op->addItem(text, symbol);
+    }
+    auto* value = new QDoubleSpinBox(simple);
+    value->setRange(-1e9, 1e9);
+    value->setDecimals(3);
+    value->setValue(1);
+    auto* times = new QComboBox(simple);
+    times->addItem("", QString());
+    times->addItem("× SOURCE", "SOURCE");
+    times->addItem("× TARGET", "TARGET");
+    times->setToolTip("Empty: compare with the value (absolute). × SOURCE / × TARGET: with the value times the "
+                      "other measure (relative), e.g. SOURCE = 2 × TARGET.");
+    simple_row->addWidget(left);
+    simple_row->addWidget(op);
+    simple_row->addWidget(value);
+    simple_row->addWidget(times);
+    simple_row->addStretch(1);
+    auto* advanced = new QCheckBox("Advanced (free expression)", condition_box);
+    advanced->setToolTip("A free expression with SOURCE and TARGET: + - * /, parentheses, = == != < <= > >=, "
+                         "and / or / not. E.g. SOURCE >= 1 and TARGET <= 2*SOURCE.");
+    auto* expression = new QLineEdit(condition_box);
+    condition_layout->addWidget(simple);
+    condition_layout->addWidget(advanced);
+    condition_layout->addWidget(expression);
+    body_layout->addWidget(condition_box);
+    // The operation of the file, shown in the simple form when it fits.
+    static const QRegularExpression pattern(
+        R"(^\s*(SOURCE|TARGET)\s*(>=|<=|==|!=|=|>|<)\s*([-+]?[0-9]*\.?[0-9]+)\s*(?:\*\s*(SOURCE|TARGET))?\s*$)");
+    const QString operation = initial.operation.isEmpty() ? QStringLiteral("TARGET>=1") : initial.operation;
+    const auto match = pattern.match(operation);
+    if (match.hasMatch()) {
+        left->setCurrentIndex(left->findData(match.captured(1)));
+        const QString symbol = match.captured(2) == QLatin1String("=") ? QStringLiteral("==") : match.captured(2);
+        op->setCurrentIndex(std::max(0, op->findData(symbol)));
+        value->setValue(match.captured(3).toDouble());
+        times->setCurrentIndex(std::max(0, times->findData(match.captured(4))));
+    } else {
+        advanced->setChecked(true);
+    }
+    expression->setText(operation);
+
+    // ④ The reading of the check, and the validation of the expression.
+    auto* reading_box = new QGroupBox("④ Reading", body);
+    auto* reading_layout = new QVBoxLayout(reading_box);
+    auto* reading = new QLabel(reading_box);
+    reading->setWordWrap(true);
+    auto* validity = new QLabel(reading_box);
+    validity->setWordWrap(true);
+    reading_layout->addWidget(reading);
+    reading_layout->addWidget(validity);
+    body_layout->addWidget(reading_box);
+
+    // Options.
+    auto* count_excepted = new QCheckBox("Count the pairs an exception invalidated", body);
+    count_excepted->setToolTip("Checked (as the Python): a pair excepted after the run still counts in its group. "
+                               "Unchecked: the excepted pairs are left out of the groups.");
+    count_excepted->setChecked(initial.count_excepted);
+    body_layout->addWidget(count_excepted);
+    auto* test_row = new QHBoxLayout();
+    auto* test = new QPushButton("Test", body);
+    test->setToolTip("Run the rule as configured in this window (not saved) and count the passing and failing "
+                     "groups. The Result panel, the colours and the view do not change.");
+    auto* test_result = new QLabel(body);
+    test_result->setWordWrap(true);
+    test->setVisible(static_cast<bool>(context_.test_rule));
+    test_row->addWidget(test);
+    test_row->addWidget(test_result, 1);
+    body_layout->addLayout(test_row);
+    layout->addStretch(1);
+
+    // The operation of the current state, and everything that follows from it.
+    const auto currentOperation = [=]() -> QString {
+        if (advanced->isChecked()) return expression->text().trimmed();
+        QString right = QString::number(value->value(), 'g', 10);
+        const QString other = times->currentData().toString();
+        if (!other.isEmpty()) right = (value->value() == 1.0 ? QString() : right + "*") + other;
+        return left->currentData().toString() + op->currentData().toString() + right;
+    };
+    const auto store = [=]() {
+        simple->setEnabled(!advanced->isChecked());
+        expression->setReadOnly(!advanced->isChecked());
+        property_row->setVisible(by_quantity->isChecked());
+        body->setEnabled(enabled->isChecked());
+        const QString operation = currentOperation();
+        if (!advanced->isChecked()) {
+            const QSignalBlocker block(expression);
+            expression->setText(operation);
+        }
+        // The reading.
+        const bool quantity = by_quantity->isChecked();
+        const QString what = quantity ? QString("the sum of %1").arg(prop->currentText().isEmpty() ? "the property" : prop->currentText().toHtmlEscaped())
+                                      : QString("the number");
+        const auto of = [&](const QString& side) {
+            const QString set = side == QLatin1String("SOURCE") ? "sources" : "targets";
+            return quantity ? QString("%1 of its %2").arg(what, set) : QString("the number of its %1").arg(set);
+        };
+        QString sentence;
+        if (!advanced->isChecked()) {
+            static const QMap<QString, QString> words{{">=", "at least"}, {">", "more than"}, {"==", "exactly"},
+                                                     {"<=", "at most"},  {"<", "less than"}, {"!=", "not"}};
+            const QString other = times->currentData().toString();
+            const QString amount = other.isEmpty() ? QString::number(value->value(), 'g', 10)
+                                                   : (value->value() == 1.0 ? of(other)
+                                                                            : QString("%1 × %2").arg(QString::number(value->value(), 'g', 10), of(other)));
+            sentence = QString("A group passes when %1 is <b>%2 %3</b>.").arg(of(left->currentData().toString()),
+                                                                                words.value(op->currentData().toString()), amount);
+        } else {
+            sentence = QString("A group passes when <b>%1</b> holds (SOURCE: %2, TARGET: %3).")
+                           .arg(operation.toHtmlEscaped(), of("SOURCE"), of("TARGET"));
+        }
+        reading->setText(sentence);
+        // The validation: the run's own parser.
+        QString problem;
+        if (!operation.contains("SOURCE") && !operation.contains("TARGET")) problem = "the expression uses neither SOURCE nor TARGET";
+        try {
+            clash::evaluateOperation(operation, 3, 7);
+        } catch (const std::exception& e) {
+            // The parser saw the numbers of the probe: the user's own text is shown.
+            const QString what = QString::fromUtf8(e.what());
+            problem = what.startsWith("division") ? QString("division by zero")
+                                                  : QString("syntax error in \"%1\"").arg(operation);
+        }
+        if (problem.isEmpty() && !operation.contains(QRegularExpression("[<>=!]|\\band\\b|\\bor\\b|\\bnot\\b"))) {
+            problem = "not a comparison: every group with a non-zero value passes";
+        }
+        if (quantity && (pset->currentText().trimmed().isEmpty() || prop->currentText().trimmed().isEmpty())) {
+            problem = problem.isEmpty() ? QString("choose the property set and the property") : problem;
+        }
+        validity->setText(problem.isEmpty() ? QString("<span style='color:#3CB44B'>✔ valid</span>")
+                                            : QString("<span style='color:#E6194B'>✖ %1</span>").arg(problem.toHtmlEscaped()));
+        if (!enabled->isChecked()) {
+            copy_->must.reset();
+            return;
+        }
+        clash::AbsOrRelCheck check;
+        const bool relative = operation.contains("SOURCE") && operation.contains("TARGET");
+        check.check_type = QString("%1_%2").arg(relative ? "Relative" : "Absolute", quantity ? "Quantity" : "Number");
+        if (quantity) {
+            check.quantity_pset = pset->currentText().trimmed();
+            check.quantity_prop = prop->currentText().trimmed();
+        }
+        check.operation = operation;
+        check.count_excepted = count_excepted->isChecked();
+        copy_->must = check;
+    };
+    store();
+    fillProperties();
+    connect(enabled, &QCheckBox::toggled, this, store);
+    connect(by_number, &QRadioButton::toggled, this, store);
+    connect(pset, &QComboBox::currentTextChanged, this, store);
+    connect(prop, &QComboBox::currentTextChanged, this, store);
+    connect(left, &QComboBox::currentIndexChanged, this, store);
+    connect(op, &QComboBox::currentIndexChanged, this, store);
+    connect(value, &QDoubleSpinBox::valueChanged, this, store);
+    connect(times, &QComboBox::currentIndexChanged, this, store);
+    connect(advanced, &QCheckBox::toggled, this, store);
+    connect(expression, &QLineEdit::textEdited, this, store);
+    connect(count_excepted, &QCheckBox::toggled, this, store);
+    connect(test, &QPushButton::clicked, this, [this, test, test_result]() {
+        if (!copy_->must) return;
+        auto probe = clash::json::cloneRule(*copy_);
+        applyTo(*probe);
+        probe->state = QStringLiteral("Final");
+        test->setEnabled(false);
+        test_result->setText("Running…");
+        QPointer<QPushButton> guard_test = test;
+        QPointer<QLabel> guard_label = test_result;
+        context_.test_rule(probe, [guard_test, guard_label](const QString& summary) {
+            if (guard_test) guard_test->setEnabled(true);
+            if (guard_label) guard_label->setText(summary);
+        });
+    });
+    return page;
+}
+
 bool RuleEditDialog::editNested(const std::shared_ptr<clash::RuleCheck>& rule) {
     if (!rule) return false;
     RuleEditDialog dialog(rule, document_, context_, this);
@@ -826,24 +1082,12 @@ bool RuleEditDialog::editNested(const std::shared_ptr<clash::RuleCheck>& rule) {
 
 std::vector<bonsaiviewer::ports::ifctester::Facet> RuleEditDialog::facetsOf(const SlotState& slot,
                                                                             QString* error) const {
-    namespace engine = bonsaiviewer::services::ids_engine;
-    std::vector<bonsaiviewer::ports::ifctester::Facet> facets;
-    if (!slot.editor) return facets;
-    const auto fields = slot.editor->fields();
+    if (!slot.editor) return {};
     const QString path = context_.ifc_path ? context_.ifc_path() : QString();
     ifcopenshell::file* file = path.isEmpty() ? nullptr : context_.bridge.file(path);
-    for (size_t i = 0; i < fields.facets.size(); ++i) {
-        try {
-            facets.push_back(engine::toFacet(fields.facets[i], static_cast<int>(i), file));
-        } catch (const std::exception& e) {
-            if (error) *error = QString("%1, facet %2 (%3): %4")
-                                    .arg(slot.name)
-                                    .arg(i + 1)
-                                    .arg(bonsaiviewer::services::IdsFacet::typeLabel(fields.facets[i].type),
-                                         QString::fromStdString(e.what()));
-            return {};
-        }
-    }
+    QString message;
+    auto facets = engineFacets(slot.editor->fields(), file, &message);
+    if (error && !message.isEmpty()) *error = slot.name + ", " + message;
     return facets;
 }
 
@@ -890,11 +1134,15 @@ clash::Select RuleEditDialog::selectOf(const SlotState& slot) const {
 }
 
 void RuleEditDialog::apply() {
+    applyTo(*rule_);
+}
+
+void RuleEditDialog::applyTo(clash::RuleCheck& target) {
     for (const auto& slot : slots_) {
         const clash::Select select = selectOf(*slot);
-        if (slot->name == QLatin1String("source")) rule_->source = select;
-        else if (slot->name == QLatin1String("target")) rule_->target = select;
-        else rule_->context = select;
+        if (slot->name == QLatin1String("source")) target.source = select;
+        else if (slot->name == QLatin1String("target")) target.target = select;
+        else target.context = select;
     }
     if (exception_tree_) {
         if (exception_tree_->property("active").toBool()) {
@@ -904,14 +1152,14 @@ void RuleEditDialog::apply() {
             copy_->exception.tree.reset();
         }
     }
-    rule_->viewer = copy_->viewer;
-    rule_->state = copy_->state;
-    rule_->params = copy_->params;
-    rule_->exception = copy_->exception;
-    rule_->must = copy_->must;
-    rule_->grouping = copy_->grouping;
-    rule_->criticity = copy_->criticity;
-    rule_->actor = copy_->actor;
+    target.viewer = copy_->viewer;
+    target.state = copy_->state;
+    target.params = copy_->params;
+    target.exception = copy_->exception;
+    target.must = copy_->must;
+    target.grouping = copy_->grouping;
+    target.criticity = copy_->criticity;
+    target.actor = copy_->actor;
 }
 
 // --- FolderEditDialog ----------------------------------------------------------------------------
@@ -923,6 +1171,13 @@ FolderEditDialog::FolderEditDialog(std::shared_ptr<clash::RuleFolder> folder, QW
     setWindowTitle("Edit Folder — " + RuleDocument::labelOf(*folder_));
     resize(560, 560);
     auto* layout = new QVBoxLayout(this);
+    active_ = folder_->active;
+    auto* active = new QCheckBox("Active", this);
+    active->setChecked(active_);
+    active->setToolTip("<b>Active</b><br>Unchecked: the folder and its rules are left out of every run (they stay "
+                       "in the tree, editable). Checked: the activation below decides.");
+    connect(active, &QCheckBox::toggled, this, [this](bool on) { active_ = on; });
+    layout->addWidget(active);
     layout->addWidget(helpLabel("The activation conditions the folder: its rules run only when the IDS facets "
                                 "select at least one element, or when the rule tree holds (its rules run first).",
                                 this));
@@ -956,6 +1211,7 @@ FolderEditDialog::FolderEditDialog(std::shared_ptr<clash::RuleFolder> folder, QW
 }
 
 void FolderEditDialog::apply() {
+    folder_->active = active_;
     folder_->activation_select = mode_ == 1 && !copy_.activation_select.applicability.empty() ? copy_.activation_select : clash::Select{};
     folder_->activation_tree = mode_ == 2 ? tree_editor_->root() : nullptr;
 }

@@ -20,6 +20,8 @@
 
 #include "Editors.h"
 
+#include "../../services/IdsEngine.h"
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -423,6 +425,36 @@ void FacetListEditor::refreshList(int current) {
     }
     list_->setCurrentRow(current);
     editor_->setFacet(facets_ && current >= 0 && current < static_cast<int>(facets_->size()) ? &(*facets_)[current] : nullptr);
+}
+
+bonsaiviewer::services::IdsBridge::SelectionFields idsFields(const std::vector<it::Facet>& facets) {
+    bonsaiviewer::services::IdsBridge::SelectionFields fields;
+    for (const auto& facet : facets) {
+        try {
+            fields.facets.push_back(bonsaiviewer::services::ids_engine::fromFacet(facet));
+        } catch (const std::exception&) {
+        }
+    }
+    return fields;
+}
+
+std::vector<it::Facet> engineFacets(const bonsaiviewer::services::IdsBridge::SelectionFields& fields,
+                                    ifcopenshell::file* file, QString* error) {
+    std::vector<it::Facet> facets;
+    for (size_t i = 0; i < fields.facets.size(); ++i) {
+        try {
+            facets.push_back(bonsaiviewer::services::ids_engine::toFacet(fields.facets[i], static_cast<int>(i), file));
+        } catch (const std::exception& e) {
+            if (error) {
+                *error = QString("facet %1 (%2): %3")
+                             .arg(i + 1)
+                             .arg(bonsaiviewer::services::IdsFacet::typeLabel(fields.facets[i].type),
+                                  QString::fromStdString(e.what()));
+            }
+            return {};
+        }
+    }
+    return facets;
 }
 
 } // namespace bonsaiviewer::modules::rule

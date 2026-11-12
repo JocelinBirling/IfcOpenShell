@@ -143,6 +143,24 @@ QString buildAppStyleSheet() {
         QToolButton#ribbonButton:pressed {
             background: ${ribbon_button_pressed};
         }
+        /* A toggle button (Points, Zones, Color Red…, marked by
+           buttons::markToggleButtons): a light outline says it stays
+           pressed; pressed, an accent frame on the pressed background. */
+        QToolButton#ribbonButton[toggle="true"] {
+            border: 1px solid ${border};
+            border-radius: 4px;
+            padding: 5px 3px 3px 3px;
+        }
+        QToolButton#ribbonButton[toggle="true"]:checked {
+            background: ${ribbon_button_pressed};
+            border: 2px solid ${icon_accent_color};
+            border-bottom: 4px solid ${icon_accent_color};
+            padding: 4px 2px 0px 2px;
+            font-weight: 600;
+        }
+        QToolButton#ribbonButton[toggle="true"]:checked:hover {
+            background: ${ribbon_button_hover};
+        }
         QFrame#viewportShell {
             background: ${viewport_shell_background};
             border-top: none;
@@ -542,6 +560,7 @@ QString buildAppStyleSheet() {
     stylesheet.replace("${panel_background}", theme.color("panel_background"));
     stylesheet.replace("${control_background}", theme.color("control_background"));
     stylesheet.replace("${control_border_focus}", theme.color("control_border_focus"));
+    stylesheet.replace("${icon_accent_color}", theme.color("icon_accent_color"));
     stylesheet.replace("${box_background}", theme.color("box_background"));
     stylesheet.replace("${scroll_handle}", theme.color("scroll_handle"));
     stylesheet.replace("${scroll_handle_hover}", theme.color("scroll_handle_hover"));

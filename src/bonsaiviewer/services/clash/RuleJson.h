@@ -21,7 +21,7 @@
 // BonsaiViewer09 (TI09) — the rule file JSON, the format of
 // ifcclash_plus/serialization.py: a file saved by the viewer loads in the
 // Python CLI (load_from_json) and the other way round. The viewer adds a
-// "viewer" object to the nodes (label, description, folder check box,
+// "viewer" object to the nodes (label, description, folder "Active",
 // exception timing), which the CLI ignores.
 
 #ifndef BONSAIVIEWER_SERVICES_CLASH_RULEJSON_H

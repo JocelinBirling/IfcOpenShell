@@ -29,6 +29,7 @@
 #include "../../services/EntitySetStore.h"
 #include "../../services/IdsPropertyChecks.h"
 #include "../../services/IfcDataAccess.h"
+#include "../../services/clash/ObjectClashIndex.h"
 #include "../../services/SelectionService.h"
 #include "../../../ifcviewer/Federation.h"
 #include "../../../ifcviewer/SceneLoader.h"
@@ -44,6 +45,7 @@
 #include <QColor>
 #include <QGuiApplication>
 #include <QMap>
+#include <QMenu>
 
 #include <algorithm>
 #include <cstdint>
@@ -345,6 +347,10 @@ PropertiesPanelView::PropertiesPanelView(PropertiesPanel* widget,
         open(target.session_model_id, target.ifc_id);
     });
     connect(widget_, &PropertiesPanel::backRequested, this, [this]() { goBack(); });
+    connect(widget_, &PropertiesPanel::clashResultActivated, this, [this](int row) {
+        if (clash_index_) emit clash_index_->showResultRequested(row);
+    });
+    connect(widget_, &PropertiesPanel::clashContextRequested, this, &PropertiesPanelView::showClashMenu);
     connect(widget_, &PropertiesPanel::relationshipContextRequested, this,
             [this](int row, const QPoint& pos) { showRelationshipMenu(row, pos); });
     connect(widget_, &PropertiesPanel::propertyValueContextRequested, this,
@@ -454,8 +460,121 @@ void PropertiesPanelView::render() {
         const auto* checks = ids_checks_->checksOf(shown_.session_model_id, shown_.ifc_id);
         applyIdsChecks(state, checks ? *checks : none, ids_checks_->colour(), ids_checks_->filter());
     }
+    appendClash(state);
     relationships_ = state.relationships;
     widget_->render(state);
+}
+
+void PropertiesPanelView::setClashIndex(bonsaiviewer::services::clash::ObjectClashIndex* index) {
+    clash_index_ = index;
+    if (clash_index_ != nullptr) {
+        connect(clash_index_, &bonsaiviewer::services::clash::ObjectClashIndex::changed, this, [this]() { render(); });
+    }
+}
+
+void PropertiesPanelView::appendClash(PropertiesPanelState& state) const {
+    using Entry = bonsaiviewer::services::clash::ObjectClashIndex::Entry;
+    if (clash_index_ == nullptr || (shown_.object_id == 0 && shown_.ifc_id == 0)) return;
+    if (clash_index_->rules() == 0) {
+        state.clash_summary = "No clash rule run in this session.";
+        return;
+    }
+    // The viewer object of the element (an element opened from a link has none yet).
+    std::uint32_t object_id = shown_.object_id;
+    if (object_id == 0) {
+        if (auto* registry = session_state_->elementRegistry()) {
+            for (const auto& info : registry->basicElementInfoForModel(shown_.session_model_id)) {
+                if (info.ifc_id == shown_.ifc_id) object_id = info.object_id;
+            }
+        }
+    }
+    const std::vector<Entry>* entries = object_id != 0 ? clash_index_->entriesOf(object_id) : nullptr;
+    if (entries == nullptr || entries->empty()) {
+        state.clash_summary = QString("Not checked by the %1 clash rule%2 run in this session.")
+                                  .arg(clash_index_->rules()).arg(clash_index_->rules() == 1 ? "" : "s");
+        return;
+    }
+    int results = 0, valid = 0, invalid = 0, undetermined = 0, clean = 0;
+    QStringList rules;
+    for (const Entry& e : *entries) {
+        if (!rules.contains(e.node_id)) rules << e.node_id;
+        if (e.row < 0) {
+            if (e.role == Entry::Role::Tested) ++clean;
+            continue;
+        }
+        ++results;
+        if (e.review == QLatin1String("Valid")) ++valid;
+        else if (e.review == QLatin1String("Invalid")) ++invalid;
+        else ++undetermined;
+    }
+    QStringList parts{QString("%1 rule%2").arg(rules.size()).arg(rules.size() == 1 ? "" : "s")};
+    if (results > 0) {
+        parts << QString("%1 result%2 (%3 Valid, %4 Invalid, %5 Non Determined)")
+                     .arg(results).arg(results == 1 ? "" : "s").arg(valid).arg(invalid).arg(undetermined);
+    }
+    if (clean > 0) parts << QString("checked without result by %1 rule%2").arg(clean).arg(clean == 1 ? "" : "s");
+    state.clash_summary = parts.join(" · ");
+    // One set per rule, in rule order.
+    for (const QString& node : rules) {
+        ClashSet set;
+        QString label, type, roles;
+        int count = 0;
+        for (const Entry& e : *entries) {
+            if (e.node_id != node) continue;
+            label = e.rule_label;
+            type = e.rule_type;
+            ClashRow row;
+            row.result_row = e.row;
+            switch (e.role) {
+            case Entry::Role::Source:
+            case Entry::Role::Target: {
+                ++count;
+                const bool source = e.role == Entry::Role::Source;
+                if (!roles.contains(source ? "source" : "target")) roles += QString(roles.isEmpty() ? "" : ", ") + (source ? "source" : "target");
+                row.key = (source ? QStringLiteral("→ ") : QStringLiteral("← ")) + (e.other.isEmpty() ? QStringLiteral("(no target)") : e.other);
+                QStringList value;
+                if (!e.measure.isEmpty()) value << e.measure;
+                value << e.review;
+                if (!e.group.isEmpty()) value << e.group;
+                if (e.excepted) value << QStringLiteral("excepted");
+                row.value = value.join(" · ");
+                if (e.excepted || e.review == QLatin1String("Invalid")) row.colour = QStringLiteral("#888888");
+                else if (e.review == QLatin1String("Valid")) row.colour = QStringLiteral("#dc322f");
+                row.tooltip = QString("%1 of the pair with %2.<br>Click the arrow: show the result. Right click: isolate, review.")
+                                  .arg(source ? "Source" : "Target", e.other.toHtmlEscaped());
+                break;
+            }
+            case Entry::Role::Tested:
+                row.key = QStringLiteral("Checked");
+                row.value = QStringLiteral("no result ✔");
+                row.colour = QStringLiteral("#2ea043");
+                row.tooltip = "The element was in the selections of the rule: it gave no result.";
+                break;
+            case Entry::Role::NotChecked:
+                row.key = QStringLiteral("Not checked");
+                row.value = QStringLiteral("no geometry the rule can use");
+                row.colour = QStringLiteral("#B8860B");
+                row.tooltip = "The element was in the selections of the rule, but the engine could not test it.";
+                break;
+            }
+            set.rows.append(row);
+        }
+        set.title = count > 0 ? QString("%1 (%2) — %3 · %4 result%5").arg(label, type, roles).arg(count).arg(count == 1 ? "" : "s")
+                              : QString("%1 (%2)").arg(label, type);
+        state.clash_sets.append(set);
+    }
+}
+
+void PropertiesPanelView::showClashMenu(int result_row, const QPoint& pos) {
+    if (clash_index_ == nullptr) return;
+    QMenu menu;
+    menu.addAction("Show the result", this, [this, result_row]() { emit clash_index_->showResultRequested(result_row); });
+    menu.addAction("Isolate the pair", this, [this, result_row]() { emit clash_index_->isolateRequested(result_row); });
+    menu.addSeparator();
+    for (const char* review : {"Valid", "Non Determined", "Invalid"}) {
+        menu.addAction(review, this, [this, result_row, review]() { emit clash_index_->reviewRequested(result_row, review); });
+    }
+    menu.exec(pos);
 }
 
 void PropertiesPanelView::setIdsChecks(bonsaiviewer::services::IdsPropertyChecks* checks) {

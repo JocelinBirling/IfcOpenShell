@@ -20,13 +20,42 @@ UI source: branch `IfcViewer_Clash` (`src/bonsaiviewer/modules/rule/`)
 | Rule file | The JSON of `serialization.py`, round-trip with the Python CLI. Rule types are the base names (`Above`), the viewer runs `Above_triang`. **No model path** is saved (`list_ifc_path` left out): a rule file runs on any set of models (2026-11-11). |
 | Result geometry | The results are shown as they are (colours, visibility). The points, zones, OBB, axes, faces and rays of the selected result are drawn only on demand, one toggle each in the Clash Filter ribbon (group RESULT GEOMETRY), all off by default (2026-11-11). |
 
+### UI of branch IfcViewer_Clash, integrated (2026-11-11)
+
+From `SPEC_GeometryRule_UI.md` and `SPEC_Clash_Filter_UI.md` of that branch.
+Decisions of the user where the two UIs differed:
+
+| Subject | IfcViewer_Clash | Kept |
+|---|---|---|
+| Double click on a rule | runs it | opens the Edit window |
+| Tree rule dropped on a slot | moved into the slot (nested) | cascade (the slot takes its elements, the rule stays in the tree) |
+| Facet editing in Rule Config | "Complex" check box | the IDS selection editor (unchanged, as in the Edit window and the IDS panel) |
+| Colours | Color Result all red, Color Red | sources red / targets orange, plus Color Red |
+| Tree rule dropped on another rule | replaces it | inserted before it (nothing deleted) |
+| Review of a result | three check boxes (Valide, Non Déterminé, Invalide) | one "Review" column, a drop-down list Valid / Non Determined / Invalid (2026-11-11); drawn as a list, the real list opened on a click only (2026-11-12: a widget per row made 1107 results take 16.6 s to show, now 2 ms) |
+| Triage (independent of BCF) | (none) | "Categories" (Clash Filter ribbon): hide the results by rule, source / target class, source / target model, criticity, actor, review, manual group; right click "Hide the results with the same…". Manual groups: right click "Add to group" (New group… / an existing one), "Remove from its group"; one group per result, any review; column "Manual group", Group by → Manual group, a group node renames / ungroups; saved in Save Results (`manual_group`) (2026-11-11) |
+| Results of a rule | the last run only | the panel keeps the results of every rule run (a new run replaces those of its rules only, reviews and groups of the others kept); a click on a rule of the tree shows its results if it ran, on a folder those of its rules, on the file all of them; the colours follow the results shown (2026-11-11) |
+| Must tab of the Edit window | (none) | read as a sentence (2026-11-11): ① groups checked (a reminder of the Grouping tab, a warning that elements with no result are not checked without a grouping set); ② number of elements or sum of a property (Pset / property lists from the active model); ③ condition, simple (TARGET / SOURCE, ≥ > = ≤ < ≠, a value or value × the other) or advanced (free expression); ④ the condition in words and the expression checked with the run's parser. Absolute / Relative deduced (Relative when SOURCE and TARGET are both used). Options: "Count the pairs an exception invalidated" (viewer extension `must_count_excepted`, default on as the Python) and "Test" (runs a copy of the rule: "n groups: p pass, f fail", the Result panel untouched) |
+| Clash section of the Properties panel | (none) | 2026-11-12: after Quantities, for the shown element, one set per rule run in the session that checked it: a row per result (→ it is the source / ← the target, the other element, the measure, the review, the manual group, "excepted"), or "Checked — no result ✔", or "Not checked — no geometry"; the summary "n rules · n results (Valid / Invalid / Non Determined) · checked without result by n rules". The arrow of a row shows the result (Clash Filter, rule scope, row selected); right click: Show the result, Isolate the pair, Valid / Non Determined / Invalid (synchronised with the Result panel). Data: `services/clash/ObjectClashIndex`, published by ClashView after every run, review or group change, from the results and the elements each rule checked (`RuleOutcome::sources / targets`). Must rules are left out (their working is to be redesigned) |
+| Clash Filter buttons | the band below the tabs | 2026-11-12: a dock panel "Clash Filter Tools" (Window > Analyze), docked on the top of the Clash Filter workspace by default (full width, as high as its buttons), movable, floatable; a Clash Filter layout saved before gets it on the top once (setting `clash/filterToolsPlaced`). On the top or the bottom: one row (as the band); on a side or floating, the groups wrap on several rows, and so do the buttons of a group wider than the panel (`components/FlowLayout`: FlowLayout + FlowFrame, whose minimum height follows its width). The GeometryRule buttons stay a band |
+| Toggle buttons | no pressed look | 2026-11-12: every checkable ribbon button of the shell (Points, Zones, Color Red, Hide Excepted…) is marked at start-up (`buttons::markToggleButtons`, property `toggle`): a light outline when released, an accent frame (bold text) when pressed (`Style.cpp`) |
+| Save | Save, and Save As | Save always asks the location (the current file proposed); no separate Save As (2026-11-11) |
+| Folder on / off | (none) | spec 09's check box removed from the tree (2026-11-11): "Active" in the folder's Edit window; a deactivated folder is grey, "deactivated" in the Cascade column |
+
+Added from the branch: Color Red (GeometryRule, every object red; off: the
+results' colours back), Display Everything (Clash Filter, show all, colours
+kept), Group by source model, "Display Input" on a rule (right click: runs
+it and draws the zones and boxes it checked, results and colours
+unchanged), "Delete the Rule File", "Show the objects" = show all + select,
+the review status in Result Info, `.ifcrule.json` as the default extension.
+
 ## Architecture
 
 ```
 modules/rule/            UI (branch IfcViewer_Clash, ported)
   RuleLibraryPanel       families from the engine catalogue, drag sources
   RulePanel              toolbar (Save, Load, Create Rule, Create Folder, Run)
-                         + tree: file / folders (check box) / rules (type
+                         + tree: file / folders (grey: deactivated) / rules (type
                          badge, fed-by / feeds badge) / slots
   RuleConfigPanel        parameters of the selected node
   RuleEditDialog         title, description, state, parameters; source /
@@ -77,7 +106,7 @@ CoordinateOperation), as the instances are.
 
 ### Orchestration (port of the Python)
 
-- RuleFile / RuleFolder run in tree order; an inactive folder (check box)
+- RuleFile / RuleFolder run in tree order; a deactivated folder ("Active" of its Edit window)
   is skipped; a folder activation rule (SelectFacet: non-empty; BooleanRule:
   its rules run first, then the tree is evaluated) conditions its content.
 - SelectRule: the referenced rule runs in state `Select`; its selection
@@ -116,7 +145,7 @@ Phases 1 to 4 are done; phase 5 (BCF) waits for the BCF work.
 |---|---|---|
 | Engine copy | `ports/ifcclash_engine/` (CMake target `ifcclash_engine`) | builds on the system OCCT 7.6; OBB_Above_triang gives the 8 pairs of the Python engine on the Duplex, 0 IFC conversion (all triangles from the `.ifcview`) |
 | Rule model, JSON | `services/clash/RuleModel.h`, `RuleJson.*`, `RuleCatalogue.*` | JSON round trip identical; a file saved by the viewer loads in the Python CLI (`load_from_json`) with its folders, cascade, exception, Must and activation |
-| Orchestration | `services/clash/Orchestrator.*` | folders (check box, activation by facets / rule tree), cascades, exceptions (relation, boolean tree, before / after), criticity, actor, grouping (ENTITY, SOURCE, TARGET, property, attribute, grouping set), Must |
+| Orchestration | `services/clash/Orchestrator.*` | folders (Active, activation by facets / rule tree), cascades, exceptions (relation, boolean tree, before / after), criticity, actor, grouping (ENTITY, SOURCE, TARGET, property, attribute, grouping set), Must |
 | UI | `modules/rule/` (RuleDocument, RuleTree, RulePanels, Editors, RuleEditDialog, Results, ClashView) | the real MainWindow offscreen: a model, a rule file, a run (141 results, mapped to the viewer's objects); the Edit window switches a slot to a cascade and the run follows it |
 | Edit window | `RuleEditDialog.*` | tabs Rule (title, description, state, parameters), Selection (one tab per slot: the IDS selection editor of the filters / IDS panel with its preview, or a rule of the tree chosen in a list, with "Edit…" opening that rule's own Edit window), Exception, Must, Grouping, Criticity, Actor; offscreen: a slot set by the IDS editor and another by a cascade, the cascaded rule renamed from its own window, the run follows (4 results) |
 | Slot copy / paste | `SlotClipboard.*`, right-click menus of the Rule tree slots and of the Edit window's slot tabs | the clipboard holds the slot as rule-file JSON, plus IDS XML for facets (pastes into the filters, tables and IDS panel, and back); a cascade into its own rule or into a loop is refused; offscreen: source copied to target in the Edit window, then pasted into another rule's slot from the tree |
@@ -130,6 +159,15 @@ Changes to the engine copy (marked `// BonsaiViewer:`):
   rules with polygon operations raise a ConfigError;
 - `sources/IfcSource.*`, `api/Engine.h`, `api/Session.cpp`: the parsed IFC
   files are exposed for the viewer's IDS selections.
+- `pipeline/Pipelines.cpp` (`PairPipeline::evaluate`, 2026-11-11): the
+  triangle rules got empty boxes, so the prefilter rejected every pair and
+  an exception leaf with a two-object rule never held; the boxes of the
+  triangles are now built as in `PairPipeline::run`;
+- `api/Session.cpp` (`evaluate_pairs`, 2026-11-11): an Unordered rule
+  (Clearance, Intersection…) returns one record for (a, b) and (b, a); when
+  both were asked, the record is mirrored for the reversed pair, so both
+  orientations of a result are excepted. Both bugs are in the IfcClash_Plus
+  engine itself.
 
 The IfcOpenShell tree plug-ins (`geometry_tree_opencascade_trianglebvh`,
 `..._brep`) are built with the viewer: the clash rules load them at run time.
@@ -148,9 +186,13 @@ The IfcOpenShell tree plug-ins (`geometry_tree_opencascade_trianglebvh`,
 - The overlays use the line slot of the viewport, shared with the measure
   tools: a measure replaces them; with all the RESULT GEOMETRY toggles off
   the clash view never touches that slot.
-- Review statuses (Valid / Non Determined / Invalid) live for the session;
-  Save Results writes them.
+- Review statuses (Valid / Non Determined / Invalid), manual groups and
+  hidden categories live for the session (lost when a model is loaded or
+  removed, or when the rule runs again); Save Results writes the reviews
+  and groups, there is no Load Results.
 - A rule edited from a cascade ("Edit…") is written when its own window is
   accepted, even if the first window is then cancelled; a nested rule (not
   in the tree) is written with the first window.
-- Not shown on screen yet: the tests run offscreen.
+- Not shown on screen yet: the tests run offscreen. Offscreen, the viewport
+  has no GPU device: drawing overlay lines (Display Input, result geometry,
+  measures) aborts there; on screen it is the measure tools' path.

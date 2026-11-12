@@ -23,6 +23,7 @@
 
 #include "../../services/clash/RuleCatalogue.h"
 #include "../../services/clash/RuleModel.h"
+#include "../../services/IdsBridge.h"
 
 #include <QJsonObject>
 #include <QWidget>
@@ -101,6 +102,14 @@ QString paramText(const it::Param& param);
 it::Param paramFromText(const QString& text);
 // The facet types of the IDS Facet section, by their IDS name.
 const QStringList& facetTypeNames();
+
+// The IDS selection editor (filters / IDS panel) <-> the engine's facets.
+// A facet the editor cannot show is left out.
+bonsaiviewer::services::IdsBridge::SelectionFields idsFields(const std::vector<it::Facet>& facets);
+// Empty with `error` set when a facet cannot be built (an unknown class...).
+// `file`: the active model, for the class names (null: the schemas).
+std::vector<it::Facet> engineFacets(const bonsaiviewer::services::IdsBridge::SelectionFields& fields,
+                                    ifcopenshell::file* file, QString* error);
 
 } // namespace bonsaiviewer::modules::rule
 

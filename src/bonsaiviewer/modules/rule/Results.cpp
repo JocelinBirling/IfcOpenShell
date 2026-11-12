@@ -21,17 +21,28 @@
 #include "Results.h"
 
 #include <QBrush>
+#include <QTimer>
+#include <QStyleOptionComboBox>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QInputDialog>
+#include <QSignalBlocker>
 #include <QColor>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPushButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
 #include <map>
 
 namespace bonsaiviewer::modules::rule {
@@ -41,18 +52,84 @@ namespace {
 constexpr int kRowRole = Qt::UserRole + 10;
 constexpr int kGroupRole = Qt::UserRole + 11;
 
-enum Column { kRule, kSource, kTarget, kModel, kMeasure, kCriticity, kActor, kValid, kUndetermined, kInvalid, kColumns };
+enum Column { kRule, kSource, kTarget, kModel, kMeasure, kCriticity, kActor, kManualGroup, kReview, kColumns };
+
+const QString kNone = QStringLiteral("(none)");
 
 int rowOf(const QTreeWidgetItem* item) {
     const QVariant v = item->data(0, kRowRole);
     return v.isValid() ? v.toInt() : -1;
 }
 
-void setChecks(QTreeWidgetItem* item, ReviewStatus status) {
-    item->setCheckState(kValid, status == ReviewStatus::Valid ? Qt::Checked : Qt::Unchecked);
-    item->setCheckState(kUndetermined, status == ReviewStatus::NonDetermined ? Qt::Checked : Qt::Unchecked);
-    item->setCheckState(kInvalid, status == ReviewStatus::Invalid ? Qt::Checked : Qt::Unchecked);
+// The review list of a row: Valid, Non Determined, Invalid (in this order).
+int reviewIndex(ReviewStatus status) {
+    return status == ReviewStatus::Valid ? 0 : status == ReviewStatus::Invalid ? 2 : 1;
 }
+ReviewStatus reviewAt(int index) {
+    return index == 0 ? ReviewStatus::Valid : index == 2 ? ReviewStatus::Invalid : ReviewStatus::NonDetermined;
+}
+
+QString reviewText(ReviewStatus status) {
+    return status == ReviewStatus::Valid ? QStringLiteral("Valid")
+           : status == ReviewStatus::Invalid ? QStringLiteral("Invalid")
+                                             : QStringLiteral("Non Determined");
+}
+
+// The Review column: drawn as a drop-down list, the real list opened on a
+// click only (a widget per row made a table of 1000 results take seconds).
+class ReviewDelegate : public QStyledItemDelegate {
+public:
+    ReviewDelegate(std::function<void(int row, ReviewStatus)> chosen, QObject* parent)
+        : QStyledItemDelegate(parent), chosen_(std::move(chosen)) {}
+
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+        if (!index.sibling(index.row(), 0).data(kRowRole).isValid()) {
+            QStyledItemDelegate::paint(painter, option, index);
+            return;
+        }
+        QStyleOptionViewItem item = option;
+        initStyleOption(&item, index);
+        item.text.clear();
+        QStyle* style = option.widget ? option.widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &item, painter, option.widget); // the selection background
+        QStyleOptionComboBox combo;
+        combo.rect = option.rect.adjusted(1, 1, -1, -1);
+        combo.state = option.state | QStyle::State_Enabled;
+        combo.currentText = index.data().toString();
+        combo.palette = option.palette;
+        style->drawComplexControl(QStyle::CC_ComboBox, &combo, painter, option.widget);
+        style->drawControl(QStyle::CE_ComboBoxLabel, &combo, painter, option.widget);
+    }
+
+    QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem&, const QModelIndex& index) const override {
+        auto* editor = new QComboBox(parent);
+        editor->addItems({"Valid", "Non Determined", "Invalid"});
+        editor->setItemData(0, "The clash is confirmed.", Qt::ToolTipRole);
+        editor->setItemData(1, "Not reviewed yet.", Qt::ToolTipRole);
+        editor->setItemData(2, "A false positive.", Qt::ToolTipRole);
+        auto* self = const_cast<ReviewDelegate*>(this);
+        connect(editor, &QComboBox::activated, self, [self, editor]() {
+            emit self->commitData(editor);
+            emit self->closeEditor(editor);
+        });
+        Q_UNUSED(index);
+        QTimer::singleShot(0, editor, [editor]() { editor->showPopup(); });
+        return editor;
+    }
+
+    void setEditorData(QWidget* editor, const QModelIndex& index) const override {
+        if (auto* combo = qobject_cast<QComboBox*>(editor)) combo->setCurrentText(index.data().toString());
+    }
+
+    void setModelData(QWidget* editor, QAbstractItemModel*, const QModelIndex& index) const override {
+        auto* combo = qobject_cast<QComboBox*>(editor);
+        const QVariant row = index.sibling(index.row(), 0).data(kRowRole);
+        if (combo && row.isValid()) chosen_(row.toInt(), reviewAt(combo->currentIndex()));
+    }
+
+private:
+    std::function<void(int, ReviewStatus)> chosen_;
+};
 
 QString modelText(const ResultRow& row) {
     if (row.target_model_name.isEmpty() || row.source_model_name == row.target_model_name) return row.source_model_name;
@@ -113,27 +190,31 @@ ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {
     messages_->setVisible(false);
     messages_->setStyleSheet("color: #B8860B;");
     layout->addWidget(messages_);
+    scope_label_ = new QLabel(this);
+    scope_label_->setWordWrap(true);
+    scope_label_->setVisible(false);
+    scope_label_->setProperty("textRole", "secondary");
+    layout->addWidget(scope_label_);
     tree_ = new QTreeWidget(this);
     tree_->setColumnCount(kColumns);
-    tree_->setHeaderLabels({"Rule", "Source", "Target", "Model", "Measure", "Criticity", "Actor", "Valid",
-                            "Non Determined", "Invalid"});
+    tree_->setHeaderLabels({"Rule", "Source", "Target", "Model", "Measure", "Criticity", "Actor", "Manual group", "Review"});
+    tree_->headerItem()->setToolTip(kManualGroup, "The group the user put the result in (right click: Add to group).");
     tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    // Only the Review column edits, on a click (the double click isolates).
+    tree_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tree_->setItemDelegateForColumn(kReview, new ReviewDelegate([this](int row, ReviewStatus status) {
+        QTimer::singleShot(0, this, [this, row, status]() { setReview({row}, status); });
+    }, tree_));
+    connect(tree_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int column) {
+        if (column == kReview && rowOf(item) >= 0) tree_->editItem(item, kReview);
+    });
     tree_->setContextMenuPolicy(Qt::CustomContextMenu);
     tree_->setRootIsDecorated(true);
     tree_->header()->setSectionResizeMode(kSource, QHeaderView::Stretch);
     tree_->header()->setSectionResizeMode(kTarget, QHeaderView::Stretch);
-    tree_->headerItem()->setToolTip(kValid, "The clash is confirmed.");
-    tree_->headerItem()->setToolTip(kUndetermined, "Not reviewed yet.");
-    tree_->headerItem()->setToolTip(kInvalid, "A false positive.");
+    tree_->headerItem()->setToolTip(kReview, "Valid: the clash is confirmed. Non Determined: not reviewed yet. "
+                                             "Invalid: a false positive.");
     layout->addWidget(tree_, 1);
-    connect(tree_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int column) {
-        const int row = rowOf(item);
-        if (row >= 0 && column >= kValid && column <= kInvalid) {
-            setReview({row}, column == kValid ? ReviewStatus::Valid
-                             : column == kInvalid ? ReviewStatus::Invalid
-                                                  : ReviewStatus::NonDetermined);
-        }
-    });
     connect(tree_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* item, QTreeWidgetItem*) {
         emit currentResultChanged(item ? rowOf(item) : -1);
     });
@@ -148,6 +229,25 @@ ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {
 
 void ResultPanel::setResults(std::vector<ResultRow> rows) {
     rows_ = std::move(rows);
+    run_nodes_.clear();
+    for (const ResultRow& row : rows_) run_nodes_.insert(row.node_id);
+    scope_.reset();
+    scope_label_->setVisible(false);
+    rebuild();
+}
+
+void ResultPanel::mergeResults(std::vector<ResultRow> rows, const std::set<QString>& ran) {
+    rows_.erase(std::remove_if(rows_.begin(), rows_.end(), [&ran](const ResultRow& row) { return ran.count(row.node_id) > 0; }),
+                rows_.end());
+    for (ResultRow& row : rows) rows_.push_back(std::move(row));
+    run_nodes_.insert(ran.begin(), ran.end());
+    rebuild();
+}
+
+void ResultPanel::setScope(std::optional<std::set<QString>> node_ids, const QString& label) {
+    scope_ = std::move(node_ids);
+    scope_label_->setText(label);
+    scope_label_->setVisible(scope_.has_value() && !label.isEmpty());
     rebuild();
 }
 
@@ -163,6 +263,77 @@ void ResultPanel::setMessages(const QStringList& messages) {
     for (const QString& message : messages.mid(0, 40)) escaped << message.toHtmlEscaped();
     if (messages.size() > 40) escaped << "…";
     messages_->setToolTip("<b>Run warnings</b><br>" + escaped.join("<br>"));
+}
+
+const std::vector<ResultPanel::Category>& ResultPanel::categories() {
+    static const std::vector<Category> all{Category::Rule,        Category::SourceClass, Category::TargetClass,
+                                           Category::SourceModel, Category::TargetModel, Category::Criticity,
+                                           Category::Actor,       Category::Review,      Category::ManualGroup};
+    return all;
+}
+
+QString ResultPanel::categoryName(Category category) {
+    switch (category) {
+    case Category::Rule: return QStringLiteral("Rule");
+    case Category::SourceClass: return QStringLiteral("Source class");
+    case Category::TargetClass: return QStringLiteral("Target class");
+    case Category::SourceModel: return QStringLiteral("Source model");
+    case Category::TargetModel: return QStringLiteral("Target model");
+    case Category::Criticity: return QStringLiteral("Criticity");
+    case Category::Actor: return QStringLiteral("Actor");
+    case Category::Review: return QStringLiteral("Review");
+    case Category::ManualGroup: return QStringLiteral("Manual group");
+    }
+    return {};
+}
+
+QStringList ResultPanel::valuesOf(const ResultRow& row, Category category) {
+    const auto one = [](const QString& value) { return QStringList{value.isEmpty() ? kNone : value}; };
+    switch (category) {
+    case Category::Rule: return one(row.rule_label);
+    case Category::SourceClass: return one(row.source_class);
+    case Category::TargetClass: return one(row.target_class);
+    case Category::SourceModel: return one(row.source_model_name);
+    case Category::TargetModel: return one(row.target_model_name);
+    case Category::Criticity: return row.criticity.isEmpty() ? QStringList{kNone} : row.criticity;
+    case Category::Actor: return row.actor.isEmpty() ? QStringList{kNone} : row.actor;
+    case Category::Review:
+        return {row.review == ReviewStatus::Valid     ? QStringLiteral("Valid")
+                : row.review == ReviewStatus::Invalid ? QStringLiteral("Invalid")
+                                                      : QStringLiteral("Non Determined")};
+    case Category::ManualGroup: return one(row.manual_group);
+    }
+    return {};
+}
+
+void ResultPanel::setHiddenValues(HiddenValues hidden) {
+    hidden_ = std::move(hidden);
+    for (auto it = hidden_.begin(); it != hidden_.end();) it = it->second.empty() ? hidden_.erase(it) : std::next(it);
+    rebuild();
+}
+
+QStringList ResultPanel::manualGroups() const {
+    QStringList names;
+    for (const ResultRow& row : rows_) {
+        if (!row.manual_group.isEmpty() && !names.contains(row.manual_group)) names << row.manual_group;
+    }
+    return names;
+}
+
+void ResultPanel::setManualGroup(const std::vector<int>& rows, const QString& name) {
+    for (int row : rows) {
+        if (row >= 0 && row < static_cast<int>(rows_.size())) rows_[static_cast<size_t>(row)].manual_group = name;
+    }
+    rebuild();
+    emit reviewChanged();
+}
+
+void ResultPanel::renameManualGroup(const QString& from, const QString& to) {
+    for (ResultRow& row : rows_) {
+        if (row.manual_group == from) row.manual_group = to;
+    }
+    rebuild();
+    emit reviewChanged();
 }
 
 void ResultPanel::setGroupMode(GroupMode mode) {
@@ -183,6 +354,9 @@ void ResultPanel::setHideExcepted(bool on) {
 void ResultPanel::clearFilters() {
     only_non_determined_ = false;
     hide_excepted_ = false;
+    hidden_.clear();
+    scope_.reset();
+    scope_label_->setVisible(false);
     mode_ = GroupMode::Flat;
     filter_edit_->clear();
     rebuild();
@@ -194,6 +368,12 @@ std::vector<int> ResultPanel::shownRows() const {
         const ResultRow& row = rows_[static_cast<size_t>(i)];
         if (only_non_determined_ && row.review != ReviewStatus::NonDetermined) continue;
         if (hide_excepted_ && !row.status) continue;
+        if (scope_ && scope_->count(row.node_id) == 0) continue;
+        bool hidden = false;
+        for (const auto& [category, values] : hidden_) {
+            for (const QString& value : valuesOf(row, category)) hidden = hidden || values.count(value) > 0;
+        }
+        if (hidden) continue;
         if (!filter_.isEmpty()) {
             const QString haystack = row.source_name + ' ' + row.target_name + ' ' + row.rule_label + ' ' + row.source_class +
                                      ' ' + row.target_class + ' ' + row.criticity.join(' ') + ' ' + row.actor.join(' ');
@@ -214,16 +394,19 @@ QTreeWidgetItem* ResultPanel::appendRow(QTreeWidgetItem* parent, int index) {
     item->setText(kMeasure, row.measure);
     item->setText(kCriticity, row.criticity.join(", "));
     item->setText(kActor, row.actor.join(", "));
+    item->setText(kManualGroup, row.manual_group);
     item->setToolTip(kSource, QString("%1\n%2").arg(row.source_class, row.source_guid));
     item->setToolTip(kTarget, QString("%1\n%2").arg(row.target_class, row.target_guid));
     item->setData(0, kRowRole, index);
-    setChecks(item, row.review);
+    // The review: a drop-down list on click (ReviewDelegate).
+    item->setText(kReview, reviewText(row.review));
+    item->setFlags(item->flags() | Qt::ItemIsEditable);
     if (!row.status) {
         // Excepted (or a failing Must group): shown apart.
-        for (int c = 0; c < kValid; ++c) item->setForeground(c, QBrush(QColor(Qt::gray)));
+        for (int c = 0; c < kReview; ++c) item->setForeground(c, QBrush(QColor(Qt::gray)));
         item->setToolTip(kRule, row.complex ? "This group fails the Must check." : "Excepted: this pair matches an exception of the rule.");
         if (row.complex) {
-            for (int c = 0; c < kValid; ++c) item->setForeground(c, QBrush(QColor("#E6194B")));
+            for (int c = 0; c < kReview; ++c) item->setForeground(c, QBrush(QColor("#E6194B")));
         }
     }
     return item;
@@ -245,9 +428,11 @@ void ResultPanel::rebuild() {
         switch (mode_) {
         case GroupMode::BySource: keys << row.source_name; break;
         case GroupMode::ByTarget: keys << row.target_name; break;
+        case GroupMode::BySourceModel: keys << row.source_model_name; break;
         case GroupMode::ByRule: keys << row.rule_label; break;
         case GroupMode::ByCriticity: keys = row.criticity.isEmpty() ? QStringList{"(no criticity)"} : row.criticity; break;
         case GroupMode::ByRuleGroup: keys << (row.group.isEmpty() ? QStringLiteral("(no group)") : row.group); break;
+        case GroupMode::ByManualGroup: keys << (row.manual_group.isEmpty() ? QStringLiteral("(no group)") : row.manual_group); break;
         case GroupMode::Flat: break;
         }
         for (const QString& key : keys) {
@@ -283,6 +468,17 @@ std::vector<int> ResultPanel::selectedRows() const {
     return rows;
 }
 
+void ResultPanel::selectRow(int row) {
+    for (QTreeWidgetItemIterator it(tree_); *it; ++it) {
+        if (rowOf(*it) != row) continue;
+        tree_->clearSelection();
+        tree_->setCurrentItem(*it);
+        (*it)->setSelected(true);
+        tree_->scrollToItem(*it);
+        return;
+    }
+}
+
 void ResultPanel::setReview(const std::vector<int>& rows, ReviewStatus status) {
     for (int row : rows) {
         if (row >= 0 && row < static_cast<int>(rows_.size())) rows_[static_cast<size_t>(row)].review = status;
@@ -290,8 +486,9 @@ void ResultPanel::setReview(const std::vector<int>& rows, ReviewStatus status) {
     const QSignalBlocker blocker(tree_);
     for (QTreeWidgetItemIterator it(tree_); *it; ++it) {
         const int row = rowOf(*it);
-        if (row >= 0) setChecks(*it, rows_[static_cast<size_t>(row)].review);
+        if (row >= 0) (*it)->setText(kReview, reviewText(rows_[static_cast<size_t>(row)].review));
     }
+    tree_->viewport()->update();
     emit reviewChanged();
 }
 
@@ -299,13 +496,112 @@ void ResultPanel::contextMenu(const QPoint& pos) {
     const std::vector<int> rows = selectedRows();
     if (rows.empty()) return;
     QMenu menu(this);
+    menu.setToolTipsVisible(true);
+    // A group node of "Group by Manual group": rename / ungroup it.
+    QTreeWidgetItem* clicked = tree_->itemAt(pos);
+    if (clicked && clicked->data(0, kGroupRole).toInt() == 1 && mode_ == GroupMode::ByManualGroup &&
+        clicked->text(kRule) != QLatin1String("(no group)")) {
+        const QString name = clicked->text(kRule);
+        menu.addAction("Rename the group…", this, [this, name]() {
+            bool ok = false;
+            const QString to = QInputDialog::getText(this, "Rename the group", "Name", QLineEdit::Normal, name, &ok).trimmed();
+            if (ok && !to.isEmpty() && to != name) renameManualGroup(name, to);
+        });
+        menu.addAction("Ungroup", this, [this, name]() { renameManualGroup(name, QString()); });
+        menu.addSeparator();
+    }
     menu.addAction("Isolate", this, [this, rows]() { emit isolateRequested(rows); });
     menu.addAction("Show the objects", this, [this, rows]() { emit showRequested(rows); });
     menu.addSeparator();
     menu.addAction("Valid", this, [this, rows]() { setReview(rows, ReviewStatus::Valid); });
     menu.addAction("Non Determined", this, [this, rows]() { setReview(rows, ReviewStatus::NonDetermined); });
     menu.addAction("Invalid", this, [this, rows]() { setReview(rows, ReviewStatus::Invalid); });
+    menu.addSeparator();
+    // The user's own groups (triage): one group per result.
+    QMenu* add = menu.addMenu("Add to group");
+    add->setToolTipsVisible(true);
+    add->addAction("New group…", this, [this, rows]() {
+        bool ok = false;
+        const QString name = QInputDialog::getText(this, "New group", "Name of the group", QLineEdit::Normal,
+                                                   QString("Group %1").arg(manualGroups().size() + 1), &ok).trimmed();
+        if (ok && !name.isEmpty()) setManualGroup(rows, name);
+    });
+    const QStringList groups = manualGroups();
+    if (!groups.isEmpty()) add->addSeparator();
+    for (const QString& name : groups) add->addAction(name, this, [this, rows, name]() { setManualGroup(rows, name); });
+    bool grouped = false;
+    for (int row : rows) grouped = grouped || !rows_[static_cast<size_t>(row)].manual_group.isEmpty();
+    QAction* remove = menu.addAction("Remove from its group", this, [this, rows]() { setManualGroup(rows, QString()); });
+    remove->setEnabled(grouped);
+    // Hide the results sharing a value of the clicked one (Categories shows them again).
+    const int first = clicked && rowOf(clicked) >= 0 ? rowOf(clicked) : rows.front();
+    QMenu* hide = menu.addMenu("Hide the results with the same");
+    for (Category category : categories()) {
+        for (const QString& value : valuesOf(rows_[static_cast<size_t>(first)], category)) {
+            hide->addAction(QString("%1: %2").arg(categoryName(category), value), this, [this, category, value]() {
+                HiddenValues hidden = hidden_;
+                hidden[category].insert(value);
+                setHiddenValues(std::move(hidden));
+            });
+        }
+    }
     menu.exec(tree_->viewport()->mapToGlobal(pos));
+}
+
+// --- CategoryFilterDialog ----------------------------------------------------------------
+
+CategoryFilterDialog::CategoryFilterDialog(const ResultPanel& panel, QWidget* parent) : QDialog(parent) {
+    setWindowTitle("Show / hide the results by category");
+    resize(420, 560);
+    auto* layout = new QVBoxLayout(this);
+    auto* help = new QLabel("Uncheck a value to hide the results that have it; several categories add up.", this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+    tree_ = new QTreeWidget(this);
+    tree_->setHeaderLabels({"Category / value", "Results"});
+    tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    for (ResultPanel::Category category : ResultPanel::categories()) {
+        std::map<QString, int> counts;
+        for (const ResultRow& row : panel.rows()) {
+            for (const QString& value : ResultPanel::valuesOf(row, category)) ++counts[value];
+        }
+        auto* parent_item = new QTreeWidgetItem(tree_);
+        parent_item->setText(0, ResultPanel::categoryName(category));
+        parent_item->setData(0, Qt::UserRole, static_cast<int>(category));
+        parent_item->setFlags(parent_item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+        const auto found = panel.hiddenValues().find(category);
+        for (const auto& [value, count] : counts) {
+            auto* item = new QTreeWidgetItem(parent_item);
+            item->setText(0, value);
+            item->setText(1, QString::number(count));
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            const bool hidden = found != panel.hiddenValues().end() && found->second.count(value) > 0;
+            item->setCheckState(0, hidden ? Qt::Unchecked : Qt::Checked);
+        }
+        // Categories with one value only are of little use: folded.
+        parent_item->setExpanded(counts.size() > 1);
+    }
+    layout->addWidget(tree_, 1);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    auto* all = buttons->addButton("Show all", QDialogButtonBox::ResetRole);
+    connect(all, &QPushButton::clicked, this, [this]() {
+        for (int i = 0; i < tree_->topLevelItemCount(); ++i) tree_->topLevelItem(i)->setCheckState(0, Qt::Checked);
+    });
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    layout->addWidget(buttons);
+}
+
+ResultPanel::HiddenValues CategoryFilterDialog::hidden() const {
+    ResultPanel::HiddenValues hidden;
+    for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* parent_item = tree_->topLevelItem(i);
+        const auto category = static_cast<ResultPanel::Category>(parent_item->data(0, Qt::UserRole).toInt());
+        for (int c = 0; c < parent_item->childCount(); ++c) {
+            if (parent_item->child(c)->checkState(0) == Qt::Unchecked) hidden[category].insert(parent_item->child(c)->text(0));
+        }
+    }
+    return hidden;
 }
 
 // --- ResultInfoPanel ---------------------------------------------------------------------------
@@ -339,6 +635,10 @@ void ResultInfoPanel::showRow(const ResultRow* row) {
     }
     if (row->complex) lines << QString("<b>Must</b>: the group %1").arg(row->status ? "passes" : "<span style='color:#E6194B'>fails</span>");
     else if (!row->status) lines << "<b>Status</b>: <span style='color:gray'>excepted</span>";
+    lines << QString("<b>Review</b>: %1").arg(row->review == ReviewStatus::Valid     ? QStringLiteral("Valid")
+                                              : row->review == ReviewStatus::Invalid ? QStringLiteral("Invalid")
+                                                                                      : QStringLiteral("Non Determined"));
+    if (!row->manual_group.isEmpty()) lines << QString("<b>Manual group</b>: %1").arg(row->manual_group.toHtmlEscaped());
     if (!row->group.isEmpty()) lines << QString("<b>Group</b>: %1").arg(row->group.toHtmlEscaped());
     if (!row->criticity.isEmpty()) lines << QString("<b>Criticity</b>: %1").arg(row->criticity.join(", ").toHtmlEscaped());
     if (!row->actor.isEmpty()) lines << QString("<b>Actor</b>: %1").arg(row->actor.join(", ").toHtmlEscaped());

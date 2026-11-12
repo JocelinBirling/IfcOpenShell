@@ -101,14 +101,6 @@ RuleTreeWidget::RuleTreeWidget(RuleDocument& document, QWidget* parent) : QTreeW
     connect(this, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* item, QTreeWidgetItem*) {
         emit refSelected(refOf(item));
     });
-    connect(this, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem* item, int column) {
-        const auto ref = refOf(item);
-        if (!ref || ref->kind != TreeRef::Kind::Folder || column != kName) return;
-        const bool active = item->checkState(kName) == Qt::Checked;
-        if (ref->folder->active == active) return;
-        ref->folder->active = active;
-        document_.touch();
-    });
     connect(this, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
         const auto ref = refOf(item);
         if (!ref) return;
@@ -172,11 +164,15 @@ QTreeWidgetItem* RuleTreeWidget::addNode(QTreeWidgetItem* parent, const clash::R
         auto* item = new QTreeWidgetItem(parent);
         item->setText(kName, RuleDocument::labelOf(*folder));
         item->setText(kType, QStringLiteral("folder"));
-        item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled |
-                       Qt::ItemIsUserCheckable);
-        item->setCheckState(kName, folder->active ? Qt::Checked : Qt::Unchecked);
-        item->setToolTip(kName, "<b>Folder</b><br>Checked: its rules run. Double click: edit it (activation rule).");
+        item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        item->setToolTip(kName, "<b>Folder</b><br>Double click: edit it (active or not, activation rule).");
         if (folder->activation_tree || !folder->activation_select.empty()) item->setText(kCascade, QStringLiteral("activation rule"));
+        if (!folder->active) {
+            // Deactivated in its Edit window: shown grey, left out of the runs.
+            item->setText(kCascade, QStringLiteral("deactivated"));
+            for (int column = 0; column < columnCount(); ++column) item->setForeground(column, QBrush(QColor(Qt::gray)));
+            item->setToolTip(kName, "<b>Folder (deactivated)</b><br>Its rules do not run. Double click: edit it.");
+        }
         if (result_texts_.contains(folder->id)) item->setText(kResults, result_texts_.value(folder->id));
         refs_.insert(item, TreeRef{TreeRef::Kind::Folder, folder});
         keys_.insert(item, "folder:" + folder->id);
@@ -550,6 +546,14 @@ void RuleTreeWidget::contextMenuEvent(QContextMenuEvent* event) {
                 document_.touch();
             });
         }
+        menu.addSeparator();
+        menu.addAction("Delete the Rule File", this, [this]() {
+            if (!services::popup::confirmation(this, "Delete the rule file, its folders and rules? (the file on disk "
+                                                     "is kept)")) {
+                return;
+            }
+            document_.newFile();
+        });
         break;
     case TreeRef::Kind::Folder: {
         const auto folder = ref->folder;
@@ -579,6 +583,9 @@ void RuleTreeWidget::contextMenuEvent(QContextMenuEvent* event) {
             menu.addSeparator();
         }
         menu.addAction("Edit Rule", this, [this, rule]() { emit editRuleRequested(rule); });
+        QAction* display = menu.addAction("Display Input", this, [this, rule]() { emit displayInputRequested(rule); });
+        display->setToolTip("Run the rule and draw, over the 3D view, the zones (dashed magenta) and the boxes "
+                            "(yellow) it checked. The results, colours and visibility do not change.");
         menu.addAction("Show the source elements", this, [this, rule]() {
             emit selectionRequested(rule->source, RuleDocument::labelOf(*rule) + ": source");
         });
@@ -663,13 +670,13 @@ RulePanel::RulePanel(RuleDocument& document, QWidget* parent) : QWidget(parent),
         b->setToolTip(QString("<b>%1</b><br>%2").arg(text, tip));
         return b;
     };
-    auto* save = button("Save", "Save the rule file as JSON (the format of the IfcClash_Plus command line).");
+    auto* save = button("Save", "Save the rule file as JSON (the format of the IfcClash_Plus command line); the location is asked each time.");
     auto* load = button("Load", "Open a rule file (JSON).");
     auto* create_file = button("New", "A new, empty rule file (replaces the open one).");
     auto* create_rule = button("Create Rule", "Add a rule to the selected folder (or to the file).");
     auto* create_folder = button("Create Folder", "Add a folder to the selected folder (or to the file).");
     auto* run = button("Run", "Run the selected rules and folders, or the whole file when nothing is selected. "
-                              "An unchecked folder does not run.");
+                              "A deactivated folder (grey) does not run.");
     auto* rule_menu = new QMenu(create_rule);
     rule_menu->setToolTipsVisible(true);
     create_rule->setMenu(rule_menu);

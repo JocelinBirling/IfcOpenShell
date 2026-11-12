@@ -28,11 +28,13 @@
 #include <QHash>
 #include <QStringList>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
 class QComboBox;
 class QLineEdit;
+class QTabWidget;
 class QPlainTextEdit;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -87,6 +89,8 @@ public:
     struct FacetContext {
         bonsaiviewer::services::IdsBridge& bridge;
         filters::IfcPathProvider ifc_path;
+        // Must "Test": runs a copy of the rule, answers a summary (optional).
+        std::function<void(std::shared_ptr<clash::RuleCheck>, std::function<void(const QString&)>)> test_rule = {};
     };
 
     // `document` gives the rules of the tree a slot can take its elements
@@ -95,6 +99,8 @@ public:
                    QWidget* parent = nullptr);
     // Writes the edited configuration into the rule.
     void apply();
+    // The same into any rule (the Must test runs on a copy).
+    void applyTo(clash::RuleCheck& target);
     // Refuses OK while a slot's facets cannot be built.
     void accept() override;
 
@@ -121,6 +127,7 @@ private:
     // The right-click menu of a slot: copy / paste its elements.
     void slotMenu(SlotState& slot, const QPoint& global_pos);
     QWidget* buildRulePage(bool two_object);
+    QWidget* buildMustPage(QTabWidget* tabs);
     QWidget* buildSelectionPage(const QStringList& slot_names, bool two_object);
     // The facets of a slot's IDS editor, in the engine's form.
     std::vector<bonsaiviewer::ports::ifctester::Facet> facetsOf(const SlotState& slot, QString* error) const;
@@ -136,8 +143,8 @@ private:
     BooleanEditor* exception_tree_ = nullptr;
 };
 
-// The editing window of a folder: its activation (none, IDS facets, or a
-// boolean rule tree).
+// The editing window of a folder: active or deactivated (its rules do not
+// run), and its activation (none, IDS facets, or a boolean rule tree).
 class FolderEditDialog : public QDialog {
     Q_OBJECT
 
@@ -150,6 +157,7 @@ private:
     clash::RuleFolder copy_;
     BooleanEditor* tree_editor_ = nullptr;
     int mode_ = 0; // 0 none, 1 facets, 2 rule tree
+    bool active_ = true;
 };
 
 } // namespace bonsaiviewer::modules::rule

@@ -26,6 +26,7 @@
 
 #include "../../SessionState.h"
 #include "../../components/Buttons.h"
+#include "../../components/FlowLayout.h"
 #include "../../services/ActionPipeline.h"
 #include "../../services/ActiveView.h"
 #include "../../services/AppearanceService.h"
@@ -51,6 +52,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
+#include <QLabel>
 #include <QJsonDocument>
 #include <QMenu>
 #include <QMessageBox>
@@ -61,6 +63,7 @@
 #include <Eigen/Dense>
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <set>
 #include <tuple>
@@ -136,14 +139,18 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
 
     RuleTreeWidget* tree = rule_panel_->tree();
     connect(tree, &RuleTreeWidget::refSelected, config_, &RuleConfigPanel::showRef);
+    connect(tree, &RuleTreeWidget::refSelected, this, &ClashView::showResultsOf);
     connect(library_, &RuleLibraryPanel::ruleTypeSelected, config_, &RuleConfigPanel::showLibraryRule);
+    config_->setFacetContext(&s_.ids, [this]() { return services::FilterRunner::activeIfcPath(s_.session); });
+    connect(config_, &RuleConfigPanel::isolateRequested, this, &ClashView::isolateExpressIds);
+    connect(tree, &RuleTreeWidget::displayInputRequested, this, &ClashView::displayInput);
     connect(tree, &RuleTreeWidget::runRequested, this, &ClashView::run);
     connect(tree, &RuleTreeWidget::editRuleRequested, this, &ClashView::editRule);
     connect(tree, &RuleTreeWidget::editFolderRequested, this, &ClashView::editFolder);
     connect(config_, &RuleConfigPanel::editRuleRequested, this, &ClashView::editRule);
     connect(config_, &RuleConfigPanel::editFolderRequested, this, &ClashView::editFolder);
     connect(tree, &RuleTreeWidget::selectionRequested, this, &ClashView::showSelection);
-    connect(rule_panel_, &RulePanel::saveRequested, this, [this]() { saveRules(false); });
+    connect(rule_panel_, &RulePanel::saveRequested, this, [this]() { saveRules(); });
     connect(rule_panel_, &RulePanel::loadRequested, this, &ClashView::loadRules);
 
     connect(results_, &ResultPanel::currentResultChanged, this, [this](int row) {
@@ -159,13 +166,33 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
         s_.selection.setSelection(ids, services::SelectionSource::Table, services::SelectionMode::Replace);
     });
     connect(results_, &ResultPanel::isolateRequested, this, &ClashView::isolateRows);
+    // The Clash section of the Properties panel: kept up to date, its actions.
+    connect(results_, &ResultPanel::reviewChanged, this, &ClashView::publishIndex);
+    connect(&s_.index, &clash::ObjectClashIndex::showResultRequested, this, [this](int row) {
+        if (row < 0 || row >= static_cast<int>(results_->rows().size())) return;
+        const QString node = results_->rows()[static_cast<size_t>(row)].node_id;
+        results_->setScope(std::set<QString>{node}, "Results of " + results_->rows()[static_cast<size_t>(row)].rule_label);
+        results_->selectRow(row);
+        emit showResultsRequested();
+    });
+    connect(&s_.index, &clash::ObjectClashIndex::isolateRequested, this, [this](int row) { isolateRows({row}); });
+    connect(&s_.index, &clash::ObjectClashIndex::reviewRequested, this, [this](int row, const QString& review) {
+        results_->setReviewOf({row}, review == QLatin1String("Valid")     ? ReviewStatus::Valid
+                                     : review == QLatin1String("Invalid") ? ReviewStatus::Invalid
+                                                                           : ReviewStatus::NonDetermined);
+    });
+    connect(results_, &ResultPanel::reviewChanged, this, [this]() {
+        const auto rows = results_->selectedRows();
+        if (rows.size() == 1) info_->showRow(&results_->rows()[static_cast<size_t>(rows.front())]);
+    });
     connect(results_, &ResultPanel::showRequested, this, [this](const std::vector<int>& rows) {
         std::vector<std::uint32_t> ids;
         for (int row : rows) {
             const auto objects = results_->rows()[static_cast<size_t>(row)].objects();
             ids.insert(ids.end(), objects.begin(), objects.end());
         }
-        s_.view.add(ids);
+        // Everything shown again, the objects of the results selected.
+        s_.view.showAll();
         s_.selection.setSelection(ids, services::SelectionSource::Table, services::SelectionMode::Replace);
     });
 
@@ -180,8 +207,11 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
             results_->setResults({});
             results_->setMessages({});
             info_->showRow(nullptr);
-            rule_panel_->tree()->setResultTexts({});
         }
+        result_texts_.clear();
+        rule_panel_->tree()->setResultTexts({});
+        rule_inputs_.clear();
+        publishIndex();
     };
     connect(&s_.session, &SessionState::modelsChanged, this, drop);
     connect(&s_.session, &SessionState::projectReset, this, drop);
@@ -296,8 +326,8 @@ void ClashView::run(const std::vector<clash::RuleNode>& nodes) {
         else copy.push_back(clash::json::cloneRule(*std::get<std::shared_ptr<clash::RuleCheck>>(node)));
     }
     pending_rows_.clear();
-    result_texts_.clear();
-    rule_panel_->tree()->setResultTexts({});
+    pending_nodes_.clear();
+    pending_inputs_.clear();
     startWork("Clash rules", [this, copy](ifcclash::Session& session, size_t files) {
         clash::Orchestrator::Callbacks callbacks;
         callbacks.finished = [this](const clash::RuleOutcome& outcome) {
@@ -317,6 +347,102 @@ void ClashView::run(const std::vector<clash::RuleNode>& nodes) {
     setProperty("work", "run");
 }
 
+void ClashView::publishIndex() {
+    using Entry = clash::ObjectClashIndex::Entry;
+    std::unordered_map<std::uint32_t, std::vector<Entry>> entries;
+    // The rules in the order of the tree (then the others: nested, removed).
+    std::vector<QString> order;
+    for (const auto& rule : document_.treeRules()) {
+        if (rule_inputs_.count(rule->id)) order.push_back(rule->id);
+    }
+    for (const auto& [node, inputs] : rule_inputs_) {
+        if (std::find(order.begin(), order.end(), node) == order.end()) order.push_back(node);
+    }
+    std::map<QString, std::vector<int>> rows_of;
+    for (int i = 0; i < static_cast<int>(results_->rows().size()); ++i) rows_of[results_->rows()[static_cast<size_t>(i)].node_id].push_back(i);
+    const auto reviewText = [](ReviewStatus status) {
+        return status == ReviewStatus::Valid ? QStringLiteral("Valid") : status == ReviewStatus::Invalid ? QStringLiteral("Invalid") : QStringLiteral("Non Determined");
+    };
+    int rules = 0;
+    for (const QString& node : order) {
+        const RuleInputs& inputs = rule_inputs_.at(node);
+        // A Must rule (its results are groups): left out, its working is to be redesigned.
+        const auto& node_rows = rows_of[node];
+        if (std::any_of(node_rows.begin(), node_rows.end(), [this](int i) { return results_->rows()[static_cast<size_t>(i)].complex; })) {
+            continue;
+        }
+        ++rules;
+        std::set<std::uint32_t> in_result;
+        for (int i : rows_of[node]) {
+            const ResultRow& row = results_->rows()[static_cast<size_t>(i)];
+            const auto add = [&](std::uint32_t object, Entry::Role role, const QString& other) {
+                Entry e;
+                e.node_id = node;
+                e.rule_label = inputs.label;
+                e.rule_type = inputs.type;
+                e.role = role;
+                e.other = other;
+                e.measure = row.measure;
+                e.review = reviewText(row.review);
+                e.group = row.manual_group;
+                e.excepted = !row.status;
+                e.row = i;
+                entries[object].push_back(std::move(e));
+                in_result.insert(object);
+            };
+            for (std::uint32_t object : row.source_objects) add(object, Entry::Role::Source, row.target_name);
+            for (std::uint32_t object : row.target_objects) add(object, Entry::Role::Target, row.source_name);
+        }
+        // Checked without result, or not checked (no geometry).
+        std::set<std::uint32_t> not_checked(inputs.not_checked.begin(), inputs.not_checked.end());
+        std::set<std::uint32_t> seen;
+        for (const auto* list : {&inputs.sources, &inputs.targets}) {
+            for (std::uint32_t object : *list) {
+                if (in_result.count(object) || !seen.insert(object).second) continue;
+                Entry e;
+                e.node_id = node;
+                e.rule_label = inputs.label;
+                e.rule_type = inputs.type;
+                e.role = not_checked.count(object) ? Entry::Role::NotChecked : Entry::Role::Tested;
+                entries[object].push_back(std::move(e));
+            }
+        }
+    }
+    s_.index.publish(std::move(entries), rules);
+}
+
+void ClashView::showResultsOf(const std::optional<TreeRef>& ref) {
+    if (!ref) return;
+    std::set<QString> ids;
+    QString label;
+    if (ref->kind == TreeRef::Kind::File) {
+        if (results_->rows().empty()) return;
+        results_->setScope(std::nullopt, QString()); // the whole file: every result
+        return;
+    }
+    if (ref->kind == TreeRef::Kind::Rule && !ref->nested) {
+        if (!results_->hasRun(ref->rule->id)) return; // never run: the panel stays as it is
+        ids.insert(ref->rule->id);
+        label = "Results of " + RuleDocument::labelOf(*ref->rule);
+    } else if (ref->kind == TreeRef::Kind::Folder) {
+        std::function<void(const std::vector<clash::RuleNode>&)> walk = [&](const std::vector<clash::RuleNode>& nodes) {
+            for (const auto& node : nodes) {
+                if (const auto* f = std::get_if<std::shared_ptr<clash::RuleFolder>>(&node)) walk((*f)->contains);
+                else if (results_->hasRun(std::get<std::shared_ptr<clash::RuleCheck>>(node)->id)) {
+                    ids.insert(std::get<std::shared_ptr<clash::RuleCheck>>(node)->id);
+                }
+            }
+        };
+        walk(ref->folder->contains);
+        if (ids.empty()) return;
+        label = "Results of the folder " + RuleDocument::labelOf(*ref->folder);
+    } else {
+        return;
+    }
+    results_->setScope(ids, label);
+    info_->showRow(nullptr);
+}
+
 void ClashView::stop() {
     if (busy_ && cancel_) {
         cancel_->cancel();
@@ -325,6 +451,15 @@ void ClashView::stop() {
 }
 
 void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
+    if (!outcome.rule_type.isEmpty()) {
+        pending_nodes_.insert(outcome.node_id);
+        RuleInputs& inputs = pending_inputs_[outcome.node_id];
+        inputs.label = outcome.label;
+        inputs.type = outcome.rule_type;
+        inputs.sources = objectsOf(outcome.sources);
+        inputs.targets = objectsOf(outcome.targets);
+        inputs.not_checked = objectsOf(outcome.not_checked);
+    }
     if (!outcome.skipped.isEmpty()) {
         result_texts_[outcome.node_id] = "skipped";
         run_messages_ << QString("%1: skipped, %2").arg(outcome.label.isEmpty() ? "Folder" : outcome.label, outcome.skipped);
@@ -349,7 +484,7 @@ void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
         pending_rows_.push_back(rowOf(outcome, outcome.results[i], group_of[i]));
     }
     QString text = QString("%1 result%2").arg(outcome.results.size()).arg(outcome.results.size() == 1 ? "" : "s");
-    if (excepted > 0) text += QString(" (%1 %2)").arg(excepted).arg(outcome.groups.empty() || outcome.results.front().complex ? "failing" : "excepted");
+    if (excepted > 0) text += QString(" (%1 %2)").arg(excepted).arg(outcome.results.front().complex ? "failing" : "excepted");
     if (!outcome.results.empty() && outcome.results.front().complex) {
         text = QString("%1 group%2, %3 failing").arg(outcome.results.size()).arg(outcome.results.size() == 1 ? "" : "s").arg(excepted);
     }
@@ -372,11 +507,18 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     }
     if (work != QLatin1String("run")) return;
     clearOverlay();
-    results_->setResults(std::move(pending_rows_));
+    // The results of the other rules stay (a click on a rule shows its own).
+    results_->mergeResults(std::move(pending_rows_), pending_nodes_);
     pending_rows_.clear();
+    for (const QString& node : pending_nodes_) rule_inputs_.erase(node);
+    for (auto& [node, inputs] : pending_inputs_) rule_inputs_[node] = std::move(inputs);
+    pending_inputs_.clear();
+    results_->setScope(pending_nodes_, QString("Results of the last run (%1 rule%2) — click a rule of the tree for its own")
+                                           .arg(pending_nodes_.size()).arg(pending_nodes_.size() == 1 ? "" : "s"));
     info_->showRow(nullptr);
     rule_panel_->tree()->setResultTexts(result_texts_);
     applyColours();
+    publishIndex();
     const size_t count = results_->rows().size();
     QString summary = QString("%1 result(s)%2").arg(count).arg(cancelled ? " (stopped)" : "");
     // The elements the engine could not test, the folders left out, the
@@ -481,9 +623,12 @@ void ClashView::showSelection(const clash::Select& select, const QString& title)
 // --- display -------------------------------------------------------------------------------------
 
 void ClashView::applyColours() {
+    if (colour_red_) return; // "Color Red" holds the layer until it is turned off
     clearColours();
     std::vector<std::uint32_t> sources, targets, passing;
-    for (const ResultRow& row : results_->rows()) {
+    // The results the panel shows (the last run, or the rule clicked in the tree).
+    for (int index : results_->shownRows()) {
+        const ResultRow& row = results_->rows()[static_cast<size_t>(index)];
         if (row.complex) {
             auto& set = row.status ? passing : sources;
             set.insert(set.end(), row.source_objects.begin(), row.source_objects.end());
@@ -575,6 +720,129 @@ void ClashView::drawOverlay(int index) {
     overlay_drawn_ = true;
 }
 
+void ClashView::displayInput(std::shared_ptr<clash::RuleCheck> rule) {
+    if (!rule) return;
+    QString error;
+    if (!prepareModels(&error)) {
+        services::popup::information(host_, error);
+        return;
+    }
+    document_.refreshLinks();
+    auto copy = clash::json::cloneRule(*rule);
+    copy->state = QStringLiteral("Final"); // its own results, even for a rule that feeds others
+    const QString label = RuleDocument::labelOf(*rule);
+    const bool started = startWork("Display input", [this, copy, label](ifcclash::Session& session, size_t files) {
+        auto records = std::make_shared<std::vector<std::shared_ptr<const ifcclash::ResultRecord>>>();
+        clash::Orchestrator::Callbacks callbacks;
+        callbacks.finished = [records](const clash::RuleOutcome& outcome) {
+            for (const auto& result : outcome.results) {
+                if (result.record) records->push_back(result.record);
+            }
+        };
+        clash::Orchestrator orchestrator(session, files, callbacks, *cancel_);
+        orchestrator.run({copy});
+        QMetaObject::invokeMethod(this, [this, records, label]() {
+            drawDisplay(*records);
+            s_.session.setStatusMessage("Clash", QString("Display input of %1: %2 result(s) drawn").arg(label).arg(records->size()));
+        }, Qt::QueuedConnection);
+    });
+    if (started) setProperty("work", "display");
+}
+
+void ClashView::testRule(std::shared_ptr<clash::RuleCheck> rule, std::function<void(const QString&)> answer) {
+    QString error;
+    if (busy_) {
+        answer("A run is in progress: try again when it ends.");
+        return;
+    }
+    if (!prepareModels(&error)) {
+        answer(error);
+        return;
+    }
+    document_.refreshLinks();
+    auto summary = std::make_shared<QString>();
+    const bool started = startWork("Must test", [this, rule, answer, summary](ifcclash::Session& session, size_t files) {
+        clash::Orchestrator::Callbacks callbacks;
+        callbacks.finished = [summary](const clash::RuleOutcome& outcome) {
+            if (!outcome.error.isEmpty()) {
+                *summary = "Failed: " + outcome.error;
+                return;
+            }
+            int pass = 0, fail = 0;
+            for (const auto& result : outcome.results) (result.status ? pass : fail)++;
+            *summary = QString("%1 group%2: <span style='color:#3CB44B'>%3 pass</span>, "
+                               "<span style='color:#E6194B'>%4 fail</span>")
+                           .arg(pass + fail).arg(pass + fail == 1 ? "" : "s").arg(pass).arg(fail);
+        };
+        try {
+            clash::Orchestrator orchestrator(session, files, callbacks, *cancel_);
+            orchestrator.run({rule});
+        } catch (const std::exception& e) {
+            *summary = "Failed: " + QString::fromUtf8(e.what()); // said here, not in a modal box
+        }
+        QMetaObject::invokeMethod(this, [answer, summary]() { answer(summary->isEmpty() ? QString("No group") : *summary); },
+                                  Qt::QueuedConnection);
+    });
+    if (started) setProperty("work", "test");
+    else answer("The engine is busy.");
+}
+
+void ClashView::drawDisplay(const std::vector<std::shared_ptr<const ifcclash::ResultRecord>>& records) {
+    auto zones = lineGroup(QColor("#CC33FF"), 2.0f, 12.0f);
+    auto boxes = lineGroup(QColor("#FFD91A"), 1.5f);
+    // One box once, even when several results share it.
+    std::set<std::tuple<long long, long long, long long, long long>> seen;
+    for (const auto& record : records) {
+        Transform t;
+        Eigen::Matrix4d m;
+        const std::uint32_t file = record->source.file_index;
+        if (file < run_models_.size() && s_.viewport.modelToWorld(run_models_[file], m)) t.m = m;
+        for (const auto* list : {&record->source_obbs, &record->target_obbs}) {
+            for (const auto& obb : *list) {
+                const auto key = std::make_tuple(std::llround(obb.center[0] * 1e4), std::llround(obb.center[1] * 1e4),
+                                                 std::llround(obb.center[2] * 1e4),
+                                                 std::llround((obb.half_sizes[0] + obb.half_sizes[1] + obb.half_sizes[2]) * 1e4));
+                if (!seen.insert(key).second) continue;
+                obbEdges(t, obb, obb.label && *obb.label == "zone" ? zones.world_xyz : boxes.world_xyz);
+            }
+        }
+    }
+    std::vector<OverlayRenderer::LineGroup> groups;
+    for (auto* group : {&zones, &boxes}) {
+        if (!group->world_xyz.empty()) groups.push_back(std::move(*group));
+    }
+    if (groups.empty()) {
+        clearOverlay();
+        s_.session.setStatusMessage("Clash", "Display input: the rule gives no zone or box");
+        return;
+    }
+    s_.viewport.setOverlayLines(groups);
+    overlay_drawn_ = true;
+}
+
+void ClashView::setColourRed(bool on) {
+    colour_red_ = on;
+    const bool was_suspended = s_.undo.isSuspended();
+    s_.undo.record();
+    s_.undo.setSuspended(true);
+    if (on) {
+        std::vector<std::uint32_t> all;
+        if (auto* registry = s_.session.elementRegistry()) {
+            for (std::uint32_t model : s_.session.sessionModelIds()) {
+                for (const auto& info : registry->basicElementInfoForModel(model)) all.push_back(info.object_id);
+            }
+        }
+        s_.appearance.clearLayer(Layer::ClashRun);
+        s_.appearance.setLayerColour(all, kSourceColour, Layer::ClashRun);
+    }
+    s_.undo.setSuspended(was_suspended);
+    if (!on) {
+        // Back to the colours of the results (none without results).
+        clearColours();
+        if (!results_->rows().empty()) applyColours();
+    }
+}
+
 void ClashView::isolateRows(const std::vector<int>& rows) {
     std::vector<std::uint32_t> ids;
     for (int row : rows) {
@@ -602,23 +870,22 @@ bool ClashView::confirmDiscard() {
                                               QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
     if (answer == QMessageBox::Cancel) return false;
     if (answer == QMessageBox::Save) {
-        saveRules(false);
+        saveRules();
         return !document_.isModified();
     }
     return true;
 }
 
-void ClashView::saveRules(bool ask_path) {
+void ClashView::saveRules() {
     if (!document_.isOpen()) return;
-    QString path = document_.path();
-    if (ask_path || path.isEmpty()) {
-        QSettings settings;
-        path = QFileDialog::getSaveFileName(host_, "Save the rule file", settings.value(kLastDirectoryKey).toString(),
-                                            "Rule files (*.json);;All files (*)");
-        if (path.isEmpty()) return;
-        if (QFileInfo(path).suffix().isEmpty()) path += ".json";
-        settings.setValue(kLastDirectoryKey, QFileInfo(path).absolutePath());
-    }
+    // Always a "Save As": the location is asked each time (the current file proposed).
+    QSettings settings;
+    const QString proposed = document_.path().isEmpty() ? settings.value(kLastDirectoryKey).toString() : document_.path();
+    QString path = QFileDialog::getSaveFileName(host_, "Save the rule file", proposed,
+                                                "Rule files (*.ifcrule.json *.json);;All files (*)");
+    if (path.isEmpty()) return;
+    if (QFileInfo(path).suffix().isEmpty()) path += ".ifcrule.json";
+    settings.setValue(kLastDirectoryKey, QFileInfo(path).absolutePath());
     document_.refreshLinks();
     clash::RuleFile& file = document_.file();
     file.list_ifc_path.clear(); // not saved: the rules apply to any set of models
@@ -638,7 +905,7 @@ void ClashView::loadRules() {
     if (!confirmDiscard()) return;
     QSettings settings;
     const QString path = QFileDialog::getOpenFileName(host_, "Open a rule file", settings.value(kLastDirectoryKey).toString(),
-                                                      "Rule files (*.json);;All files (*)");
+                                                      "Rule files (*.ifcrule.json *.json);;All files (*)");
     if (path.isEmpty()) return;
     settings.setValue(kLastDirectoryKey, QFileInfo(path).absolutePath());
     QFile in(path);
@@ -689,6 +956,7 @@ void ClashView::saveResults() {
             json["target"] = element(row.target_name, row.target_guid, row.target_class, row.target_model_name, row.target_ifc_id);
         }
         if (!row.group.isEmpty()) json["group"] = row.group;
+        if (!row.manual_group.isEmpty()) json["manual_group"] = row.manual_group;
         if (row.record) json["info"] = QJsonDocument::fromJson(QByteArray::fromStdString(ifcclash::info_to_json(*row.record).dump())).object();
         results.append(json);
     }
@@ -706,28 +974,30 @@ void ClashView::editRule(std::shared_ptr<clash::RuleCheck> rule) {
     if (!rule) return;
     RuleEditDialog dialog(
         rule, &document_,
-        RuleEditDialog::FacetContext{s_.ids, [this]() { return services::FilterRunner::activeIfcPath(s_.session); }},
+        RuleEditDialog::FacetContext{s_.ids, [this]() { return services::FilterRunner::activeIfcPath(s_.session); },
+                                     [this](auto rule, auto answer) { testRule(rule, answer); }},
         host_);
-    // The preview of an IDS selection: EXPRESS ids of the active model -> object ids -> isolate.
-    connect(&dialog, &RuleEditDialog::isolateRequested, this, [this](const std::vector<int>& express_ids) {
-        std::uint32_t model = 0;
-        services::FilterRunner::activeIfcPath(s_.session, &model);
-        auto* registry = s_.session.elementRegistry();
-        if (model == 0 || registry == nullptr) return;
-        QHash<int, std::uint32_t> object_of;
-        for (const auto& info : registry->basicElementInfoForModel(model)) object_of.insert(info.ifc_id, info.object_id);
-        std::vector<std::uint32_t> ids;
-        for (int id : express_ids) {
-            const auto found = object_of.find(id);
-            if (found != object_of.end()) ids.push_back(found.value());
-        }
-        s_.pipeline.run(ids, services::ActionPipeline::Action::Isolate);
-    });
+    connect(&dialog, &RuleEditDialog::isolateRequested, this, &ClashView::isolateExpressIds);
     // A rule edited from a cascade is written at once (its own window's OK).
     connect(&dialog, &RuleEditDialog::ruleEdited, &document_, &RuleDocument::touch);
     if (dialog.exec() != QDialog::Accepted) return;
     dialog.apply();
     document_.touch();
+}
+
+void ClashView::isolateExpressIds(const std::vector<int>& express_ids) {
+    std::uint32_t model = 0;
+    services::FilterRunner::activeIfcPath(s_.session, &model);
+    auto* registry = s_.session.elementRegistry();
+    if (model == 0 || registry == nullptr) return;
+    QHash<int, std::uint32_t> object_of;
+    for (const auto& info : registry->basicElementInfoForModel(model)) object_of.insert(info.ifc_id, info.object_id);
+    std::vector<std::uint32_t> ids;
+    for (int id : express_ids) {
+        const auto found = object_of.find(id);
+        if (found != object_of.end()) ids.push_back(found.value());
+    }
+    s_.pipeline.run(ids, services::ActionPipeline::Action::Isolate);
 }
 
 void ClashView::editFolder(std::shared_ptr<clash::RuleFolder> folder) {
@@ -763,11 +1033,9 @@ QWidget* ClashView::buildGeometryRuleRibbon() {
     describe(show, "Show the Clash Filter workspace with the results of the last run.");
     connect(show, &QToolButton::clicked, this, &ClashView::showResultsRequested);
     auto* save = components::buttons::makeButton("Save Rules", ":/icons/floppy-disk.svg", page);
-    describe(save, "Save the rule file (JSON, the format of the IfcClash_Plus command line).");
-    connect(save, &QToolButton::clicked, this, [this]() { saveRules(false); });
-    auto* save_as = components::buttons::makeButton("Save As", ":/icons/floppy-disk-arrow-in.svg", page);
-    describe(save_as, "Save the rule file under a new name.");
-    connect(save_as, &QToolButton::clicked, this, [this]() { saveRules(true); });
+    describe(save, "Save the rule file (JSON, the format of the IfcClash_Plus command line); the location is "
+                   "asked each time.");
+    connect(save, &QToolButton::clicked, this, [this]() { saveRules(); });
     auto* load = components::buttons::makeButton("Load Rules", ":/icons/folder.svg", page);
     describe(load, "Open a rule file (JSON).");
     connect(load, &QToolButton::clicked, this, &ClashView::loadRules);
@@ -779,20 +1047,43 @@ QWidget* ClashView::buildGeometryRuleRibbon() {
         if (on) applyColours();
         else clearColours();
     });
+    auto* red = components::buttons::makeButton("Color Red", ":/icons/paint-bucket.svg", page);
+    red->setCheckable(true);
+    describe(red, "Colour every object of the loaded models red; off: back to the colours of the results "
+                  "(the other colours were never changed).");
+    connect(red, &QToolButton::toggled, this, &ClashView::setColourRed);
     components::buttons::addButtonGroups(row, {
         components::buttons::makeButtonGroup("RUN", {run_button_, stop_button_, show}, page),
-        components::buttons::makeButtonGroup("RULE FILE", {save, save_as, load}, page),
-        components::buttons::makeButtonGroup("COLOUR", {colour}, page),
+        components::buttons::makeButtonGroup("RULE FILE", {save, load}, page),
+        components::buttons::makeButtonGroup("COLOUR", {colour, red}, page),
     });
     row->addStretch(1);
     return page;
 }
 
 QWidget* ClashView::buildClashFilterRibbon() {
-    auto* page = new QFrame(host_);
-    auto* row = new QHBoxLayout(page);
+    // A dock panel (Clash Filter Tools): on the top, one row; on a side or
+    // floating, the groups — and the buttons of a group too wide — wrap.
+    auto* page = new components::FlowFrame(host_);
+    auto* row = new components::FlowLayout(page);
     row->setContentsMargins(2, 4, 2, 4);
-    row->setSpacing(0);
+    // The group of the ribbon (buttons::makeButtonGroup), its buttons in a flow.
+    const auto flowGroup = [page](const QString& title, const QList<QToolButton*>& buttons) {
+        auto* group = new QFrame(page);
+        group->setObjectName("ribbonGroup");
+        auto* group_layout = new QVBoxLayout(group);
+        group_layout->setContentsMargins(8, 6, 8, 4);
+        group_layout->setSpacing(2);
+        auto* button_row = new components::FlowLayout(nullptr, 4);
+        for (auto* button : buttons) button_row->addWidget(button);
+        auto* label = new QLabel(title, group);
+        label->setObjectName("ribbonGroupLabel");
+        label->setProperty("textRole", "secondary");
+        label->setAlignment(Qt::AlignCenter);
+        group_layout->addLayout(button_row);
+        group_layout->addWidget(label);
+        return static_cast<QWidget*>(group);
+    };
     const auto describe = [](QToolButton* button, const QString& text) {
         button->setToolTip(QString("<b>%1</b><br>%2").arg(button->text(), text));
     };
@@ -819,8 +1110,12 @@ QWidget* ClashView::buildClashFilterRibbon() {
     describe(colour, "Colour the elements of the results again (sources red, targets orange).");
     connect(colour, &QToolButton::clicked, this, &ClashView::applyColours);
 
+    auto* everything = components::buttons::makeButton("Display Everything", ":/icons/eye-solid.svg", page);
+    describe(everything, "Show every object of the models again; the colours do not change.");
+    connect(everything, &QToolButton::clicked, this, [this]() { s_.view.showAll(); });
+
     auto* reset = components::buttons::makeButton("Show All Results", ":/icons/refresh-double.svg", page);
-    describe(reset, "Clear the filters and the grouping of the Result panel.");
+    describe(reset, "Clear the filters (the hidden categories too) and the grouping of the Result panel.");
     connect(reset, &QToolButton::clicked, results_, &ResultPanel::clearFilters);
     auto* undetermined = components::buttons::makeButton("Only Non Determined", ":/icons/filter.svg", page);
     undetermined->setCheckable(true);
@@ -830,18 +1125,36 @@ QWidget* ClashView::buildClashFilterRibbon() {
     excepted->setCheckable(true);
     describe(excepted, "Hide the results an exception invalidated.");
     connect(excepted, &QToolButton::toggled, results_, &ResultPanel::setHideExcepted);
+    auto* categories = components::buttons::makeButton("Categories", ":/icons/filter.svg", page);
+    describe(categories, "Hide the results by category (rule, IFC classes, models, criticity, actor, review, manual "
+                         "group): uncheck the values to hide, to work on a small set.");
+    connect(categories, &QToolButton::clicked, this, [this]() {
+        if (results_->rows().empty()) {
+            s_.session.setStatusMessage("Clash", "No result: run the rules first");
+            return;
+        }
+        CategoryFilterDialog dialog(*results_, host_);
+        if (dialog.exec() != QDialog::Accepted) return;
+        results_->setHiddenValues(dialog.hidden());
+        s_.session.setStatusMessage("Clash", QString("%1 of %2 result(s) shown")
+                                                 .arg(results_->shownRows().size())
+                                                 .arg(results_->rows().size()));
+    });
     auto* group = components::buttons::makeButton("Group by", ":/icons/cube.svg", page);
     group->setPopupMode(QToolButton::InstantPopup);
-    describe(group, "Group the results by source, target, rule, criticity or the rule's own grouping.");
+    describe(group, "Group the results by source, target, source model, rule, criticity, the rule's own grouping, "
+                    "or the groups you made (right click on results: Add to group).");
     auto* menu = new QMenu(group);
     auto* modes = new QActionGroup(menu);
     for (const auto& [label, mode] : std::vector<std::pair<QString, ResultPanel::GroupMode>>{
              {"No grouping", ResultPanel::GroupMode::Flat},
              {"Source", ResultPanel::GroupMode::BySource},
              {"Target", ResultPanel::GroupMode::ByTarget},
+             {"Source model", ResultPanel::GroupMode::BySourceModel},
              {"Rule", ResultPanel::GroupMode::ByRule},
              {"Criticity", ResultPanel::GroupMode::ByCriticity},
-             {"Rule grouping", ResultPanel::GroupMode::ByRuleGroup}}) {
+             {"Rule grouping", ResultPanel::GroupMode::ByRuleGroup},
+             {"Manual group", ResultPanel::GroupMode::ByManualGroup}}) {
         QAction* action = menu->addAction(label, this, [this, mode = mode]() { results_->setGroupMode(mode); });
         action->setCheckable(true);
         action->setChecked(mode == ResultPanel::GroupMode::Flat);
@@ -855,7 +1168,7 @@ QWidget* ClashView::buildClashFilterRibbon() {
               "The closest points (or the contact points) between the two elements, in cyan."},
              {"Zones", ":/icons/cube-scan.svg", &OverlayKinds::zones,
               "The zones the rule checked (above, below, around the element…), dashed magenta boxes."},
-             {"OBB", ":/icons/box-3d-center.svg", &OverlayKinds::obbs,
+             {"OBB", ":/icons/square3d-from-center.svg", &OverlayKinds::obbs,
               "The oriented bounding boxes of the elements the rule used, in yellow."},
              {"Axes", ":/icons/select-edge3d.svg", &OverlayKinds::axes,
               "The axes of the elements (main direction, length), in green."},
@@ -877,13 +1190,16 @@ QWidget* ClashView::buildClashFilterRibbon() {
     auto* save = components::buttons::makeButton("Save Results", ":/icons/download-square.svg", page);
     describe(save, "Save the results of the last run (and the rules) to a JSON file, with the reviews.");
     connect(save, &QToolButton::clicked, this, &ClashView::saveResults);
-    components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("CONTEXT VIEW", {save_context, show_context, always, colour}, page),
-        components::buttons::makeButtonGroup("REGROUP RESULT", {reset, undetermined, excepted, group}, page),
-        components::buttons::makeButtonGroup("RESULT GEOMETRY", geometry, page),
-        components::buttons::makeButtonGroup("EXPORT", {save}, page),
-    });
-    row->addStretch(1);
+    const QList<QWidget*> groups{
+        flowGroup("CONTEXT VIEW", {save_context, show_context, always, colour, everything}),
+        flowGroup("REGROUP RESULT", {reset, undetermined, excepted, categories, group}),
+        flowGroup("RESULT GEOMETRY", geometry),
+        flowGroup("EXPORT", {save}),
+    };
+    for (int i = 0; i < groups.size(); ++i) {
+        groups[i]->setProperty("separator", i + 1 < groups.size()); // the divider between groups (stylesheet)
+        row->addWidget(groups[i]);
+    }
     return page;
 }
 

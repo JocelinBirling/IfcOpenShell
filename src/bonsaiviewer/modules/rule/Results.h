@@ -23,12 +23,16 @@
 
 #include "core/Result.h"
 
+#include <QDialog>
 #include <QString>
 #include <QStringList>
 #include <QWidget>
 
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <optional>
+#include <set>
 #include <vector>
 
 class QCheckBox;
@@ -62,6 +66,7 @@ struct ResultRow {
     QStringList criticity;
     QStringList actor;
     QString group;      // the rule's grouping / Must group
+    QString manual_group; // the user's own group (triage), empty: none
     bool status = true; // false: excepted (or a failing Must group)
     bool complex = false;
     ReviewStatus review = ReviewStatus::NonDetermined;
@@ -72,18 +77,33 @@ struct ResultRow {
 
 // BonsaiViewer09 (TI09) — the Result panel of the Clash Filter workspace
 // (branch IfcViewer_Clash): one row per result, a name filter, grouping
-// (by source, target, rule, criticity, rule group), the review status
-// (Valid / Non Determined / Invalid). Click: select the pair; double
+// (by source, target, source model, rule, criticity, rule group), the review
+// (a drop-down list: Valid / Non Determined / Invalid). Click: select the pair; double
 // click: isolate it; right click: the standard menu.
 class ResultPanel : public QWidget {
     Q_OBJECT
 
 public:
-    enum class GroupMode { Flat, BySource, ByTarget, ByRule, ByCriticity, ByRuleGroup };
+    enum class GroupMode { Flat, BySource, ByTarget, BySourceModel, ByRule, ByCriticity, ByRuleGroup, ByManualGroup };
+    // The categories the user hides results by (Categories window, right click).
+    enum class Category { Rule, SourceClass, TargetClass, SourceModel, TargetModel, Criticity, Actor, Review, ManualGroup };
+    static const std::vector<Category>& categories();
+    static QString categoryName(Category category);
+    // The values of a row in a category ("(none)" when it has none).
+    static QStringList valuesOf(const ResultRow& row, Category category);
+    // Category -> the values hidden: a row is hidden when one of its values is.
+    using HiddenValues = std::map<Category, std::set<QString>>;
 
     explicit ResultPanel(QWidget* parent = nullptr);
 
     void setResults(std::vector<ResultRow> rows);
+    // A run: the rows of the rules in `ran` are replaced by `rows` (the
+    // results of the other rules are kept, with their review and group).
+    void mergeResults(std::vector<ResultRow> rows, const std::set<QString>& ran);
+    // The rules the panel shows (node ids; none: every rule), `label` above the table.
+    void setScope(std::optional<std::set<QString>> node_ids, const QString& label);
+    // Whether the rule ran (it may have no result).
+    bool hasRun(const QString& node_id) const { return run_nodes_.count(node_id) > 0; }
     // The warnings of the run (elements the engine could not test, folders
     // left out, failed rules): a line above the table, the list as tooltip.
     void setMessages(const QStringList& messages);
@@ -92,9 +112,16 @@ public:
     void setFilterOnlyNonDetermined(bool on);
     void setHideExcepted(bool on);
     void clearFilters();
+    void setHiddenValues(HiddenValues hidden);
+    const HiddenValues& hiddenValues() const { return hidden_; }
+    // The user's groups, in the order of the rows.
+    QStringList manualGroups() const;
     // The rows shown, in order (the filters applied).
     std::vector<int> shownRows() const;
     std::vector<int> selectedRows() const;
+    // Selects and shows one result (from the Clash section of the Properties panel).
+    void selectRow(int row);
+    void setReviewOf(const std::vector<int>& rows, ReviewStatus status) { setReview(rows, status); }
 
 signals:
     void currentResultChanged(int row);
@@ -107,15 +134,34 @@ private:
     void rebuild();
     QTreeWidgetItem* appendRow(QTreeWidgetItem* parent, int row);
     void setReview(const std::vector<int>& rows, ReviewStatus status);
+    void setManualGroup(const std::vector<int>& rows, const QString& name);
+    void renameManualGroup(const QString& from, const QString& to);
     void contextMenu(const QPoint& pos);
 
     std::vector<ResultRow> rows_;
     GroupMode mode_ = GroupMode::Flat;
     bool only_non_determined_ = false;
     bool hide_excepted_ = false;
+    HiddenValues hidden_;
+    std::optional<std::set<QString>> scope_;
+    std::set<QString> run_nodes_;
+    QLabel* scope_label_ = nullptr;
     QString filter_;
     QLineEdit* filter_edit_ = nullptr;
     QLabel* messages_ = nullptr;
+    QTreeWidget* tree_ = nullptr;
+};
+
+// "Categories": the values of each category of the results, a check box
+// each (unchecked: hidden), with the number of results.
+class CategoryFilterDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    CategoryFilterDialog(const ResultPanel& panel, QWidget* parent = nullptr);
+    ResultPanel::HiddenValues hidden() const;
+
+private:
     QTreeWidget* tree_ = nullptr;
 };
 

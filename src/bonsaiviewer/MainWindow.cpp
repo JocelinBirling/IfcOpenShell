@@ -29,6 +29,7 @@
 #include "components/Dialog.h"
 #include "components/GenericTopPanel.h"
 #include "components/SpecificTopPanel.h"
+#include "components/FlowLayout.h"
 #include "components/Panel.h"
 #include "components/Style.h"
 #include "components/Tabs.h"
@@ -86,6 +87,7 @@
 #include <QTreeWidget>
 #include "services/IdsBridge.h"
 #include "services/IdsPropertyChecks.h"
+#include "services/clash/ObjectClashIndex.h"
 #include "services/PropertyCatalog.h"
 #include "services/IfcDataAccess.h"
 #include "services/PanelManager.h"
@@ -154,6 +156,9 @@ MainWindow::MainWindow(QWidget* parent)
     setupLoader();
     setupMenuBar();
     setupRibbon();
+    // The checkable ribbon buttons (every ribbon and panel): outlined, and
+    // framed in the accent colour when pressed.
+    components::buttons::markToggleButtons(this);
     resize(1720, 980);
 }
 
@@ -729,7 +734,8 @@ void MainWindow::setupRibbon() {
     // BonsaiViewer09: the run, rule file and result buttons of the two
     // clash workspaces.
     specific_panel->setContent(specific_panel->addTab(QStringLiteral("GeometryRule")), clash_view_->geometryRuleRibbon());
-    specific_panel->setContent(specific_panel->addTab(QStringLiteral("Clash Filter")), clash_view_->clashFilterRibbon());
+    // The Clash Filter buttons are a dock panel (Clash Filter Tools), not a band.
+    specific_panel->addTab(QStringLiteral("Clash Filter"));
     specific_index_.insert(QStringLiteral("inspect"), specific_panel->addTab(QStringLiteral("Inspect")));
     // Order below the tabs: the tab ribbon, then the specific panel.
     shell_layout->addWidget(ribbon_band);
@@ -810,6 +816,23 @@ void MainWindow::onRibbonTabChanged(int index) {
         if (workspace >= 0) applyWorkspaceDefaults(workspace);
         workspace_defaults_applied_.append(key);
     }
+    // A Clash Filter layout saved before its buttons became a panel: they
+    // are placed on the top once, then the layout is the user's.
+    if (workspace_ids_.size() > 5 && key == workspace_ids_.at(5)) {
+        QSettings settings;
+        if (!settings.value(QStringLiteral("clash/filterToolsPlaced"), false).toBool()) {
+            placeClashFilterTools();
+            panel_manager_->setPanelVisible(QStringLiteral("clash_filter_tools"), true);
+        }
+    }
+}
+
+void MainWindow::placeClashFilterTools() {
+    addDockWidget(Qt::TopDockWidgetArea, clash_filter_tools_dock_);
+    clash_filter_tools_dock_->setFloating(false);
+    // As low as its buttons: a band, not a panel stretched over the view.
+    resizeDocks({clash_filter_tools_dock_}, {clash_filter_tools_dock_->sizeHint().height()}, Qt::Vertical);
+    QSettings().setValue(QStringLiteral("clash/filterToolsPlaced"), true);
 }
 
 QString MainWindow::addUserTab(const QString& name, bool select) {
@@ -962,12 +985,14 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         visible = QStringList{QStringLiteral("rule_library"), QStringLiteral("rule_config"),
                               QStringLiteral("properties"), QStringLiteral("rules")};
     } else if (index == 5) {
-        // Clash Filter: Result over Result Info on the left, Properties over Rule.
+        // Clash Filter: its tools on the top, Result over Result Info on the
+        // left, Properties over Rule.
+        placeClashFilterTools();
         addDockWidget(Qt::LeftDockWidgetArea, result_dock_);
         splitDockWidget(result_dock_, result_info_dock_, Qt::Vertical);
         splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
         visible = QStringList{QStringLiteral("results"), QStringLiteral("result_info"),
-                              QStringLiteral("properties"), QStringLiteral("rules")};
+                              QStringLiteral("properties"), QStringLiteral("rules"), QStringLiteral("clash_filter_tools")};
     }
     for (const QString& id : panel_manager_->registeredPanels()) {
         panel_manager_->setPanelVisible(id, visible.contains(id));
@@ -1024,6 +1049,7 @@ void MainWindow::setupPanels() {
     rule_config_dock_ = new components::Panel("Rule Config", nullptr, this);
     result_dock_ = new components::Panel("Result", nullptr, this);
     result_info_dock_ = new components::Panel("Result Info", nullptr, this);
+    clash_filter_tools_dock_ = new components::Panel("Clash Filter Tools", nullptr, this);
     issues_panel_ = new components::Panel("Issues", new modules::todo::TodoPanel("Issues", this), this);
     class_tree_widget_ = new QTreeWidget(this);
     class_tree_panel_ = new components::Panel("Ifc Tree", class_tree_widget_, this);
@@ -1050,6 +1076,7 @@ void MainWindow::setupPanels() {
     addDockWidget(Qt::LeftDockWidgetArea, rule_config_dock_);
     addDockWidget(Qt::LeftDockWidgetArea, result_dock_);
     addDockWidget(Qt::LeftDockWidgetArea, result_info_dock_);
+    addDockWidget(Qt::TopDockWidgetArea, clash_filter_tools_dock_);
     addDockWidget(Qt::RightDockWidgetArea, issues_panel_);
     addDockWidget(Qt::BottomDockWidgetArea, table_panel_);
     // BonsaiViewer16: the Ifc Text Digger, in the bottom tabs with the Table.
@@ -1081,7 +1108,8 @@ void MainWindow::setupPanels() {
     audit_panel_->hide();
     for (QDockWidget* dock : {static_cast<QDockWidget*>(rule_dock_), static_cast<QDockWidget*>(rule_library_dock_),
                               static_cast<QDockWidget*>(rule_config_dock_), static_cast<QDockWidget*>(result_dock_),
-                              static_cast<QDockWidget*>(result_info_dock_)}) {
+                              static_cast<QDockWidget*>(result_info_dock_),
+                              static_cast<QDockWidget*>(clash_filter_tools_dock_)}) {
         dock->hide();
     }
     issues_panel_->hide();
@@ -1296,17 +1324,39 @@ void MainWindow::setupLoader() {
     ids_view_ = new modules::ids::IdsPanelView(ids_panel_, *session_state_, *ids_bridge_, *action_pipeline_,
                                                *appearance_service_, this);
     ids_view_->setPropertyChecks(ids_property_checks_);
-    // BonsaiViewer09 (TI09): the IfcClash_Plus rules, run on the C++ engine.
+    // BonsaiViewer09 (TI09): the IfcClash_Plus rules, run on the C++ engine;
+    // their results per object feed the Clash section of the Properties panel.
+    clash_index_ = new bonsaiviewer::services::clash::ObjectClashIndex(this);
+    properties_view_->setClashIndex(clash_index_);
     clash_view_ = new modules::rule::ClashView(
         modules::rule::ClashView::Services{*session_state_, *viewport_widget_->viewport(), *selection_service_,
                                            *action_pipeline_, *active_view_, *appearance_service_, *undo_stack_,
-                                           *ids_bridge_},
+                                           *ids_bridge_, *clash_index_},
         this, this);
     rule_dock_->addBodyWidget(clash_view_->rulePanel());
     rule_library_dock_->addBodyWidget(clash_view_->libraryPanel());
     rule_config_dock_->addBodyWidget(clash_view_->configPanel());
     result_dock_->addBodyWidget(clash_view_->resultPanel());
     result_info_dock_->addBodyWidget(clash_view_->resultInfoPanel());
+    clash_filter_tools_dock_->addBodyWidget(clash_view_->clashFilterRibbon());
+    // On the top or the bottom: one row, as the band; on a side or floating:
+    // the groups wrap on several rows.
+    const auto wrapClashFilterTools = [this]() {
+        auto* frame = dynamic_cast<components::FlowFrame*>(clash_view_->clashFilterRibbon());
+        if (frame == nullptr) return;
+        const Qt::DockWidgetArea area = dockWidgetArea(clash_filter_tools_dock_);
+        const bool band = !clash_filter_tools_dock_->isFloating() &&
+                          (area == Qt::TopDockWidgetArea || area == Qt::BottomDockWidgetArea);
+        frame->setWrapping(!band);
+        if (!band) return;
+        // As high as one row, once the layout has followed (the next turn of the event loop).
+        QTimer::singleShot(0, this, [this]() {
+            resizeDocks({clash_filter_tools_dock_}, {clash_filter_tools_dock_->minimumSizeHint().height()}, Qt::Vertical);
+        });
+    };
+    connect(clash_filter_tools_dock_, &QDockWidget::dockLocationChanged, this, wrapClashFilterTools);
+    connect(clash_filter_tools_dock_, &QDockWidget::topLevelChanged, this, wrapClashFilterTools);
+    wrapClashFilterTools();
     connect(clash_view_, &modules::rule::ClashView::showResultsRequested, this, [this]() {
         if (workspace_ids_.size() <= 5) return;
         const int index = ribbonIndexOf(workspace_ids_.at(5));
@@ -1528,6 +1578,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Result"), result_dock_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("result_info"),
                                QStringLiteral("Result Info"), result_info_dock_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("clash_filter_tools"),
+                               QStringLiteral("Clash Filter Tools"), clash_filter_tools_dock_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("issues"),
                                QStringLiteral("Issues"), issues_panel_, QStringLiteral("Analyze"));
 
