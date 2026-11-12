@@ -31,7 +31,7 @@ const char* unit_name(Unit u);
 
 struct ParamDesc {
     std::string name;
-    std::string kind;  // float, int, bool, string, enum, direction (catalogue editor kinds)
+    std::string kind;  // float, int, bool, string, enum, direction, obb_modifications (catalogue editor kinds)
     std::string doc;
     Unit unit = Unit::None;
     Json default_value;
@@ -140,6 +140,15 @@ public:
     ParamBuilder& values(std::vector<std::string> allowed) {
         desc_.values = std::move(allowed);
         desc_.kind = "enum";
+        return *this;
+    }
+    // BonsaiViewer: a list of OBB operations ("name:value" lines, the
+    // list_of_modifications of OBB_Custom): published as the kind
+    // "obb_modifications" with the operation names as values, for a
+    // dedicated editor. The JSON stays a list of strings.
+    ParamBuilder& operations(std::vector<std::string> names) {
+        desc_.values = std::move(names);
+        desc_.kind = "obb_modifications";
         return *this;
     }
 

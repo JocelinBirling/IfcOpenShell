@@ -241,7 +241,7 @@ void ParamForm::setRule(const clash::RuleSpec* spec, QJsonObject* params) {
                 });
             }
             editor = row;
-        } else if (p.kind == QLatin1String("string_list")) {
+        } else if (p.kind == QLatin1String("string_list") || p.kind == QLatin1String("obb_modifications")) {
             auto* text = new QPlainTextEdit(this);
             QStringList lines;
             for (const QJsonValue& v : value.toArray()) lines << v.toString();

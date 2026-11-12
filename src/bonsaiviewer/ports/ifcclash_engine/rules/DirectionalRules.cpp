@@ -337,7 +337,8 @@ RuleSpec spec_obb_custom() {
         "OBB_Custom", "OBB Custom", {Slot::Source, Slot::Target},
         "Flags a target penetrating custom detection zones around the source.",
         {param(&CustomParams::list_of_modifications, "list_of_modifications")
-             .doc(geometry::obb_modifications_doc())});
+             .doc(geometry::obb_modifications_doc())
+             .operations(geometry::obb_op_names())});
 }
 
 }  // namespace ifcclash

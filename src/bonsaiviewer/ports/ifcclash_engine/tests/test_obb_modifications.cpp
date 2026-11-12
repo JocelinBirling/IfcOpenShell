@@ -166,6 +166,24 @@ void test_zones() {
     }
 }
 
+void test_catalogue() {
+    // The catalogue publishes the dedicated kind and the operation names; the JSON stays a list of strings.
+    for (const char* rule : {"OBB_Custom", "OBB_Custom_triang"}) {
+        const Json catalogue = default_registry().find(rule).to_json();
+        bool found = false;
+        for (const auto& param : catalogue.at("params")) {
+            if (param.at("name") != "list_of_modifications") continue;
+            found = param.at("kind") == "obb_modifications" &&
+                    param.at("values").get<std::vector<std::string>>() == obb_op_names();
+        }
+        check(found, std::string(rule) + ": list_of_modifications is published as obb_modifications");
+        check(error_of([&]() {
+                  default_registry().find(rule).create(Json{{"list_of_modifications", {"extend_up:50%", "NEW_OBB", "extend_down:1"}}});
+              }).empty(),
+              std::string(rule) + ": a valid list is still read as a list of strings");
+    }
+}
+
 void test_doc() {
     const std::string doc = obb_modifications_doc();
     for (const auto& name : obb_op_names()) check(contains(doc, name), "the doc explains " + name);
@@ -180,6 +198,7 @@ int main() {
     test_structure();
     test_zones();
     test_doc();
+    test_catalogue();
     std::cout << checks - failures << " / " << checks << " checks passed\n";
     return failures == 0 ? 0 : 1;
 }

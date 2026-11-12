@@ -35,7 +35,7 @@ namespace bonsaiviewer::services::clash {
 
 struct ParamSpec {
     QString name;  // the catalogue / serialization key
-    QString kind;  // float, int, bool, enum, string, string_list, direction, object
+    QString kind;  // float, int, bool, enum, string, string_list, obb_modifications, direction, object
     QString doc;
     QString unit;
     QJsonValue default_value;
