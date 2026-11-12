@@ -21,6 +21,8 @@
 #ifndef IFCINTERFACE_MODULES_RULE_RESULTS_H
 #define IFCINTERFACE_MODULES_RULE_RESULTS_H
 
+#include "ResultKey.h"
+
 #include "core/Result.h"
 
 #include <QDialog>
@@ -74,6 +76,11 @@ struct ResultRow {
     bool complex = false;
     ReviewStatus review = ReviewStatus::NonDetermined;
     std::shared_ptr<const ifcclash::ResultRecord> record;
+    // The elements as saved (one each for a pair, every element of a Must
+    // group), and the key of the result (resultKey): the review, the manual
+    // group and the topic follow it from one run to the next.
+    std::vector<ResultElement> sources, targets;
+    QString key;
 
     std::vector<std::uint32_t> objects() const;
 };
@@ -101,7 +108,8 @@ public:
 
     void setResults(std::vector<ResultRow> rows);
     // A run: the rows of the rules in `ran` are replaced by `rows` (the
-    // results of the other rules are kept, with their review and group).
+    // results of the other rules are kept, with their review and group). A
+    // new row with the key of a replaced one keeps its review and group.
     void mergeResults(std::vector<ResultRow> rows, const std::set<QString>& ran);
     // The rules the panel shows (node ids; none: every rule), `label` above the table.
     void setScope(std::optional<std::set<QString>> node_ids, const QString& label);

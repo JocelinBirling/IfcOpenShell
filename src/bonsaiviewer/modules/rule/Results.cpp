@@ -170,6 +170,16 @@ void ResultPanel::setResults(std::vector<ResultRow> rows) {
 }
 
 void ResultPanel::mergeResults(std::vector<ResultRow> rows, const std::set<QString>& ran) {
+    std::map<QString, const ResultRow*> previous;
+    for (const ResultRow& row : rows_) {
+        if (ran.count(row.node_id) && !row.key.isEmpty()) previous[row.key] = &row;
+    }
+    for (ResultRow& row : rows) {
+        const auto found = previous.find(row.key);
+        if (found == previous.end()) continue;
+        row.review = found->second->review;
+        row.manual_group = found->second->manual_group;
+    }
     rows_.erase(std::remove_if(rows_.begin(), rows_.end(), [&ran](const ResultRow& row) { return ran.count(row.node_id) > 0; }),
                 rows_.end());
     for (ResultRow& row : rows) rows_.push_back(std::move(row));

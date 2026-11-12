@@ -593,6 +593,21 @@ ResultRow ClashView::rowOf(const clash::RuleOutcome& outcome, const clash::Clash
         }
         if (name.isEmpty()) name = QString("#%1 %2").arg(key.entity_id).arg(guid);
     };
+    const auto element = [&](const clash::ElementKey& key) {
+        ResultElement out;
+        out.global_id = QString::fromStdString(key.global_id);
+        out.step_id = key.entity_id;
+        if (key.file_index < run_models_.size()) out.model_id = s_.session.modelIdForSessionModelId(run_models_[key.file_index]);
+        return out;
+    };
+    if (result.complex) {
+        for (const auto& key : result.sources) row.sources.push_back(element(key));
+        for (const auto& key : result.targets) row.targets.push_back(element(key));
+    } else {
+        row.sources.push_back(element(result.source));
+        if (result.target) row.targets.push_back(element(*result.target));
+    }
+    row.key = resultKey(outcome.node_id, result.complex, group, row.sources, row.targets);
     if (result.complex) {
         row.source_objects = objectsOf(result.sources);
         row.target_objects = objectsOf(result.targets);
