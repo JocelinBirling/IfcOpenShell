@@ -1207,7 +1207,10 @@ void ClashView::nextTopicShot() {
             if (entry.guid == guid) entry.snapshot = png;
         }
         ++topic_job_->next;
-        nextTopicShot();
+        // Not from here: the image arrives during the rendering of the
+        // frame, which clears the capture request once this returns — the
+        // next capture must be asked for after it.
+        QTimer::singleShot(0, this, &ClashView::nextTopicShot);
     });
 }
 
