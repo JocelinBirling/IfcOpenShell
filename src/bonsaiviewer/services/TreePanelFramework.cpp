@@ -42,26 +42,42 @@ constexpr int kAcceptsChildrenRole = Qt::UserRole + 2;
 constexpr int kDraggableRole = Qt::UserRole + 3;
 constexpr int kExpandedRole = Qt::UserRole + 4;
 constexpr int kVisibilityRole = Qt::UserRole + 5;
+constexpr int kExpandHintRole = Qt::UserRole + 6;
+constexpr int kPlaceholderRole = Qt::UserRole + 7;
 
-QTreeWidgetItem* makeItem(const TreeNode& node, QTreeWidgetItem* parent) {
+const QString kEyeOpen = QStringLiteral(":/icons/eye.svg");
+const QString kEyeClosed = QStringLiteral(":/icons/eye-closed.svg");
+
+
+} // namespace
+
+QTreeWidgetItem* TreePanelWidget::makeItem(const TreeNode& node, QTreeWidgetItem* parent) const {
     auto* item = new QTreeWidgetItem(parent);
     item->setText(0, node.label);
     if (!node.icon.isEmpty()) item->setIcon(0, QIcon(node.icon));
+    if (!node.tooltip.isEmpty()) item->setToolTip(0, node.tooltip);
     item->setData(0, kKeyRole, node.key);
     item->setData(0, kFolderRole, node.is_folder);
     item->setData(0, kAcceptsChildrenRole, node.accepts_children);
     item->setData(0, kDraggableRole, node.draggable);
+    item->setData(0, kExpandHintRole, node.expanded);
     item->setFlags((node.draggable ? Qt::ItemIsDragEnabled : Qt::NoItemFlags)
                    | (node.accepts_children ? Qt::ItemIsDropEnabled : Qt::NoItemFlags)
                    | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-    if (node.has_visibility) {
+    if (node.has_visibility && eye_column_) {
+        item->setData(1, kVisibilityRole, node.visibility);
+        item->setIcon(1, QIcon(node.visibility ? kEyeOpen : kEyeClosed));
+    } else if (node.has_visibility) {
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(1, node.visibility ? Qt::Checked : Qt::Unchecked);
     }
+    if (lazy_ && node.is_folder) {
+        auto* placeholder = new QTreeWidgetItem(item);
+        placeholder->setData(0, kPlaceholderRole, true);
+        placeholder->setFlags(Qt::NoItemFlags);
+    }
     return item;
 }
-
-} // namespace
 
 void TreeDataSource::onNodeClicked(const QString&) {}
 void TreeDataSource::onNodeDoubleClicked(const QString&) {}
@@ -82,8 +98,25 @@ TreePanelWidget::TreePanelWidget(QTreeWidget* widget,
         widget_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     }
 
-    QObject::connect(widget_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int) {
-        data_source_->onNodeClicked(item->data(0, kKeyRole).toString());
+    QObject::connect(widget_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item, int column) {
+        const QString key = item->data(0, kKeyRole).toString();
+        const QVariant visible = item->data(1, kVisibilityRole);
+        if (eye_column_ && column == 1 && visible.isValid()) {
+            // The eye: toggle, not select. The data source may refresh().
+            const bool now = !visible.toBool();
+            item->setData(1, kVisibilityRole, now);
+            item->setIcon(1, QIcon(now ? kEyeOpen : kEyeClosed));
+            data_source_->onVisibilityToggled(key, now);
+            return;
+        }
+        data_source_->onNodeClicked(key);
+    });
+    QObject::connect(widget_, &QTreeWidget::itemExpanded, this, [this](QTreeWidgetItem* item) {
+        saved_expanded_[item->data(0, kKeyRole).toString()] = true;
+        if (lazy_) buildLazyChildren(item);
+    });
+    QObject::connect(widget_, &QTreeWidget::itemCollapsed, this, [this](QTreeWidgetItem* item) {
+        saved_expanded_[item->data(0, kKeyRole).toString()] = false;
     });
     QObject::connect(widget_, &QTreeWidget::itemDoubleClicked, this,
                      [this](QTreeWidgetItem* item, int) {
@@ -129,9 +162,11 @@ TreePanelWidget::TreePanelWidget(QTreeWidget* widget,
 
 void TreePanelWidget::refresh() {
     // Remember the expanded folders so a rebuild does not collapse the
-    // tree under the user's cursor.
-    std::unordered_map<QString, bool> expanded;
+    // tree under the user's cursor. In lazy mode the folders never built
+    // keep the state saved before.
+    std::unordered_map<QString, bool> expanded = lazy_ ? saved_expanded_ : std::unordered_map<QString, bool>();
     for (QTreeWidgetItemIterator it(widget_); *it; ++it) {
+        if ((*it)->data(0, kPlaceholderRole).toBool()) continue;
         expanded[(*it)->data(0, kKeyRole).toString()] = (*it)->isExpanded();
     }
     const int top_index = widget_->indexOfTopLevelItem(widget_->currentItem());
@@ -139,23 +174,55 @@ void TreePanelWidget::refresh() {
     widget_->blockSignals(true);
     rebuilding_ = true;
     widget_->clear();
+    QList<QTreeWidgetItem*> top_items;
     for (const TreeNode& node : data_source_->topLevelNodes()) {
         QTreeWidgetItem* item = makeItem(node, nullptr);
         widget_->addTopLevelItem(item);
-        if (node.is_folder) {
+        top_items.append(item);
+        if (node.is_folder && !lazy_) {
             buildChildren(node.key, item);
         }
     }
     rebuilding_ = false;
     widget_->blockSignals(false);
 
-    for (QTreeWidgetItemIterator it(widget_); *it; ++it) {
-        const auto found = expanded.find((*it)->data(0, kKeyRole).toString());
-        if (found != expanded.end()) (*it)->setExpanded(found->second);
+    if (lazy_) {
+        saved_expanded_ = std::move(expanded);
+        applyExpansion(top_items);
+    } else {
+        for (QTreeWidgetItemIterator it(widget_); *it; ++it) {
+            const auto found = expanded.find((*it)->data(0, kKeyRole).toString());
+            if (found != expanded.end()) (*it)->setExpanded(found->second);
+        }
     }
     if (top_index >= 0 && top_index < widget_->topLevelItemCount()) {
         widget_->setCurrentItem(widget_->topLevelItem(top_index));
     }
+}
+
+void TreePanelWidget::applyExpansion(const QList<QTreeWidgetItem*>& items) {
+    for (QTreeWidgetItem* item : items) {
+        if (!item->data(0, kFolderRole).toBool()) continue;
+        const auto found = saved_expanded_.find(item->data(0, kKeyRole).toString());
+        const bool open = found != saved_expanded_.end() ? found->second : item->data(0, kExpandHintRole).toBool();
+        // Expanding builds the children (itemExpanded), which apply theirs.
+        if (open) item->setExpanded(true);
+    }
+}
+
+void TreePanelWidget::buildLazyChildren(QTreeWidgetItem* parent_item) {
+    if (parent_item->childCount() != 1 || !parent_item->child(0)->data(0, kPlaceholderRole).toBool()) return;
+    QList<QTreeWidgetItem*> items;
+    {
+        const QSignalBlocker blocker(widget_);
+        rebuilding_ = true;
+        delete parent_item->takeChild(0);
+        for (const TreeNode& node : data_source_->childrenOf(parent_item->data(0, kKeyRole).toString())) {
+            items.append(makeItem(node, parent_item));
+        }
+        rebuilding_ = false;
+    }
+    applyExpansion(items);
 }
 
 void TreePanelWidget::buildChildren(const QString& parent_key, QTreeWidgetItem* parent_item) {

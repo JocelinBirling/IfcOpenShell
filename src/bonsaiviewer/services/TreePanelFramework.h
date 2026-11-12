@@ -24,6 +24,7 @@
 #include <QObject>
 #include <QString>
 
+#include <unordered_map>
 #include <vector>
 
 class QTreeWidget;
@@ -60,6 +61,9 @@ struct TreeNode {
     // Second column with a toggle checkbox (visibility column).
     bool has_visibility = false;
     bool visibility = true;
+    // Open when first shown (no expanded state remembered for its key).
+    bool expanded = false;
+    QString tooltip;
 };
 
 class TreeDataSource : public QObject {
@@ -100,8 +104,19 @@ public:
 
     void refresh();
 
+    // BonsaiViewer32 options, off by default. Lazy: the children of a folder
+    // are asked for when it is expanded. Eye column: the visibility column
+    // shows an eye icon toggled by a click instead of a checkbox.
+    void setLazyChildren(bool lazy) { lazy_ = lazy; }
+    void setEyeColumn(bool eye) { eye_column_ = eye; }
+
 private:
     void buildChildren(const QString& parent_key, QTreeWidgetItem* parent_item);
+    void buildLazyChildren(QTreeWidgetItem* parent_item);
+    // Lazy mode: open the items the user had open, else the ones the data
+    // source asks to open.
+    void applyExpansion(const QList<QTreeWidgetItem*>& items);
+    QTreeWidgetItem* makeItem(const TreeNode& node, QTreeWidgetItem* parent) const;
     void onContextMenu(const QPoint& global_pos, const QString& key);
 
     QTreeWidget* widget_ = nullptr;
@@ -109,6 +124,10 @@ private:
     // True while refresh() populates the tree, so rowsInserted from the
     // population itself is not mistaken for a drag-and-drop move.
     bool rebuilding_ = false;
+    bool lazy_ = false;
+    bool eye_column_ = false;
+    // Lazy mode: the expanded state per key, kept for the folders not built.
+    std::unordered_map<QString, bool> saved_expanded_;
 };
 
 } // namespace bonsaiviewer::services::tree
