@@ -155,6 +155,7 @@ void ResultPanel::mergeResults(std::vector<ResultRow> rows, const std::set<QStri
         if (found == previous.end()) continue;
         row.review = found->second->review;
         row.manual_group = found->second->manual_group;
+        row.topic_guid = found->second->topic_guid;
     }
     rows_.erase(std::remove_if(rows_.begin(), rows_.end(), [&ran](const ResultRow& row) { return ran.count(row.node_id) > 0; }),
                 rows_.end());
@@ -470,6 +471,16 @@ void ResultPanel::contextMenu(const QPoint& pos) {
     menu.addAction("Valid", this, [this, rows]() { setReview(rows, ReviewStatus::Valid); });
     menu.addAction("Non Determined", this, [this, rows]() { setReview(rows, ReviewStatus::NonDetermined); });
     menu.addAction("Invalid", this, [this, rows]() { setReview(rows, ReviewStatus::Invalid); });
+    menu.addSeparator();
+    QAction* create = menu.addAction(rows.size() > 1 ? "Create a BCF Topic for the Results…" : "Create a BCF Topic…", this,
+                                     [this, rows]() { emit createTopicsRequested(rows, false); });
+    create->setToolTip("One topic for the selected results: their elements, a viewpoint and its image, the description "
+                       "generated from the rule, the elements and the measures.");
+    if (rows.size() > 1) {
+        QAction* each = menu.addAction(QString("Create One BCF Topic per Result (%1)…").arg(rows.size()), this,
+                                       [this, rows]() { emit createTopicsRequested(rows, true); });
+        each->setToolTip("One topic for each selected result.");
+    }
     menu.addSeparator();
     // The user's own groups (triage): one group per result.
     QMenu* add = menu.addMenu("Add to group");

@@ -69,6 +69,7 @@ struct SavedClash {
     // (source_model, target_model, *_objects), filled at the resolution.
     std::vector<ResultRow> results;
     std::vector<std::pair<QString, QString>> messages; // node id (empty: the run), text
+    QString bcf_file; // the BCF file of the topics of the results (empty: not saved yet)
 };
 
 QString reviewName(ReviewStatus status);

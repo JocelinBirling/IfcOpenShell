@@ -21,6 +21,7 @@
 #ifndef IFCINTERFACE_MODULES_RULE_CLASHVIEW_H
 #define IFCINTERFACE_MODULES_RULE_CLASHVIEW_H
 
+#include "ClashTopicDialog.h"
 #include "ResultStore.h"
 #include "Results.h"
 #include "RuleDocument.h"
@@ -28,6 +29,7 @@
 
 #include "../../ElementRegistry.h"
 #include "../../services/clash/ObjectClashIndex.h"
+#include "../../services/BcfViewpoints.h"
 #include "../../services/clash/Orchestrator.h"
 
 #include <QHash>
@@ -46,6 +48,7 @@
 #include <thread>
 #include <vector>
 
+class QProgressDialog;
 class QToolButton;
 class QWidget;
 class ViewportWindow;
@@ -60,6 +63,8 @@ class IdsBridge;
 class SelectionService;
 class UndoStack;
 }
+
+namespace bonsaiviewer::modules::bcf { class BcfView; }
 
 namespace bonsaiviewer::modules::rule {
 
@@ -104,6 +109,8 @@ public:
 
     // Offers to save a modified rule file; false when the user cancels.
     bool confirmDiscard();
+    // The BCF panel the topics made from the results go to.
+    void setBcf(bcf::BcfView* view);
 
 signals:
     // A run finished with results: the shell shows the Clash Filter workspace.
@@ -166,6 +173,31 @@ private:
     std::vector<store::SavedRun> saved_runs_;
     store::SavedRun pending_run_;
     std::optional<store::SavedClash> pending_restore_;
+
+    // BCF topics made from results (right click > Create a BCF Topic): the
+    // topics are built, then each viewpoint is shown and its image taken in
+    // turn; the topics enter the BCF file at the end (Cancel: none).
+    void createTopics(const std::vector<int>& rows, bool per_result);
+    void nextTopicShot();
+    void finishTopics(bool create);
+    // The closest points of a result, in render coordinates.
+    std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> linesOf(const ResultRow& row) const;
+    struct TopicJob {
+        ClashTopicOptions options;
+        std::vector<ports::bcf::Topic> topics;
+        std::vector<std::vector<QString>> keys; // per topic, the keys of its results
+        struct Shot {
+            size_t topic = 0;
+            QString viewpoint;
+            services::BcfViewpoints::Focus focus;
+        };
+        std::vector<Shot> shots;
+        size_t next = 0;
+        ports::bcf::VisualizationInfo start; // the view before, restored at the end
+        QPointer<QProgressDialog> progress;
+    };
+    std::unique_ptr<TopicJob> topic_job_;
+    QPointer<bcf::BcfView> bcf_;
 
     Services s_;
     QWidget* host_ = nullptr;

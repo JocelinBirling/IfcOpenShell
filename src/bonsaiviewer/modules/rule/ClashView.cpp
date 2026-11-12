@@ -20,11 +20,14 @@
 
 #include "ClashView.h"
 
+#include "ClashTopic.h"
 #include "RuleEditDialog.h"
 #include "RulePanels.h"
 #include "RuleTree.h"
 
 #include "../../SessionState.h"
+#include "../bcf/Author.h"
+#include "../bcf/View.h"
 #include "../../components/Buttons.h"
 #include "../../components/FlowLayout.h"
 #include "../../services/ActionPipeline.h"
@@ -57,6 +60,8 @@
 #include <QJsonDocument>
 #include <QMenu>
 #include <QMessageBox>
+#include <QProgressDialog>
+#include <QTimer>
 #include <QSaveFile>
 #include <QSettings>
 #include <QToolButton>
@@ -234,6 +239,7 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
     connect(&s_.session, &SessionState::modelGeometryReady, this, [this](std::uint32_t) { tryRestore(); });
     if (auto* loader = s_.session.loader()) connect(loader, &SceneLoader::allLoadsFinished, this, &ClashView::tryRestore);
     connect(results_, &ResultPanel::reviewChanged, this, &ClashView::markProjectDirty);
+    connect(results_, &ResultPanel::createTopicsRequested, this, &ClashView::createTopics);
     connect(&document_, &RuleDocument::changed, this, [this]() {
         if (document_.isModified()) markProjectDirty();
     });
@@ -722,6 +728,10 @@ void ClashView::saveToFederation() {
     for (const auto& [node, saved] : saved_nodes_) clash.nodes.push_back(saved);
     clash.results = results_->rows();
     clash.messages = results_->messages();
+    if (bcf_ && !bcf_->filePath().isEmpty()) {
+        const QString fed = federation->filePath();
+        clash.bcf_file = fed.isEmpty() ? bcf_->filePath() : QFileInfo(fed).dir().relativeFilePath(bcf_->filePath());
+    }
     federation->setExtension(store::kExtensionKey, store::toJson(clash));
 }
 
@@ -876,6 +886,223 @@ void ClashView::tryRestore() {
     if (!results_->rows().empty()) {
         s_.session.setStatusMessage("Clash", QString("%1 result(s) restored from the project").arg(results_->rows().size()));
     }
+}
+
+// --- BCF topics -------------------------------------------------------------------------------
+
+void ClashView::setBcf(bcf::BcfView* view) {
+    bcf_ = view;
+}
+
+std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> ClashView::linesOf(const ResultRow& row) const {
+    std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> lines;
+    if (!row.record) return lines;
+    Eigen::Matrix4d m = Eigen::Matrix4d::Identity();
+    s_.viewport.modelToWorld(row.source_model, m);
+    const auto render = [&m](const ifcclash::Point3& p) {
+        return Eigen::Vector3d((m * Eigen::Vector4d(p[0], p[1], p[2], 1.0)).head<3>());
+    };
+    for (const auto& pair : row.record->points) lines.emplace_back(render(pair.source), render(pair.target));
+    return lines;
+}
+
+void ClashView::createTopics(const std::vector<int>& indices, bool per_result) {
+    if (busy_ || topic_job_) {
+        s_.session.setStatusMessage("Clash", "Wait until the current work finishes");
+        return;
+    }
+    if (!bcf_) {
+        services::popup::information(host_, "The BCF panel is not available.");
+        return;
+    }
+    std::vector<const ResultRow*> rows;
+    for (int index : indices) {
+        if (index >= 0 && index < static_cast<int>(results_->rows().size())) rows.push_back(&results_->rows()[static_cast<size_t>(index)]);
+    }
+    if (rows.empty()) return;
+    // A result belongs to one topic at most: it moves to the new one.
+    const int linked = static_cast<int>(std::count_if(rows.begin(), rows.end(), [this](const ResultRow* row) {
+        return !row->topic_guid.isEmpty() && bcf_->topic(row->topic_guid) && !bcf_->isDeleted(row->topic_guid);
+    }));
+    if (linked > 0 && !services::popup::confirmation(host_, QString("%1 of the selected results already belong to a topic. "
+                                                                     "Move them to the new topic(s)?").arg(linked))) {
+        return;
+    }
+    const QString author = bcf_->ensureAuthor();
+    if (author.isEmpty()) return;
+    const ports::bcf::Extensions extensions = bcf_->file() ? bcf_->file()->extensions : ports::bcf::Extensions{};
+    const QString name = !bcf_->filePath().isEmpty() ? QFileInfo(bcf_->filePath()).fileName()
+                         : bcf_->file()            ? QStringLiteral("the BCF file (not saved yet)")
+                                                   : QStringLiteral("a new BCF file");
+    ClashTopicDialog dialog(rows, per_result, extensions, bcf::criticityPriorities(), !context_.empty(), name, host_);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const ClashTopicOptions options = dialog.options();
+    if (options.per_result && options.snapshot && rows.size() > 100 &&
+        !services::popup::confirmation(host_, QString("%1 topics, each with its image: it takes a while. Continue?").arg(rows.size()))) {
+        return;
+    }
+
+    auto job = std::make_unique<TopicJob>();
+    job->options = options;
+    job->start = bcf_->viewpoints().capture();
+    std::vector<std::vector<const ResultRow*>> groups;
+    if (options.per_result) {
+        for (const ResultRow* row : rows) groups.push_back({row});
+    } else {
+        groups.push_back(rows);
+    }
+    std::vector<topic::ModelFile> models;
+    for (std::uint32_t id : s_.session.sessionModelIds()) {
+        models.push_back({s_.session.modelIdForSessionModelId(id), s_.session.loader() ? s_.session.loader()->filePath(id) : QString(), QString()});
+    }
+    const topic::PriorityTable priorities = bcf::criticityPriorities();
+    const QString now = ports::bcf::now();
+    const auto focusOf = [this, &options](const std::vector<const ResultRow*>& of) {
+        services::BcfViewpoints::Focus focus;
+        for (const ResultRow* row : of) {
+            focus.sources.insert(focus.sources.end(), row->source_objects.begin(), row->source_objects.end());
+            focus.targets.insert(focus.targets.end(), row->target_objects.begin(), row->target_objects.end());
+            if (options.lines) {
+                const auto lines = linesOf(*row);
+                focus.lines.insert(focus.lines.end(), lines.begin(), lines.end());
+            }
+        }
+        if (options.context) focus.context = context_;
+        return focus;
+    };
+    for (const auto& group : groups) {
+        ports::bcf::Topic t;
+        t.guid = ports::bcf::newGuid();
+        t.title = topic::title(options.title, group);
+        t.topic_type = options.type;
+        t.topic_status = options.status;
+        t.priority = options.priority.isEmpty() ? topic::priority(group, priorities) : options.priority;
+        if (options.per_result) {
+            t.labels = topic::labels(group);
+            for (const QString& label : options.labels) {
+                if (!t.labels.contains(label)) t.labels << label;
+            }
+        } else {
+            t.labels = options.labels.isEmpty() ? topic::labels(group) : options.labels;
+        }
+        t.assigned_to = options.assigned_to;
+        t.stage = options.stage;
+        if (!options.due_date.isEmpty()) t.due_date = options.due_date + "T00:00:00Z";
+        t.creation_date = now;
+        t.creation_author = author;
+        t.description = options.description.isEmpty() ? topic::description(group) : options.description;
+        t.header_files = topic::headerFiles(group, models);
+        const size_t index = job->topics.size();
+        // The main viewpoint: every result of the topic.
+        ports::bcf::Viewpoint main;
+        main.guid = ports::bcf::newGuid();
+        main.index = 0;
+        t.viewpoints.push_back(main);
+        job->shots.push_back({index, main.guid, focusOf(group)});
+        if (!options.comment.isEmpty()) {
+            t.comments.push_back({ports::bcf::newGuid(), now, author, options.comment, main.guid, QString(), QString()});
+        }
+        // Several results: a comment per result, with its own viewpoint.
+        if (group.size() > 1) {
+            int number = 1;
+            for (const ResultRow* row : group) {
+                ports::bcf::Viewpoint own;
+                own.guid = ports::bcf::newGuid();
+                own.index = number;
+                t.viewpoints.push_back(own);
+                job->shots.push_back({index, own.guid, focusOf({row})});
+                const QString text = QString("Result %1: %2 / %3%4")
+                                         .arg(number)
+                                         .arg(row->source_name, row->target_name.isEmpty() ? QStringLiteral("—") : row->target_name,
+                                              row->measure.isEmpty() ? QString() : " — " + row->measure);
+                t.comments.push_back({ports::bcf::newGuid(), now, author, text, own.guid, QString(), QString()});
+                ++number;
+            }
+        }
+        std::vector<QString> keys;
+        for (const ResultRow* row : group) keys.push_back(row->key);
+        job->keys.push_back(std::move(keys));
+        job->topics.push_back(std::move(t));
+    }
+    auto* progress = new QProgressDialog("Taking the viewpoints of the topics…", "Cancel", 0,
+                                         static_cast<int>(job->shots.size()), host_);
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(500);
+    progress->setAttribute(Qt::WA_DeleteOnClose);
+    job->progress = progress;
+    topic_job_ = std::move(job);
+    nextTopicShot();
+}
+
+void ClashView::nextTopicShot() {
+    if (!topic_job_) return;
+    TopicJob& job = *topic_job_;
+    if (job.progress && job.progress->wasCanceled()) {
+        finishTopics(false);
+        return;
+    }
+    if (job.next >= job.shots.size()) {
+        finishTopics(true);
+        return;
+    }
+    if (job.progress) job.progress->setValue(static_cast<int>(job.next));
+    const TopicJob::Shot& shot = job.shots[job.next];
+    ports::bcf::VisualizationInfo info = bcf_ ? bcf_->viewpoints().focus(shot.focus) : ports::bcf::VisualizationInfo{};
+    ports::bcf::Viewpoint* viewpoint = nullptr;
+    for (auto& entry : job.topics[shot.topic].viewpoints) {
+        if (entry.guid == shot.viewpoint) viewpoint = &entry;
+    }
+    info.guid = shot.viewpoint;
+    viewpoint->info = std::move(info);
+    if (!job.options.snapshot || !bcf_) {
+        ++job.next;
+        QTimer::singleShot(0, this, &ClashView::nextTopicShot);
+        return;
+    }
+    const size_t topic_index = shot.topic;
+    const QString guid = shot.viewpoint;
+    bcf_->viewpoints().captureSnapshot([this, topic_index, guid](const QByteArray& png) {
+        if (!topic_job_) return;
+        for (auto& entry : topic_job_->topics[topic_index].viewpoints) {
+            if (entry.guid == guid) entry.snapshot = png;
+        }
+        ++topic_job_->next;
+        nextTopicShot();
+    });
+}
+
+void ClashView::finishTopics(bool create) {
+    std::unique_ptr<TopicJob> job = std::move(topic_job_);
+    if (!job) return;
+    if (job->progress) job->progress->close();
+    if (bcf_) {
+        services::BcfViewpoints::Parts parts;
+        parts.colours = false;
+        parts.clipping = false;
+        bcf_->viewpoints().apply(job->start, parts);
+    }
+    if (!create || !bcf_) {
+        s_.session.setStatusMessage("Clash", "No topic created");
+        return;
+    }
+    std::map<QString, QString> topic_of; // result key -> topic guid
+    QString last;
+    for (size_t i = 0; i < job->topics.size(); ++i) {
+        last = bcf_->addTopic(std::move(job->topics[i]));
+        for (const QString& key : job->keys[i]) topic_of[key] = last;
+    }
+    std::vector<int> linked;
+    results_->updateRows([&topic_of](ResultRow& row) {
+        const auto found = topic_of.find(row.key);
+        if (found != topic_of.end()) row.topic_guid = found->second;
+    });
+    for (int i = 0; i < static_cast<int>(results_->rows().size()); ++i) {
+        if (topic_of.count(results_->rows()[static_cast<size_t>(i)].key)) linked.push_back(i);
+    }
+    if (job->options.mark_valid) results_->setReviewOf(linked, ReviewStatus::Valid);
+    markProjectDirty();
+    s_.session.setStatusMessage("Clash", QString("%1 BCF topic(s) created for %2 result(s)").arg(job->topics.size()).arg(linked.size()));
+    if (job->topics.size() == 1) bcf_->openTopic(last);
 }
 
 void ClashView::showSelection(const clash::Select& select, const QString& title) {

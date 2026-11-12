@@ -75,7 +75,9 @@ store::SavedClash sample() {
     record->measures.set(ifcclash::Measure::Volume, 0.003);
     record->points.push_back({{0, 0, 0}, {1, 1, 1}, std::nullopt});
     row.record = record;
+    row.topic_guid = "5e0d4c2a-1b3c-4d5e-8f90-123456789abc";
     clash.results.push_back(row);
+    clash.bcf_file = "issues.bcf";
     clash.messages.emplace_back("r1", "Duct vs Wall: 1 element without geometry");
     return clash;
 }
@@ -109,6 +111,8 @@ int main() {
           "the record of a result: its measures and points");
     check(row.source_objects.empty() && row.source_model == 0, "the viewer ids are not saved");
     check(read.messages.size() == 1 && read.messages[0].first == "r1", "the warnings of the run");
+    check(row.topic_guid == "5e0d4c2a-1b3c-4d5e-8f90-123456789abc" && read.bcf_file == "issues.bcf",
+          "the topic of a result and the BCF file");
 
     // A broken record: the result is kept, without its details, with a warning.
     QJsonObject broken = json;

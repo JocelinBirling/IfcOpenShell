@@ -82,6 +82,7 @@ struct ResultRow {
     // group and the topic follow it from one run to the next.
     std::vector<ResultElement> sources, targets;
     QString key;
+    QString topic_guid; // the BCF topic the result belongs to (empty: none)
 
     std::vector<std::uint32_t> objects() const;
 };
@@ -148,6 +149,8 @@ signals:
     void currentResultChanged(int row);
     void rowsSelected(const std::vector<int>& rows);
     void isolateRequested(const std::vector<int>& rows);
+    // Right click > Create a BCF Topic (one for all, or one per result).
+    void createTopicsRequested(const std::vector<int>& rows, bool per_result);
     void showRequested(const std::vector<int>& rows);
     void reviewChanged();
 

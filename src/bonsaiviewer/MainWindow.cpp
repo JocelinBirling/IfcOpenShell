@@ -1314,7 +1314,7 @@ void MainWindow::setupLoader() {
     auto* bcf_viewpoints = new bonsaiviewer::services::BcfViewpoints(
         *session_state_, *viewport_widget_->viewport(), *selection_service_, *active_view_, *appearance_service_,
         *category_filter_, this);
-    new modules::bcf::BcfView(static_cast<modules::bcf::BcfPanel*>(issues_panel_), *bcf_viewpoints, this);
+    auto* bcf_view = new modules::bcf::BcfView(static_cast<modules::bcf::BcfPanel*>(issues_panel_), *bcf_viewpoints, this);
     // BonsaiViewer06 Activate: the colours of the activated filters, forced,
     // applied by a runner of their own so they never touch the view.
     auto* forced_runner = new bonsaiviewer::services::FilterRunner(
@@ -1388,6 +1388,7 @@ void MainWindow::setupLoader() {
                                            *action_pipeline_, *active_view_, *appearance_service_, *undo_stack_,
                                            *ids_bridge_, *clash_index_},
         this, this);
+    clash_view_->setBcf(bcf_view);
     rule_dock_->addBodyWidget(clash_view_->rulePanel());
     rule_library_dock_->addBodyWidget(clash_view_->libraryPanel());
     rule_config_dock_->addBodyWidget(clash_view_->configPanel());

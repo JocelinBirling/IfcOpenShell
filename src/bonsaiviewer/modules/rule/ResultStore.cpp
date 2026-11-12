@@ -91,6 +91,7 @@ QJsonObject rowToJson(const ResultRow& row) {
     json["sources"] = elementsToJson(row.sources);
     if (!row.targets.empty()) json["targets"] = elementsToJson(row.targets);
     if (row.record) json["record"] = toQt(ifcclash::to_json(*row.record));
+    if (!row.topic_guid.isEmpty()) json["topic_guid"] = row.topic_guid;
     return json;
 }
 
@@ -114,6 +115,7 @@ ResultRow rowFromJson(const QJsonObject& json, QStringList* warnings) {
                  row.target_model_name, row.target_ifc_id);
     row.sources = elementsFromJson(json.value("sources"));
     row.targets = elementsFromJson(json.value("targets"));
+    row.topic_guid = json.value("topic_guid").toString();
     if (json.value("record").isObject()) {
         try {
             row.record = std::make_shared<const ifcclash::ResultRecord>(
@@ -176,6 +178,7 @@ QJsonObject toJson(const SavedClash& clash) {
     QJsonArray messages;
     for (const auto& [node, text] : clash.messages) messages.append(QJsonObject{{"node_id", node}, {"text", text}});
     if (!messages.isEmpty()) json["messages"] = messages;
+    if (!clash.bcf_file.isEmpty()) json["bcf_file"] = clash.bcf_file;
     return json;
 }
 
@@ -224,6 +227,7 @@ SavedClash fromJson(const QJsonObject& json, QStringList* warnings) {
         const QJsonObject entry = value.toObject();
         clash.messages.emplace_back(entry.value("node_id").toString(), entry.value("text").toString());
     }
+    clash.bcf_file = json.value("bcf_file").toString();
     return clash;
 }
 
