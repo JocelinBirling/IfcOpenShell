@@ -232,6 +232,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/SlotClipboard.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultKey.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultKey.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/Results.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ClashView.cpp
@@ -397,6 +399,14 @@ add_executable(bonsaiviewer_result_key_tests EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_result_key_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bonsaiviewer_result_key_tests PRIVATE Qt${QT_VERSION}::Core)
 add_test(NAME bonsaiviewer_result_key_tests COMMAND bonsaiviewer_result_key_tests)
+# The clash section of a federation (Qt Core; Widgets for the headers only).
+add_executable(bonsaiviewer_result_store_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultKey.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/rule/ResultStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_result_store.cpp)
+target_include_directories(bonsaiviewer_result_store_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_result_store_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core Qt${QT_VERSION}::Widgets)
+add_test(NAME bonsaiviewer_result_store_tests COMMAND bonsaiviewer_result_store_tests)
 
 ifcopenshell_deploy_qt_runtime(BonsaiViewer)
 ifcopenshell_stage_app_bundle_dylibs(BonsaiViewer)
