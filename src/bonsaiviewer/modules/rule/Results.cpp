@@ -50,8 +50,8 @@ namespace {
 constexpr int kRowRole = Qt::UserRole + 10;
 constexpr int kGroupRole = Qt::UserRole + 11;
 
-// The source, the target and the short number; every other detail is in Result Info.
-enum Column { kSource, kTarget, kId, kColumns };
+// The short number, the source and the target; every other detail is in Result Info.
+enum Column { kId, kSource, kTarget, kColumns };
 constexpr int kGroupNameRole = Qt::UserRole + 12; // a group node: its name
 
 const QString kNone = QStringLiteral("(none)");
@@ -113,7 +113,7 @@ ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {
     layout->addWidget(scope_label_);
     tree_ = new QTreeWidget(this);
     tree_->setColumnCount(kColumns);
-    tree_->setHeaderLabels({"Source", "Target", "ID"});
+    tree_->setHeaderLabels({"ID", "Source", "Target"});
     tree_->headerItem()->setToolTip(kId, "The short number of the result, kept from one run to the next.");
     tree_->headerItem()->setToolTip(kSource, "The rule, the measure, the review, the criticity, the actor… of the "
                                              "selected result: in Result Info.");
@@ -443,12 +443,13 @@ void ResultPanel::rebuild() {
     }
     for (const QString& key : order) {
         auto* group = new QTreeWidgetItem(tree_);
-        group->setText(kSource, QString("%1 (%2)").arg(key).arg(groups[key].size()));
+        // Column 0, spanned over the row.
+        group->setText(kId, QString("%1 (%2)").arg(key).arg(groups[key].size()));
         group->setData(0, kGroupRole, 1);
         group->setData(0, kGroupNameRole, key);
-        QFont bold = group->font(kSource);
+        QFont bold = group->font(kId);
         bold.setBold(true);
-        group->setFont(kSource, bold);
+        group->setFont(kId, bold);
         group->setFirstColumnSpanned(true);
         for (int i : groups[key]) appendRow(group, i);
         group->setExpanded(true);
