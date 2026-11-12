@@ -220,6 +220,12 @@ Json to_json(const ElementKey& key);
 // The ResultInfo.to_dict() shape of one record (measure, points).
 Json info_to_json(const ResultRecord& record);
 Json to_json(const ResultRecord& record);
+// The reverse of info_to_json / to_json(ResultRecord): a record saved by the
+// viewer (a federation) read back. Unknown keys are ignored; a malformed
+// block raises ConfigError.
+void info_from_json(const Json& info, InfoBlocks& blocks);
+ElementKey element_key_from_json(const Json& key);
+ResultRecord record_from_json(const Json& record);
 Json to_json(const PhaseStats& stats);
 Json to_json(const Diagnostics& diagnostics);
 // Everything but the display payload (bindings expose it as numpy arrays).

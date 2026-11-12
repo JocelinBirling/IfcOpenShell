@@ -64,3 +64,7 @@ add_executable(ifcclash_engine_tests EXCLUDE_FROM_ALL
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_obb_modifications.cpp)
 target_link_libraries(ifcclash_engine_tests PRIVATE ifcclash_engine)
 add_test(NAME ifcclash_engine_tests COMMAND ifcclash_engine_tests)
+add_executable(ifcclash_result_json_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_result_json.cpp)
+target_link_libraries(ifcclash_result_json_tests PRIVATE ifcclash_engine)
+add_test(NAME ifcclash_result_json_tests COMMAND ifcclash_result_json_tests)
