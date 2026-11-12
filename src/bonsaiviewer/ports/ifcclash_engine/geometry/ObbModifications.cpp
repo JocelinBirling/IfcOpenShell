@@ -115,4 +115,20 @@ std::vector<Bnd_OBB> obb_zones(const Bnd_OBB& base, const std::vector<ObbStep>& 
     return out;
 }
 
+std::string obb_modifications_doc() {
+    return "The detection zones around the source, one step per line, applied in order to the zone; the zone "
+           "starts as the OBB of the source.\n"
+           "expand_sides:v - the two horizontal widths are set to the height of the zone + v (as IfcClash_Plus)\n"
+           "expand_sides:p% - the two horizontal widths grow by p/2 % (50% gives +25%)\n"
+           "detach_top_by_extrude:v - the zone becomes a slab of height v on its top (p%: of its height)\n"
+           "detach_bottom_by_extrude:v - the same, below it\n"
+           "extend_up:v - the zone grows upward by v (p%: of its height)\n"
+           "extend_down:v - the zone grows downward by v (p%: of its height)\n"
+           "NEW_OBB - closes the zone; the next steps build a new zone from the OBB of the source (never first, "
+           "last or twice in a row)\n"
+           "Values in metres with a decimal point (0.5), or a percentage (50%); a negative value shrinks the zone.\n"
+           "Empty: one zone, the OBB of the source.\n"
+           "Example: extend_up:0.5 / NEW_OBB / detach_bottom_by_extrude:20%";
+}
+
 }  // namespace ifcclash::geometry

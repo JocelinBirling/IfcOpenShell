@@ -56,7 +56,8 @@ void clearForm(QFormLayout* form) {
 
 QString tooltipOf(const clash::ParamSpec& p) {
     QString tip = QString("<b>%1</b>").arg(p.name);
-    if (!p.doc.isEmpty()) tip += "<br>" + p.doc.toHtmlEscaped();
+    // The doc is plain text: its line breaks are kept.
+    if (!p.doc.isEmpty()) tip += "<br>" + p.doc.toHtmlEscaped().replace('\n', QStringLiteral("<br>"));
     if (!p.unit.isEmpty()) tip += QString("<br>Unit: %1").arg(p.unit);
     if (p.nullable) tip += "<br>Empty: no value.";
     return tip;

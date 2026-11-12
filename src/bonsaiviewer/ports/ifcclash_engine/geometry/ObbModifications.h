@@ -45,4 +45,9 @@ std::vector<ObbStep> parse_obb_modifications(const std::vector<std::string>& lin
 // from the source OBB again.
 std::vector<Bnd_OBB> obb_zones(const Bnd_OBB& base, const std::vector<ObbStep>& steps);
 
+// The documentation of list_of_modifications (the catalogue doc of the
+// parameter, shown as its tooltip), shared by OBB_Custom and
+// OBB_Custom_triang; one line per '\n'.
+std::string obb_modifications_doc();
+
 }  // namespace ifcclash::geometry

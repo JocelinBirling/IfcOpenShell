@@ -187,7 +187,8 @@ void RuleConfigPanel::showLibraryRule(const QString& type) {
     layout->addWidget(doc);
     QStringList params;
     for (const clash::ParamSpec& p : spec->params) {
-        params << QString("<b>%1</b>%2: %3").arg(p.name, p.unit.isEmpty() ? QString() : " (" + p.unit + ")", p.doc.toHtmlEscaped());
+        params << QString("<b>%1</b>%2: %3").arg(p.name, p.unit.isEmpty() ? QString() : " (" + p.unit + ")",
+                                p.doc.toHtmlEscaped().replace('\n', QStringLiteral("<br>")));
     }
     auto* list = new QLabel(params.join("<br>"), content_);
     list->setWordWrap(true);

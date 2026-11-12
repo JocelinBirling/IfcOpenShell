@@ -166,12 +166,20 @@ void test_zones() {
     }
 }
 
+void test_doc() {
+    const std::string doc = obb_modifications_doc();
+    for (const auto& name : obb_op_names()) check(contains(doc, name), "the doc explains " + name);
+    check(contains(doc, "decimal point") && contains(doc, "negative") && contains(doc, "Empty"),
+          "the doc gives the values, the negative values and the empty list");
+}
+
 }  // namespace
 
 int main() {
     test_parse();
     test_structure();
     test_zones();
+    test_doc();
     std::cout << checks - failures << " / " << checks << " checks passed\n";
     return failures == 0 ? 0 : 1;
 }

@@ -475,7 +475,7 @@ RuleSpec spec_obb_custom_triang() {
         "OBB_Custom_triang", "OBB Custom (triangles)", {Slot::Source, Slot::Target},
         "OBB_Custom on the triangles: a target triangle meets a custom detection zone around the source.",
         {param(&CustomParams::list_of_modifications, "list_of_modifications")
-             .doc("Zone modifications, one per line (ex. 'detach_top_by_extrude:0.5', 'NEW_OBB')"),
+             .doc(geometry::obb_modifications_doc()),
          param(&CustomParams::contact_tolerance, "contact_tolerance")
              .doc("Distance under which a target touches a zone")
              .unit(Unit::Metre)});
