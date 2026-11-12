@@ -53,6 +53,9 @@ public:
     // Adds a topic to the file (ensureFile first); returns its guid.
     QString addTopic(ports::bcf::Topic topic);
 
+    // Before the viewer closes: offers to save an unsaved BCF file (Save /
+    // Discard / Cancel); false when the user cancels, or cancels the save.
+    bool confirmClose();
     // The author of new topics and comments (Settings > BCF), asked once if unset.
     QString ensureAuthor();
     // A topic changed (title, comments...): the list follows, the file is unsaved.

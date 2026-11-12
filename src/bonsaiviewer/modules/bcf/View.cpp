@@ -28,6 +28,7 @@
 #include <QInputDialog>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QTreeWidget>
 
@@ -121,6 +122,17 @@ QString BcfView::ensureAuthor() {
 
 bool BcfView::confirmDiscard() {
     return !dirty_ || services::popup::confirmation(panel_, "The BCF file has unsaved changes. Discard them?");
+}
+
+bool BcfView::confirmClose() {
+    if (!bcf_ || !dirty_) return true;
+    const QString name = path_.isEmpty() ? QStringLiteral("The new BCF file") : QFileInfo(path_).fileName();
+    const auto answer = QMessageBox::question(panel_, "BCF", QString("%1 has unsaved changes. Save it?").arg(name),
+                                              QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+    if (answer == QMessageBox::Cancel) return false;
+    if (answer == QMessageBox::Discard) return true;
+    save();
+    return !dirty_; // the save dialog cancelled: the viewer stays open
 }
 
 void BcfView::load() {

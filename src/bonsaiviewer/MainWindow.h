@@ -50,6 +50,7 @@ namespace bonsaiviewer::modules::ids { class IdsPanelView; }
 namespace bonsaiviewer::modules::diff { class DiffPanelView; }
 namespace bonsaiviewer::services::ifcdiff { class DiffMarks; }
 namespace bonsaiviewer::modules::rule { class ClashView; }
+namespace bonsaiviewer::modules::bcf { class BcfView; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerPanel; }
 namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
@@ -221,6 +222,7 @@ private:
     // Clash Filter workspace by default, movable / floatable).
     components::Panel* clash_filter_tools_dock_ = nullptr;
     bonsaiviewer::modules::rule::ClashView* clash_view_ = nullptr;
+    bonsaiviewer::modules::bcf::BcfView* bcf_view_ = nullptr;
     QDockWidget* issues_panel_ = nullptr;
     bonsaiviewer::modules::models::ModelsPanelView* models_view_ = nullptr;
     bonsaiviewer::modules::spatial_hierarchy::SpatialHierarchyPanelView* spatial_view_ = nullptr;
