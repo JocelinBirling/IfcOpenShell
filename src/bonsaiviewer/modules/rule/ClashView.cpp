@@ -983,6 +983,50 @@ void ClashView::addToTopic(const std::vector<int>& indices, const QString& chose
     for (const QString& label : topic::labels(rows)) {
         if (!target->labels.contains(label)) target->labels << label;
     }
+    // The main viewpoint shows the added elements too: visible, selected,
+    // sources in red and targets in orange (its camera and image unchanged).
+    const ports::bcf::Viewpoint* main = bcf_->mainViewpoint(*target);
+    for (auto& viewpoint : target->viewpoints) {
+        if (!main || viewpoint.guid != main->guid || !viewpoint.info) continue;
+        ports::bcf::VisualizationInfo& info = *viewpoint.info;
+        std::vector<std::uint32_t> sources, targets;
+        for (const ResultRow* row : rows) {
+            sources.insert(sources.end(), row->source_objects.begin(), row->source_objects.end());
+            targets.insert(targets.end(), row->target_objects.begin(), row->target_objects.end());
+        }
+        const auto has = [](const std::vector<ports::bcf::Component>& list, const QString& guid) {
+            return std::any_of(list.begin(), list.end(), [&guid](const ports::bcf::Component& c) { return c.ifc_guid == guid; });
+        };
+        const auto add = [&has](std::vector<ports::bcf::Component>& list, const std::vector<ports::bcf::Component>& more) {
+            for (const auto& component : more) {
+                if (!has(list, component.ifc_guid)) list.push_back(component);
+            }
+        };
+        std::vector<ports::bcf::Component> added = bcf_->viewpoints().components(sources);
+        const std::vector<ports::bcf::Component> added_targets = bcf_->viewpoints().components(targets);
+        add(added, added_targets);
+        if (info.default_visibility) {
+            // Everything visible but the exceptions: the added elements leave them.
+            info.exceptions.erase(std::remove_if(info.exceptions.begin(), info.exceptions.end(),
+                                                 [&](const ports::bcf::Component& c) { return has(added, c.ifc_guid); }),
+                                  info.exceptions.end());
+        } else {
+            add(info.exceptions, added);
+        }
+        add(info.selection, added);
+        const auto colour = [&](const QString& hex, const std::vector<ports::bcf::Component>& components) {
+            if (components.empty()) return;
+            auto found = std::find_if(info.coloring.begin(), info.coloring.end(),
+                                      [&hex](const ports::bcf::Coloring& c) { return c.color.compare(hex, Qt::CaseInsensitive) == 0; });
+            if (found == info.coloring.end()) {
+                info.coloring.push_back({hex, {}});
+                found = std::prev(info.coloring.end());
+            }
+            add(found->components, components);
+        };
+        colour(QStringLiteral("FFE6194B"), bcf_->viewpoints().components(sources));
+        colour(QStringLiteral("FFF58231"), added_targets);
+    }
     target->modified_date = ports::bcf::now();
     target->modified_author = author;
     bcf_->topicChanged(guid);
