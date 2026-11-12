@@ -280,6 +280,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/services/StepTextService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/TreePanelFramework.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/TreePanelFramework.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/TreeIndex.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/TreeIndex.h
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PropertyCatalog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/services/PropertyCatalog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/table/ColumnDialog.cpp
@@ -422,6 +424,14 @@ add_executable(bonsaiviewer_clash_topic_tests EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_clash_topic_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bonsaiviewer_clash_topic_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core Qt${QT_VERSION}::Widgets)
 add_test(NAME bonsaiviewer_clash_topic_tests COMMAND bonsaiviewer_clash_topic_tests)
+
+# BonsaiViewer32: the node table of the Tree Explorer (Qt Core only; not built by default).
+add_executable(bonsaiviewer_tree_index_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/TreeIndex.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_tree_index.cpp)
+target_include_directories(bonsaiviewer_tree_index_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_tree_index_tests PRIVATE Qt${QT_VERSION}::Core)
+add_test(NAME bonsaiviewer_tree_index_tests COMMAND bonsaiviewer_tree_index_tests)
 
 ifcopenshell_deploy_qt_runtime(BonsaiViewer)
 ifcopenshell_stage_app_bundle_dylibs(BonsaiViewer)
