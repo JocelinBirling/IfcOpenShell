@@ -44,6 +44,7 @@ namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanel
 namespace bonsaiviewer::modules::spatial_hierarchy { class SpatialHierarchyPanelView; }
 namespace bonsaiviewer::modules::unified_tree { class UnifiedTreePanel; }
 namespace bonsaiviewer::modules::unified_tree { class UnifiedTreeView; }
+namespace bonsaiviewer::modules::tree_explorer { class TreeExplorerPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanel; }
 namespace bonsaiviewer::modules::properties { class PropertiesPanelView; }
 namespace bonsaiviewer::modules::ids { class IdsPanelView; }
@@ -124,6 +125,10 @@ private:
     // TI05: fill the generic top panel (search bar neighbours: display,
     // box, zoom, colour groups).
     void populateGenericTopPanel(components::GenericTopPanel* panel);
+    // BonsaiViewer32: the view of a Trees panel; addTreePanel opens one more
+    // (Window > New Tree Panel), tabbed with the first one.
+    void attachTreeExplorer(bonsaiviewer::modules::tree_explorer::TreeExplorerPanel* panel);
+    void addTreePanel();
     // TI02: viewport-level interactions the shell owns — the Perpendicular
     // View right click and the section gizmo right-click delete menu.
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -211,6 +216,8 @@ private:
     // BonsaiViewer13: the Unified Tree (interpreted), tabbed with the Spatial Hierarchy.
     bonsaiviewer::modules::unified_tree::UnifiedTreePanel* unified_tree_panel_ = nullptr;
     bonsaiviewer::modules::unified_tree::UnifiedTreeView* unified_tree_view_ = nullptr;
+    // BonsaiViewer32: the Trees panels (Tree Explorer); the first is created at start-up.
+    QList<bonsaiviewer::modules::tree_explorer::TreeExplorerPanel*> tree_panels_;
     QDockWidget* audit_panel_ = nullptr;
     // BonsaiViewer09 (TI09): the GeometryRule and Clash Filter workspaces.
     components::Panel* rule_dock_ = nullptr;

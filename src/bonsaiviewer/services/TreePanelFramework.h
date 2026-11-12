@@ -109,6 +109,12 @@ public:
     // shows an eye icon toggled by a click instead of a checkbox.
     void setLazyChildren(bool lazy) { lazy_ = lazy; }
     void setEyeColumn(bool eye) { eye_column_ = eye; }
+    // The next refresh opens the folders the data source asks to open,
+    // whatever the user had open (a new search).
+    void forgetExpandedState() {
+        saved_expanded_.clear();
+        forget_expanded_ = true;
+    }
 
 private:
     void buildChildren(const QString& parent_key, QTreeWidgetItem* parent_item);
@@ -126,6 +132,7 @@ private:
     bool rebuilding_ = false;
     bool lazy_ = false;
     bool eye_column_ = false;
+    bool forget_expanded_ = false;
     // Lazy mode: the expanded state per key, kept for the folders not built.
     std::unordered_map<QString, bool> saved_expanded_;
 };

@@ -313,6 +313,14 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/IndexedSource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/IndexedSource.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/Sources.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/Sources.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/Editor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/Editor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ids/IdsDocument.cpp

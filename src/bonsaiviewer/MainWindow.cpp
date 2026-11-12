@@ -89,6 +89,8 @@
 #include "modules/class_tree/ClassTreeDataSource.h"
 #include "modules/unified_tree/Panel.h"
 #include "modules/unified_tree/View.h"
+#include "modules/tree_explorer/Panel.h"
+#include "modules/tree_explorer/View.h"
 #include <QTreeWidget>
 #include "services/IdsBridge.h"
 #include "services/IdsPropertyChecks.h"
@@ -993,10 +995,11 @@ void MainWindow::applyWorkspaceDefaults(int index) {
     addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
     tabifyDockWidget(models_panel_, spatial_panel_);
     tabifyDockWidget(spatial_panel_, unified_tree_panel_);
+    tabifyDockWidget(spatial_panel_, tree_panels_.front());
     addDockWidget(Qt::RightDockWidgetArea, properties_panel_);
 
     QStringList visible{QStringLiteral("models"), QStringLiteral("spatial"),
-                        QStringLiteral("unifiedtree"), QStringLiteral("properties")};
+                        QStringLiteral("unifiedtree"), QStringLiteral("trees"), QStringLiteral("properties")};
     if (index == 1) {
         splitDockWidget(models_panel_, filters_panel_, Qt::Vertical);
         visible << QStringLiteral("filters");
@@ -1105,6 +1108,10 @@ void MainWindow::setupPanels() {
     unified_tree_panel_ = new modules::unified_tree::UnifiedTreePanel(this);
     addDockWidget(Qt::LeftDockWidgetArea, unified_tree_panel_);
     tabifyDockWidget(spatial_panel_, unified_tree_panel_);
+    // BonsaiViewer32: the Trees panel (Tree Explorer), one more tab of the tree group.
+    tree_panels_.append(new modules::tree_explorer::TreeExplorerPanel(QStringLiteral("Trees"), this));
+    addDockWidget(Qt::LeftDockWidgetArea, tree_panels_.front());
+    tabifyDockWidget(spatial_panel_, tree_panels_.front());
     spatial_panel_->raise();
 
     addDockWidget(Qt::RightDockWidgetArea, properties_panel_);
@@ -1436,6 +1443,7 @@ void MainWindow::setupLoader() {
     unified_tree_view_ = new modules::unified_tree::UnifiedTreeView(
         unified_tree_panel_, *session_state_, *viewport_widget_->viewport(),
         *selection_service_, *action_pipeline_, this);
+    attachTreeExplorer(tree_panels_.front());
     connect(tables_view_, &modules::table::TablesView::openRequested,
             table_view_, &modules::table::TablePanelView::openTable);
     connect(tables_view_, &modules::table::TablesView::newTableRequested,
@@ -1604,6 +1612,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Ifc Tree"), class_tree_panel_, QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("unifiedtree"),
                                QStringLiteral("USpatial Tree"), unified_tree_panel_, QStringLiteral("Trees"));
+    panel_manager_->adoptPanel(QStringLiteral("trees"),
+                               QStringLiteral("Trees"), tree_panels_.front(), QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("layers"),
                                QStringLiteral("Layers"), layers_panel_, QStringLiteral("Trees"));
     panel_manager_->adoptPanel(QStringLiteral("properties"),
@@ -1649,12 +1659,41 @@ void MainWindow::setupMenuBar() {
     // BonsaiViewer34: Window > Diff switches to the Diff workspace.
     menu_bar_->setWindowMenuExtras([this](QMenu* menu) {
         menu->addSeparator();
+        menu->addAction(QStringLiteral("New Tree Panel"), this, [this]() { addTreePanel(); });
         menu->addAction(QStringLiteral("Diff"), this, [this]() {
             if (workspace_ids_.size() <= 4) return;
             const int index = ribbonIndexOf(workspace_ids_.at(4));
             if (index >= 0) ribbon_tabs_->setCurrentIndex(index);
         });
     });
+}
+
+void MainWindow::attachTreeExplorer(modules::tree_explorer::TreeExplorerPanel* panel) {
+    const modules::tree_explorer::Context context{*session_state_, *selection_service_, *action_pipeline_};
+    new modules::tree_explorer::TreeExplorerView(panel, context, panel);
+}
+
+void MainWindow::addTreePanel() {
+    // "Trees 2", "Trees 3"...: the title is also the dock's object name,
+    // which the saved layouts and the remembered tree use.
+    int number = 2;
+    const auto taken = [this](const QString& title) {
+        for (auto* panel : tree_panels_) {
+            if (panel->objectName() == title) return true;
+        }
+        return false;
+    };
+    while (taken(QStringLiteral("Trees %1").arg(number))) ++number;
+    const QString title = QStringLiteral("Trees %1").arg(number);
+    auto* panel = new modules::tree_explorer::TreeExplorerPanel(title, this);
+    tree_panels_.append(panel);
+    addDockWidget(Qt::LeftDockWidgetArea, panel);
+    tabifyDockWidget(tree_panels_.front(), panel);
+    attachTreeExplorer(panel);
+    const QString id = QStringLiteral("trees%1").arg(number);
+    panel_manager_->adoptPanel(id, title, panel, QStringLiteral("Trees"));
+    panel_manager_->setPanelVisible(id, true);
+    panel->raise();
 }
 
 void MainWindow::updateWindowTitle() {

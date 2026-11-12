@@ -165,10 +165,11 @@ void TreePanelWidget::refresh() {
     // tree under the user's cursor. In lazy mode the folders never built
     // keep the state saved before.
     std::unordered_map<QString, bool> expanded = lazy_ ? saved_expanded_ : std::unordered_map<QString, bool>();
-    for (QTreeWidgetItemIterator it(widget_); *it; ++it) {
+    for (QTreeWidgetItemIterator it(widget_); *it && !forget_expanded_; ++it) {
         if ((*it)->data(0, kPlaceholderRole).toBool()) continue;
         expanded[(*it)->data(0, kKeyRole).toString()] = (*it)->isExpanded();
     }
+    forget_expanded_ = false;
     const int top_index = widget_->indexOfTopLevelItem(widget_->currentItem());
 
     widget_->blockSignals(true);
