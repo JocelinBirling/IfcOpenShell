@@ -313,6 +313,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/unified_tree/View.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/IfcTrees.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/IfcTrees.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/IndexedSource.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/IndexedSource.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/Sources.cpp
@@ -440,6 +442,16 @@ add_executable(bonsaiviewer_tree_index_tests EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_tree_index_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bonsaiviewer_tree_index_tests PRIVATE Qt${QT_VERSION}::Core)
 add_test(NAME bonsaiviewer_tree_index_tests COMMAND bonsaiviewer_tree_index_tests)
+
+# The trees read from the IFC relations (IfcParse; IFC2X3 test model).
+add_executable(bonsaiviewer_ifc_trees_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/TreeIndex.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/tree_explorer/IfcTrees.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ifc_trees.cpp)
+target_include_directories(bonsaiviewer_ifc_trees_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_ifc_trees_tests PRIVATE helpers Qt${QT_VERSION}::Core)
+add_test(NAME bonsaiviewer_ifc_trees_tests COMMAND bonsaiviewer_ifc_trees_tests)
 
 ifcopenshell_deploy_qt_runtime(BonsaiViewer)
 ifcopenshell_stage_app_bundle_dylibs(BonsaiViewer)

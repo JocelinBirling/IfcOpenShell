@@ -64,6 +64,8 @@ public:
     virtual bool supportsScope() const { return true; }
     // Trees deduced by a computation, not read from the models.
     virtual bool interpreted() const { return false; }
+    // The message of an empty tree when models are open.
+    virtual QString emptyText() const { return QStringLiteral("Nothing to show."); }
 
     void setActiveModelOnly(bool active_only);
     // Filters the nodes by name; the parents of a match stay shown.

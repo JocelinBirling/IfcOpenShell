@@ -21,10 +21,13 @@
 #ifndef IFCINTERFACE_MODULES_TREE_EXPLORER_SOURCES_H
 #define IFCINTERFACE_MODULES_TREE_EXPLORER_SOURCES_H
 
+#include "IfcTrees.h"
 #include "IndexedSource.h"
 
 #include <QString>
 #include <QStringList>
+
+#include <functional>
 
 namespace bonsaiviewer::modules::tree_explorer {
 
@@ -57,6 +60,26 @@ public:
 
 protected:
     void build(bonsaiviewer::services::tree::TreeIndex& index, const QList<std::uint32_t>& models) override;
+};
+
+// The trees read from the IFC relations (ifc_trees builders), one model at
+// a time: a model folder on top when several models are shown (always for
+// the Spatial tree, where it stands for the whole model).
+class IfcRelationSource : public IndexedSource {
+    Q_OBJECT
+public:
+    using Builder = std::function<void(bonsaiviewer::services::tree::TreeIndex&, const ifc_trees::ModelInput&, int)>;
+    IfcRelationSource(const Context& context, Builder builder, bool always_model_level, const QString& empty_text,
+                      QObject* parent = nullptr);
+    QString emptyText() const override { return empty_text_; }
+
+protected:
+    void build(bonsaiviewer::services::tree::TreeIndex& index, const QList<std::uint32_t>& models) override;
+
+private:
+    Builder builder_;
+    bool always_model_level_ = false;
+    QString empty_text_;
 };
 
 } // namespace bonsaiviewer::modules::tree_explorer

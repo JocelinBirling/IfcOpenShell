@@ -96,7 +96,11 @@ void IndexedSource::rebuild() {
 void IndexedSource::reindex() {
     rebuild_pending_ = false;
     TreeIndex index;
-    build(index, modelsInScope());
+    const QList<std::uint32_t> models = modelsInScope();
+    build(index, models);
+    if (index.size() == 0) {
+        index.add(-1, messageNode(models.isEmpty() ? QStringLiteral("No model is open.") : emptyText()));
+    }
     index.finish();
     index_ = std::move(index);
     int matches = 0;
