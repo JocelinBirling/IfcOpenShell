@@ -140,7 +140,6 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
     config_ = new RuleConfigPanel(document_, host_);
     results_ = new ResultPanel(host_);
     info_ = new ResultInfoPanel(host_);
-    geometry_ribbon_ = buildGeometryRuleRibbon();
     filter_ribbon_ = buildClashFilterRibbon();
     document_.newFile();
 
@@ -159,6 +158,7 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
     connect(tree, &RuleTreeWidget::selectionRequested, this, &ClashView::showSelection);
     connect(rule_panel_, &RulePanel::saveRequested, this, [this]() { saveRules(); });
     connect(rule_panel_, &RulePanel::loadRequested, this, &ClashView::loadRules);
+    connect(rule_panel_, &RulePanel::stopRequested, this, &ClashView::stop);
 
     connect(results_, &ResultPanel::currentResultChanged, this, [this](int row) {
         info_->showRow(row >= 0 ? &results_->rows()[static_cast<size_t>(row)] : nullptr);
@@ -308,8 +308,7 @@ bool ClashView::startWork(const QString& label, std::function<void(ifcclash::Ses
     if (worker_.joinable()) worker_.join();
     busy_ = true;
     cancel_ = std::make_unique<ifcclash::CancelToken>();
-    if (run_button_) run_button_->setEnabled(false);
-    if (stop_button_) stop_button_->setEnabled(true);
+    rule_panel_->setRunning(true);
     s_.session.beginProgress(label);
     s_.session.setStatusMessage("Clash", label + "…");
     std::vector<std::filesystem::path> paths;
@@ -568,8 +567,7 @@ void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
 void ClashView::onRunFinished(bool cancelled, const QString& error) {
     if (worker_.joinable()) worker_.join();
     busy_ = false;
-    if (run_button_) run_button_->setEnabled(true);
-    if (stop_button_) stop_button_->setEnabled(false);
+    rule_panel_->setRunning(false);
     s_.session.endProgress();
     const QString work = property("work").toString();
     setProperty("work", QVariant());
@@ -1323,7 +1321,6 @@ void ClashView::showSelection(const clash::Select& select, const QString& title)
 // --- display -------------------------------------------------------------------------------------
 
 void ClashView::applyColours() {
-    if (colour_red_) return; // "Color Red" holds the layer until it is turned off
     clearColours();
     std::vector<std::uint32_t> sources, targets, passing;
     // The results the panel shows (the last run, or the rule clicked in the tree).
@@ -1520,29 +1517,6 @@ void ClashView::drawDisplay(const std::vector<std::shared_ptr<const ifcclash::Re
     overlay_drawn_ = true;
 }
 
-void ClashView::setColourRed(bool on) {
-    colour_red_ = on;
-    const bool was_suspended = s_.undo.isSuspended();
-    s_.undo.record();
-    s_.undo.setSuspended(true);
-    if (on) {
-        std::vector<std::uint32_t> all;
-        if (auto* registry = s_.session.elementRegistry()) {
-            for (std::uint32_t model : s_.session.sessionModelIds()) {
-                for (const auto& info : registry->basicElementInfoForModel(model)) all.push_back(info.object_id);
-            }
-        }
-        s_.appearance.clearLayer(Layer::ClashRun);
-        s_.appearance.setLayerColour(all, kSourceColour, Layer::ClashRun);
-    }
-    s_.undo.setSuspended(was_suspended);
-    if (!on) {
-        // Back to the colours of the results (none without results).
-        clearColours();
-        if (!results_->rows().empty()) applyColours();
-    }
-}
-
 void ClashView::isolateRows(const std::vector<int>& rows) {
     std::vector<std::uint32_t> ids;
     for (int row : rows) {
@@ -1709,57 +1683,6 @@ void ClashView::editFolder(std::shared_ptr<clash::RuleFolder> folder) {
 }
 
 // --- ribbons -----------------------------------------------------------------------------------------
-
-QWidget* ClashView::buildGeometryRuleRibbon() {
-    auto* page = new QFrame(host_);
-    auto* row = new QHBoxLayout(page);
-    row->setContentsMargins(2, 4, 2, 4);
-    row->setSpacing(0);
-    const auto describe = [](QToolButton* button, const QString& text) {
-        button->setToolTip(QString("<b>%1</b><br>%2").arg(button->text(), text));
-    };
-    run_button_ = components::buttons::makeButton("Run Rule", ":/icons/intersect.svg", page);
-    describe(run_button_, "Run the selected rules and folders of the Rule tree, or the whole rule file.");
-    connect(run_button_, &QToolButton::clicked, this, [this]() {
-        auto nodes = rule_panel_->tree()->selectedNodes();
-        if (nodes.empty()) nodes = document_.file().contains;
-        run(nodes);
-    });
-    stop_button_ = components::buttons::makeButton("Stop", ":/icons/xmark-circle.svg", page);
-    stop_button_->setEnabled(false);
-    describe(stop_button_, "Stop the run after the current rule.");
-    connect(stop_button_, &QToolButton::clicked, this, &ClashView::stop);
-    auto* show = components::buttons::makeButton("Show Results", ":/icons/check.svg", page);
-    describe(show, "Show the Manage Rule Result workspace with the results of the last run.");
-    connect(show, &QToolButton::clicked, this, &ClashView::showResultsRequested);
-    auto* save = components::buttons::makeButton("Save Rules", ":/icons/floppy-disk.svg", page);
-    describe(save, "Save the rule file (JSON, the format of the IfcClash_Plus command line); the location is "
-                   "asked each time.");
-    connect(save, &QToolButton::clicked, this, [this]() { saveRules(); });
-    auto* load = components::buttons::makeButton("Load Rules", ":/icons/folder.svg", page);
-    describe(load, "Open a rule file (JSON).");
-    connect(load, &QToolButton::clicked, this, &ClashView::loadRules);
-    auto* colour = components::buttons::makeButton("Color Results", ":/icons/paint-bucket.svg", page);
-    colour->setCheckable(true);
-    colour->setChecked(true);
-    describe(colour, "Colour the elements of the results: sources red, targets orange, Must groups green or red.");
-    connect(colour, &QToolButton::toggled, this, [this](bool on) {
-        if (on) applyColours();
-        else clearColours();
-    });
-    auto* red = components::buttons::makeButton("Color Red", ":/icons/paint-bucket.svg", page);
-    red->setCheckable(true);
-    describe(red, "Colour every object of the loaded models red; off: back to the colours of the results "
-                  "(the other colours were never changed).");
-    connect(red, &QToolButton::toggled, this, &ClashView::setColourRed);
-    components::buttons::addButtonGroups(row, {
-        components::buttons::makeButtonGroup("RUN", {run_button_, stop_button_, show}, page),
-        components::buttons::makeButtonGroup("RULE FILE", {save, load}, page),
-        components::buttons::makeButtonGroup("COLOUR", {colour, red}, page),
-    });
-    row->addStretch(1);
-    return page;
-}
 
 QWidget* ClashView::buildClashFilterRibbon() {
     // A dock panel (Rule Result Tools): on the top, one row; on a side or

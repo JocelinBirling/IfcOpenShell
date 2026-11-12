@@ -105,7 +105,6 @@ public:
     ResultPanel* resultPanel() const { return results_; }
     ResultInfoPanel* resultInfoPanel() const { return info_; }
     // The ribbon content of the two workspaces (the specific top panel).
-    QWidget* geometryRuleRibbon() const { return geometry_ribbon_; }
     QWidget* clashFilterRibbon() const { return filter_ribbon_; }
 
     // Offers to save a modified rule file; false when the user cancels.
@@ -143,11 +142,9 @@ private:
     // without touching the results, the colours or the visibility.
     void displayInput(std::shared_ptr<clash::RuleCheck> rule);
     void drawDisplay(const std::vector<std::shared_ptr<const ifcclash::ResultRecord>>& records);
-    void setColourRed(bool on);
     // The Must "Test" of the Edit window: runs a copy of the rule, answers
     // "n groups: p pass, f fail" (the Result panel is not touched).
     void testRule(std::shared_ptr<clash::RuleCheck> rule, std::function<void(const QString&)> answer);
-    QWidget* buildGeometryRuleRibbon();
     QWidget* buildClashFilterRibbon();
 
     ResultRow rowOf(const clash::RuleOutcome& outcome, const clash::ClashResult& result, const QString& group) const;
@@ -216,10 +213,7 @@ private:
     RuleConfigPanel* config_ = nullptr;
     ResultPanel* results_ = nullptr;
     ResultInfoPanel* info_ = nullptr;
-    QWidget* geometry_ribbon_ = nullptr;
     QWidget* filter_ribbon_ = nullptr;
-    QToolButton* run_button_ = nullptr;
-    QToolButton* stop_button_ = nullptr;
 
     // The engine: one session for the models of the run, created and used
     // on the worker thread only.
@@ -258,7 +252,6 @@ private:
         bool any() const { return points || zones || obbs || axes || faces || rays; }
     } overlay_;
     bool overlay_drawn_ = false;
-    bool colour_red_ = false; // GeometryRule "Color Red": every object red // the line slot holds our lines (else: left alone)
 };
 
 } // namespace bonsaiviewer::modules::rule

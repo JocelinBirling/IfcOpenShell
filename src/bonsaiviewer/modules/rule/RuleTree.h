@@ -30,6 +30,8 @@
 
 #include <memory>
 
+class QPushButton;
+
 namespace bonsaiviewer::modules::rule {
 
 // What a tree item shows.
@@ -115,14 +117,19 @@ class RulePanel : public QWidget {
 public:
     RulePanel(RuleDocument& document, QWidget* parent = nullptr);
     RuleTreeWidget* tree() const { return tree_; }
+    // While a run is in progress, the Run button stops it.
+    void setRunning(bool running);
 
 signals:
     void saveRequested();
     void loadRequested();
+    void stopRequested();
 
 private:
     RuleDocument& document_;
     RuleTreeWidget* tree_ = nullptr;
+    QPushButton* run_ = nullptr;
+    bool running_ = false;
 };
 
 // The MIME type of the Rule Library drags: "rule:<type>" or "facet:<Type>".

@@ -671,7 +671,9 @@ RulePanel::RulePanel(RuleDocument& document, QWidget* parent) : QWidget(parent),
     auto* create_rule = button("Create Rule", "Add a rule to the selected folder (or to the file).");
     auto* create_folder = button("Create Folder", "Add a folder to the selected folder (or to the file).");
     auto* run = button("Run", "Run the selected rules and folders, or the whole file when nothing is selected. "
-                              "A deactivated folder (grey) does not run.");
+                              "A deactivated folder (grey) does not run. During a run: stop it after the current "
+                              "rule.");
+    run_ = run;
     auto* rule_menu = new QMenu(create_rule);
     rule_menu->setToolTipsVisible(true);
     create_rule->setMenu(rule_menu);
@@ -713,10 +715,19 @@ RulePanel::RulePanel(RuleDocument& document, QWidget* parent) : QWidget(parent),
     });
     connect(create_folder, &QPushButton::clicked, this, [this]() { tree_->addFolder(tree_->targetFolderForCurrent()); });
     connect(run, &QPushButton::clicked, this, [this]() {
+        if (running_) {
+            emit stopRequested();
+            return;
+        }
         std::vector<clash::RuleNode> nodes = tree_->selectedNodes();
         if (nodes.empty()) nodes = document_.file().contains;
         emit tree_->runRequested(nodes);
     });
+}
+
+void RulePanel::setRunning(bool running) {
+    running_ = running;
+    run_->setText(running ? "Stop" : "Run");
 }
 
 } // namespace bonsaiviewer::modules::rule

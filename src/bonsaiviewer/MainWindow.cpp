@@ -745,9 +745,8 @@ void MainWindow::setupRibbon() {
     specific_panel->addTab(QStringLiteral("Table"));
     specific_panel->addTab(QStringLiteral("IDS"));
     specific_panel->addTab(QStringLiteral("Diff"));
-    // BonsaiViewer09: the run, rule file and result buttons of the two
-    // clash workspaces.
-    specific_panel->setContent(specific_panel->addTab(QStringLiteral("Rule Config")), clash_view_->geometryRuleRibbon());
+    // Its buttons (run, rule file) are in the Rule panel.
+    specific_panel->addTab(QStringLiteral("Rule Config"));
     // Its buttons are a dock panel (Rule Result Tools), not a band.
     specific_panel->addTab(QStringLiteral("Manage Rule Result"));
     specific_panel->addTab(QStringLiteral("BCF"));
