@@ -38,6 +38,7 @@
 #include "../../services/clash/RuleCatalogue.h"
 #include "../../services/clash/RuleJson.h"
 #include "../viewport/Commands.h"
+#include "../../../ifcviewer/Federation.h"
 #include "../../../ifcviewer/OverlayRenderer.h"
 #include "../../../ifcviewer/SceneLoader.h"
 #include "../../../ifcviewer/ViewportWindow.h"
@@ -205,25 +206,37 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
         s_.selection.setSelection(ids, services::SelectionSource::Table, services::SelectionMode::Replace);
     });
 
-    // The results point at the objects of the loaded models: dropped with them.
-    const auto drop = [this]() {
+    // The results point at the elements of the models by model id and
+    // GlobalId: a change of the loaded models resolves them again (a result
+    // of a model no longer loaded stays, without objects); a new project
+    // drops them.
+    connect(&s_.session, &SessionState::modelsChanged, this, [this]() {
         engine_key_.clear();
         if (busy_) return;
         engine_.reset();
         clearOverlay();
-        if (!results_->rows().empty()) {
-            clearColours();
-            results_->setResults({});
-            results_->clearMessages();
-            info_->showRow(nullptr);
-        }
-        result_texts_.clear();
-        rule_panel_->tree()->setResultTexts({});
-        rule_inputs_.clear();
-        publishIndex();
-    };
-    connect(&s_.session, &SessionState::modelsChanged, this, drop);
-    connect(&s_.session, &SessionState::projectReset, this, drop);
+        resolveShownRows();
+    });
+    connect(&s_.session, &SessionState::projectReset, this, [this]() {
+        engine_key_.clear();
+        if (busy_) return;
+        engine_.reset();
+        clearClash();
+    });
+    // The federation keeps the rules, the last run of each rule and the
+    // results with their review, group and topic.
+    connect(&s_.session, &SessionState::projectAboutToSave, this, &ClashView::saveToFederation);
+    connect(&s_.session, &SessionState::projectOpened, this, [this](const QString&) { restoreFromFederation(); });
+    // The rules are saved with the project: the rule file is no longer "modified".
+    connect(&s_.session, &SessionState::projectSaved, this, [this](const QString&) {
+        if (document_.isOpen() && document_.isModified()) document_.markSaved();
+    });
+    connect(&s_.session, &SessionState::modelGeometryReady, this, [this](std::uint32_t) { tryRestore(); });
+    if (auto* loader = s_.session.loader()) connect(loader, &SceneLoader::allLoadsFinished, this, &ClashView::tryRestore);
+    connect(results_, &ResultPanel::reviewChanged, this, &ClashView::markProjectDirty);
+    connect(&document_, &RuleDocument::changed, this, [this]() {
+        if (document_.isModified()) markProjectDirty();
+    });
 }
 
 ClashView::~ClashView() {
@@ -339,6 +352,20 @@ void ClashView::run(const std::vector<clash::RuleNode>& nodes) {
     pending_rows_.clear();
     pending_nodes_.clear();
     pending_inputs_.clear();
+    pending_saved_nodes_.clear();
+    pending_run_ = store::SavedRun{};
+    pending_run_.id = clash::json::newId();
+    pending_run_.started = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    for (size_t i = 0; i < run_models_.size(); ++i) {
+        const QFileInfo info(run_paths_.value(static_cast<int>(i)));
+        store::SavedModel model;
+        model.model_id = s_.session.modelIdForSessionModelId(run_models_[i]);
+        model.name = s_.session.loader() ? s_.session.loader()->displayName(run_models_[i]) : info.fileName();
+        model.path = info.absoluteFilePath();
+        model.mtime = info.lastModified().toMSecsSinceEpoch();
+        model.size = info.size();
+        pending_run_.models.push_back(model);
+    }
     startWork("Clash rules", [this, copy](ifcclash::Session& session, size_t files) {
         clash::Orchestrator::Callbacks callbacks;
         callbacks.finished = [this](const clash::RuleOutcome& outcome) {
@@ -474,6 +501,17 @@ void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
         inputs.sources = objectsOf(outcome.sources);
         inputs.targets = objectsOf(outcome.targets);
         inputs.not_checked = objectsOf(outcome.not_checked);
+        store::SavedNode& saved = pending_saved_nodes_[outcome.node_id];
+        saved.node_id = outcome.node_id;
+        saved.run_id = pending_run_.id;
+        saved.label = outcome.label;
+        saved.type = outcome.rule_type;
+        for (const auto& rule : document_.treeRules()) {
+            if (rule->id == outcome.node_id) saved.rule = clash::json::toJson(*rule);
+        }
+        saved.sources = elementsOf(outcome.sources);
+        saved.targets = elementsOf(outcome.targets);
+        saved.not_checked = elementsOf(outcome.not_checked);
     }
     if (!outcome.skipped.isEmpty()) {
         result_texts_[outcome.node_id] = "skipped";
@@ -533,6 +571,22 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     for (const QString& node : pending_nodes_) rule_inputs_.erase(node);
     for (auto& [node, inputs] : pending_inputs_) rule_inputs_[node] = std::move(inputs);
     pending_inputs_.clear();
+    // The last run of each rule, for the federation.
+    for (const QString& node : pending_nodes_) saved_nodes_.erase(node);
+    for (auto& [node, saved] : pending_saved_nodes_) {
+        saved.text = result_texts_.value(node);
+        saved_nodes_[node] = std::move(saved);
+    }
+    pending_saved_nodes_.clear();
+    pending_run_.seconds = QDateTime::fromString(pending_run_.started, Qt::ISODate).msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
+    saved_runs_.push_back(pending_run_);
+    saved_runs_.erase(std::remove_if(saved_runs_.begin(), saved_runs_.end(),
+                                     [this](const store::SavedRun& run) {
+                                         return std::none_of(saved_nodes_.begin(), saved_nodes_.end(),
+                                                             [&run](const auto& n) { return n.second.run_id == run.id; });
+                                     }),
+                      saved_runs_.end());
+    markProjectDirty();
     // The warnings by rule: a rule of the tree shows its own; the folders
     // left out of this run are in its scope.
     results_->mergeMessages(run_messages_, pending_nodes_);
@@ -593,19 +647,12 @@ ResultRow ClashView::rowOf(const clash::RuleOutcome& outcome, const clash::Clash
         }
         if (name.isEmpty()) name = QString("#%1 %2").arg(key.entity_id).arg(guid);
     };
-    const auto element = [&](const clash::ElementKey& key) {
-        ResultElement out;
-        out.global_id = QString::fromStdString(key.global_id);
-        out.step_id = key.entity_id;
-        if (key.file_index < run_models_.size()) out.model_id = s_.session.modelIdForSessionModelId(run_models_[key.file_index]);
-        return out;
-    };
     if (result.complex) {
-        for (const auto& key : result.sources) row.sources.push_back(element(key));
-        for (const auto& key : result.targets) row.targets.push_back(element(key));
+        row.sources = elementsOf(result.sources);
+        row.targets = elementsOf(result.targets);
     } else {
-        row.sources.push_back(element(result.source));
-        if (result.target) row.targets.push_back(element(*result.target));
+        row.sources.push_back(elementOf(result.source));
+        if (result.target) row.targets.push_back(elementOf(*result.target));
     }
     row.key = resultKey(outcome.node_id, result.complex, group, row.sources, row.targets);
     if (result.complex) {
@@ -629,6 +676,206 @@ ResultRow ClashView::rowOf(const clash::RuleOutcome& outcome, const clash::Clash
         row.target_objects = objectsOf({*result.target});
     }
     return row;
+}
+
+ResultElement ClashView::elementOf(const clash::ElementKey& key) const {
+    ResultElement out;
+    out.global_id = QString::fromStdString(key.global_id);
+    out.step_id = key.entity_id;
+    if (key.file_index < run_models_.size()) out.model_id = s_.session.modelIdForSessionModelId(run_models_[key.file_index]);
+    return out;
+}
+
+std::vector<ResultElement> ClashView::elementsOf(const clash::Elements& keys) const {
+    std::vector<ResultElement> out;
+    out.reserve(keys.size());
+    for (const auto& key : keys) out.push_back(elementOf(key));
+    return out;
+}
+
+// --- the federation ---------------------------------------------------------------------------
+
+void ClashView::markProjectDirty() {
+    if (auto* federation = s_.session.federation()) federation->markDirty();
+}
+
+void ClashView::saveToFederation() {
+    Federation* federation = s_.session.federation();
+    if (!federation) return;
+    // A restore still waiting for its models: written back as it was read.
+    if (pending_restore_) {
+        federation->setExtension(store::kExtensionKey, store::toJson(*pending_restore_));
+        return;
+    }
+    const bool has_rules = document_.isOpen() && !document_.file().contains.empty();
+    if (!has_rules && results_->rows().empty() && saved_nodes_.empty()) {
+        federation->setExtension(store::kExtensionKey, QJsonValue());
+        return;
+    }
+    store::SavedClash clash;
+    if (document_.isOpen()) {
+        document_.refreshLinks();
+        clash.rule_file = clash::json::toJson(document_.file());
+        clash.rule_file_path = document_.path();
+    }
+    clash.runs = saved_runs_;
+    for (const auto& [node, saved] : saved_nodes_) clash.nodes.push_back(saved);
+    clash.results = results_->rows();
+    clash.messages = results_->messages();
+    federation->setExtension(store::kExtensionKey, store::toJson(clash));
+}
+
+void ClashView::clearClash() {
+    pending_restore_.reset();
+    clearOverlay();
+    if (!results_->rows().empty()) clearColours();
+    results_->setResults({});
+    results_->clearMessages();
+    info_->showRow(nullptr);
+    result_texts_.clear();
+    rule_panel_->tree()->setResultTexts({});
+    rule_inputs_.clear();
+    saved_nodes_.clear();
+    saved_runs_.clear();
+    publishIndex();
+}
+
+void ClashView::restoreFromFederation() {
+    if (busy_) return;
+    clearClash();
+    Federation* federation = s_.session.federation();
+    const QJsonValue section = federation ? federation->extension(store::kExtensionKey) : QJsonValue();
+    if (!section.isObject()) return;
+    QStringList warnings;
+    store::SavedClash clash = store::fromJson(section.toObject(), &warnings);
+    if (!clash.rule_file.isEmpty()) {
+        try {
+            document_.setFile(clash::json::fileFromJson(clash.rule_file), clash.rule_file_path);
+        } catch (const std::exception& e) {
+            warnings << QString("The rules saved in the project cannot be read: %1").arg(e.what());
+        }
+    }
+    for (const QString& warning : warnings) clash.messages.emplace_back(QString(), warning);
+    pending_restore_ = std::move(clash);
+    tryRestore();
+}
+
+std::vector<std::uint32_t> ClashView::objectsOfElements(const std::vector<ResultElement>& elements) const {
+    std::vector<std::uint32_t> ids;
+    auto* registry = s_.session.elementRegistry();
+    if (!registry) return ids;
+    // One lookup table per model, built on demand.
+    std::map<QString, std::pair<QHash<QString, std::uint32_t>, QHash<int, std::uint32_t>>> tables;
+    for (const ResultElement& element : elements) {
+        const std::uint32_t model = s_.session.sessionModelIdForModelId(element.model_id);
+        if (model == 0) continue;
+        auto found = tables.find(element.model_id);
+        if (found == tables.end()) {
+            std::pair<QHash<QString, std::uint32_t>, QHash<int, std::uint32_t>> table;
+            for (const BasicElementInfo& info : registry->basicElementInfoForModel(model)) {
+                if (info.object_id == 0) continue;
+                if (!info.guid.isEmpty()) table.first.insert(info.guid, info.object_id);
+                table.second.insert(info.ifc_id, info.object_id);
+            }
+            found = tables.emplace(element.model_id, std::move(table)).first;
+        }
+        std::uint32_t id = element.global_id.isEmpty() ? 0 : found->second.first.value(element.global_id, 0);
+        if (id == 0) id = found->second.second.value(element.step_id, 0);
+        if (id != 0) ids.push_back(id);
+    }
+    return ids;
+}
+
+int ClashView::resolveRows(std::vector<ResultRow>& rows) const {
+    int unresolved = 0;
+    for (ResultRow& row : rows) {
+        row.source_objects = objectsOfElements(row.sources);
+        row.target_objects = objectsOfElements(row.targets);
+        row.source_model = row.sources.empty() ? 0 : s_.session.sessionModelIdForModelId(row.sources.front().model_id);
+        row.target_model = row.targets.empty() ? 0 : s_.session.sessionModelIdForModelId(row.targets.front().model_id);
+        if (row.source_objects.size() < row.sources.size() || row.target_objects.size() < row.targets.size()) ++unresolved;
+    }
+    return unresolved;
+}
+
+void ClashView::resolveShownRows() {
+    if (results_->rows().empty()) return;
+    // Every row through one pass: the lookup tables are built once per model.
+    std::vector<ResultRow> rows = results_->rows();
+    resolveRows(rows);
+    size_t i = 0;
+    results_->updateRows([&rows, &i](ResultRow& row) {
+        row.source_objects = std::move(rows[i].source_objects);
+        row.target_objects = std::move(rows[i].target_objects);
+        row.source_model = rows[i].source_model;
+        row.target_model = rows[i].target_model;
+        ++i;
+    });
+    for (auto& [node, inputs] : rule_inputs_) {
+        const auto saved = saved_nodes_.find(node);
+        if (saved == saved_nodes_.end()) continue;
+        inputs.sources = objectsOfElements(saved->second.sources);
+        inputs.targets = objectsOfElements(saved->second.targets);
+        inputs.not_checked = objectsOfElements(saved->second.not_checked);
+    }
+    applyColours();
+    publishIndex();
+}
+
+void ClashView::tryRestore() {
+    if (!pending_restore_ || busy_) return;
+    auto* loader = s_.session.loader();
+    if (loader && loader->isLoading()) return; // once every model is loaded
+    store::SavedClash clash = std::move(*pending_restore_);
+    pending_restore_.reset();
+
+    // The models of the runs: changed since the run, or not loaded.
+    std::set<QString> reported;
+    for (const store::SavedRun& run : clash.runs) {
+        for (const store::SavedModel& model : run.models) {
+            if (!reported.insert(model.model_id).second) continue;
+            const std::uint32_t session_model = s_.session.sessionModelIdForModelId(model.model_id);
+            if (session_model == 0) {
+                clash.messages.emplace_back(QString(), QString("%1 is not loaded: its results are not shown in the 3D view.").arg(model.name));
+                continue;
+            }
+            const QFileInfo info(loader ? loader->filePath(session_model) : model.path);
+            if (info.exists() && (info.lastModified().toMSecsSinceEpoch() != model.mtime || info.size() != model.size)) {
+                clash.messages.emplace_back(QString(), QString("%1 changed since the run of %2: its results may be out of date, "
+                                                               "run the rules again.")
+                                                           .arg(model.name, run.started));
+            }
+        }
+    }
+    const int unresolved = resolveRows(clash.results);
+    if (unresolved > 0) {
+        clash.messages.emplace_back(QString(), QString("%1 result(s) point at elements not found in the loaded models.").arg(unresolved));
+    }
+
+    std::set<QString> nodes;
+    for (const store::SavedNode& node : clash.nodes) {
+        nodes.insert(node.node_id);
+        RuleInputs& inputs = rule_inputs_[node.node_id];
+        inputs.label = node.label;
+        inputs.type = node.type;
+        inputs.sources = objectsOfElements(node.sources);
+        inputs.targets = objectsOfElements(node.targets);
+        inputs.not_checked = objectsOfElements(node.not_checked);
+        if (!node.text.isEmpty()) result_texts_[node.node_id] = node.text;
+        saved_nodes_[node.node_id] = node;
+    }
+    for (const ResultRow& row : clash.results) nodes.insert(row.node_id);
+    saved_runs_ = clash.runs;
+    results_->setResults({});
+    results_->mergeResults(std::move(clash.results), nodes);
+    results_->clearMessages();
+    results_->mergeMessages(clash.messages, nodes);
+    rule_panel_->tree()->setResultTexts(result_texts_);
+    applyColours();
+    publishIndex();
+    if (!results_->rows().empty()) {
+        s_.session.setStatusMessage("Clash", QString("%1 result(s) restored from the project").arg(results_->rows().size()));
+    }
 }
 
 void ClashView::showSelection(const clash::Select& select, const QString& title) {

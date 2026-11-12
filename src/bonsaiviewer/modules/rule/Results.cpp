@@ -187,6 +187,16 @@ void ResultPanel::mergeResults(std::vector<ResultRow> rows, const std::set<QStri
     rebuild();
 }
 
+void ResultPanel::updateRows(const std::function<void(ResultRow&)>& update) {
+    const std::vector<int> selected = selectedRows();
+    for (ResultRow& row : rows_) update(row);
+    rebuild();
+    const QSignalBlocker blocker(tree_);
+    for (QTreeWidgetItemIterator it(tree_); *it; ++it) {
+        if (std::find(selected.begin(), selected.end(), rowOf(*it)) != selected.end()) (*it)->setSelected(true);
+    }
+}
+
 void ResultPanel::setScope(std::optional<std::set<QString>> node_ids, const QString& label) {
     scope_ = std::move(node_ids);
     scope_label_->setText(label);

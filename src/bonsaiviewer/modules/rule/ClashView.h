@@ -21,6 +21,7 @@
 #ifndef IFCINTERFACE_MODULES_RULE_CLASHVIEW_H
 #define IFCINTERFACE_MODULES_RULE_CLASHVIEW_H
 
+#include "ResultStore.h"
 #include "Results.h"
 #include "RuleDocument.h"
 #include "RuleTree.h"
@@ -41,6 +42,7 @@
 #include <memory>
 #include <set>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -142,6 +144,28 @@ private:
 
     ResultRow rowOf(const clash::RuleOutcome& outcome, const clash::ClashResult& result, const QString& group) const;
     std::vector<std::uint32_t> objectsOf(const clash::Elements& keys) const;
+    // An element of the run as saved (federation model id, GlobalId, STEP id).
+    ResultElement elementOf(const clash::ElementKey& key) const;
+    std::vector<ResultElement> elementsOf(const clash::Elements& keys) const;
+
+    // The clash section of the federation (extensions["ifcclash_plus"]):
+    // written before each save, read when a project opens. The results are
+    // resolved to the viewer's objects once the models are loaded, and again
+    // when the loaded models change.
+    void saveToFederation();
+    void restoreFromFederation();
+    void tryRestore();
+    void clearClash();
+    void markProjectDirty();
+    // The viewer ids of the rows (session models, object ids) from their
+    // saved elements; returns the number of rows with an element not found.
+    int resolveRows(std::vector<ResultRow>& rows) const;
+    void resolveShownRows();
+    std::vector<std::uint32_t> objectsOfElements(const std::vector<ResultElement>& elements) const;
+    std::map<QString, store::SavedNode> saved_nodes_, pending_saved_nodes_; // node id -> its last run
+    std::vector<store::SavedRun> saved_runs_;
+    store::SavedRun pending_run_;
+    std::optional<store::SavedClash> pending_restore_;
 
     Services s_;
     QWidget* host_ = nullptr;

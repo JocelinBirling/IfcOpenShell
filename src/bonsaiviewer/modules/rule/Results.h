@@ -31,6 +31,7 @@
 #include <QWidget>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -123,7 +124,11 @@ public:
     using Message = std::pair<QString, QString>; // node id, text
     void mergeMessages(const std::vector<Message>& messages, const std::set<QString>& ran);
     void clearMessages();
+    const std::vector<Message>& messages() const { return run_messages_; }
     const std::vector<ResultRow>& rows() const { return rows_; }
+    // Changes every row in place (the viewer ids after a model change), the
+    // scope, the filters and the selection kept.
+    void updateRows(const std::function<void(ResultRow&)>& update);
     void setGroupMode(GroupMode mode);
     void setFilterOnlyNonDetermined(bool on);
     void setHideExcepted(bool on);
