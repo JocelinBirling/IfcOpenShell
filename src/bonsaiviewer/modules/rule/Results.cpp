@@ -688,6 +688,10 @@ ResultInfoPanel::ResultInfoPanel(QWidget* parent) : QWidget(parent) {
     showRow(nullptr);
 }
 
+QString resultNumberText(int number) {
+    return QString("R-%1").arg(number, 4, 10, QLatin1Char('0'));
+}
+
 void ResultInfoPanel::showRow(const ResultRow* row) {
     const bool shown = row != nullptr;
     for (QWidget* w : std::initializer_list<QWidget*>{source_->parentWidget(), target_row_, review_row_}) w->setVisible(shown);
@@ -719,6 +723,7 @@ void ResultInfoPanel::showRow(const ResultRow* row) {
         review_->setCurrentIndex(reviewIndex(row->review));
     }
     QStringList lines;
+    if (row->number > 0) lines << QString("<b>ID</b>: %1").arg(resultNumberText(row->number));
     if (row->complex) lines << QString("<b>Must</b>: the group %1").arg(row->status ? "passes" : "<span style='color:#E6194B'>fails</span>");
     else if (!row->status) lines << "<b>Status</b>: <span style='color:gray'>excepted</span>";
     if (!row->topic_guid.isEmpty()) {

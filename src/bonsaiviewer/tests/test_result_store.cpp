@@ -78,6 +78,8 @@ store::SavedClash sample() {
     row.topic_guid = "5e0d4c2a-1b3c-4d5e-8f90-123456789abc";
     clash.results.push_back(row);
     clash.bcf_file = "issues.bcf";
+    clash.numbers = {{row.key, 1}, {"gone|a|b", 2}};
+    clash.next_number = 3;
     clash.messages.emplace_back("r1", "Duct vs Wall: 1 element without geometry");
     return clash;
 }
@@ -113,6 +115,12 @@ int main() {
     check(read.messages.size() == 1 && read.messages[0].first == "r1", "the warnings of the run");
     check(row.topic_guid == "5e0d4c2a-1b3c-4d5e-8f90-123456789abc" && read.bcf_file == "issues.bcf",
           "the topic of a result and the BCF file");
+
+    check(read.numbers == clash.numbers && read.next_number == 3,
+          "the short numbers of the results, those of results gone too");
+    QJsonObject lost_next = json;
+    lost_next.remove("next_result_number");
+    check(store::fromJson(lost_next).next_number == 3, "without the next number: after the highest one");
 
     // A broken record: the result is kept, without its details, with a warning.
     QJsonObject broken = json;

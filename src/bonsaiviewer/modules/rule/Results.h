@@ -84,9 +84,14 @@ struct ResultRow {
     std::vector<ResultElement> sources, targets;
     QString key;
     QString topic_guid; // the BCF topic the result belongs to (empty: none)
+    int number = 0;     // the short number shown to the users (resultNumberText), 0: none
 
     std::vector<std::uint32_t> objects() const;
 };
+
+// "R-0042": the short number of a result, given at its first appearance and
+// kept with its key from one run to the next (never reused).
+QString resultNumberText(int number);
 
 // BonsaiViewer09 (TI09) — the Result panel of the Clash Filter workspace
 // (branch IfcViewer_Clash): one row per result, a name filter, grouping

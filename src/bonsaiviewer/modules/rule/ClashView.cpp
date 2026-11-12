@@ -585,6 +585,7 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     }
     // The results of the other rules stay (a click on a rule shows its own).
     results_->mergeResults(std::move(pending_rows_), pending_nodes_);
+    numberResults();
     for (const ResultRow& row : results_->rows()) topics_before.remove(row.topic_guid);
     resolved_topics_.unite(topics_before);
     pending_rows_.clear();
@@ -743,11 +744,22 @@ void ClashView::saveToFederation() {
     for (const auto& [node, saved] : saved_nodes_) clash.nodes.push_back(saved);
     clash.results = results_->rows();
     clash.messages = results_->messages();
+    clash.numbers = result_numbers_;
+    clash.next_number = next_result_number_;
     if (bcf_ && !bcf_->filePath().isEmpty()) {
         const QString fed = federation->filePath();
         clash.bcf_file = fed.isEmpty() ? bcf_->filePath() : QFileInfo(fed).dir().relativeFilePath(bcf_->filePath());
     }
     federation->setExtension(store::kExtensionKey, store::toJson(clash));
+}
+
+void ClashView::numberResults() {
+    results_->updateRows([this](ResultRow& row) {
+        if (row.key.isEmpty()) return;
+        auto [it, added] = result_numbers_.try_emplace(row.key, next_result_number_);
+        if (added) ++next_result_number_;
+        row.number = it->second;
+    });
 }
 
 void ClashView::clearClash() {
@@ -758,6 +770,8 @@ void ClashView::clearClash() {
     results_->clearMessages();
     info_->showRow(nullptr);
     result_texts_.clear();
+    result_numbers_.clear();
+    next_result_number_ = 1;
     rule_panel_->tree()->setResultTexts({});
     rule_inputs_.clear();
     saved_nodes_.clear();
@@ -892,7 +906,10 @@ void ClashView::tryRestore() {
     for (const ResultRow& row : clash.results) nodes.insert(row.node_id);
     saved_runs_ = clash.runs;
     results_->setResults({});
+    result_numbers_ = clash.numbers;
+    next_result_number_ = clash.next_number;
     results_->mergeResults(std::move(clash.results), nodes);
+    numberResults();
     results_->clearMessages();
     results_->mergeMessages(clash.messages, nodes);
     rule_panel_->tree()->setResultTexts(result_texts_);

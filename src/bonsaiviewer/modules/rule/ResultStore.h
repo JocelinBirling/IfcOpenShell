@@ -20,6 +20,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -70,6 +71,10 @@ struct SavedClash {
     std::vector<ResultRow> results;
     std::vector<std::pair<QString, QString>> messages; // node id (empty: the run), text
     QString bcf_file; // the BCF file of the topics of the results (empty: not saved yet)
+    // The short numbers of the results (resultNumberText): result key -> number,
+    // kept for the results gone too, so that a number is never given twice.
+    std::map<QString, int> numbers;
+    int next_number = 1;
 };
 
 QString reviewName(ReviewStatus status);

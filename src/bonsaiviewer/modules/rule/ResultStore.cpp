@@ -15,6 +15,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 
+#include <algorithm>
+
 namespace bonsaiviewer::modules::rule::store {
 
 namespace {
@@ -179,6 +181,12 @@ QJsonObject toJson(const SavedClash& clash) {
     for (const auto& [node, text] : clash.messages) messages.append(QJsonObject{{"node_id", node}, {"text", text}});
     if (!messages.isEmpty()) json["messages"] = messages;
     if (!clash.bcf_file.isEmpty()) json["bcf_file"] = clash.bcf_file;
+    if (!clash.numbers.empty()) {
+        QJsonObject numbers;
+        for (const auto& [key, number] : clash.numbers) numbers[key] = number;
+        json["result_numbers"] = numbers;
+        json["next_result_number"] = clash.next_number;
+    }
     return json;
 }
 
@@ -228,6 +236,14 @@ SavedClash fromJson(const QJsonObject& json, QStringList* warnings) {
         clash.messages.emplace_back(entry.value("node_id").toString(), entry.value("text").toString());
     }
     clash.bcf_file = json.value("bcf_file").toString();
+    const QJsonObject numbers = json.value("result_numbers").toObject();
+    for (auto it = numbers.begin(); it != numbers.end(); ++it) {
+        const int number = it.value().toInt();
+        if (number <= 0) continue;
+        clash.numbers[it.key()] = number;
+        clash.next_number = std::max(clash.next_number, number + 1);
+    }
+    clash.next_number = std::max(clash.next_number, json.value("next_result_number").toInt(1));
     return clash;
 }
 

@@ -167,6 +167,10 @@ private:
     int resolveRows(std::vector<ResultRow>& rows) const;
     void resolveShownRows();
     std::vector<std::uint32_t> objectsOfElements(const std::vector<ResultElement>& elements) const;
+    // The short numbers of the results (store::SavedClash::numbers).
+    std::map<QString, int> result_numbers_;
+    int next_result_number_ = 1;
+    void numberResults();
     std::map<QString, store::SavedNode> saved_nodes_, pending_saved_nodes_; // node id -> its last run
     std::vector<store::SavedRun> saved_runs_;
     store::SavedRun pending_run_;
