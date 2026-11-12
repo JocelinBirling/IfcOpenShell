@@ -21,6 +21,7 @@
 #include <vector>
 
 class QJsonObject;
+class QTimer;
 
 namespace bonsaiviewer::services {
 
@@ -90,7 +91,7 @@ public:
     bool isFolder(const QString& id) const;
     bool folderIsEmpty(const QString& id) const;
 
-    // Mutations persist immediately (B14) and emit changed().
+    // Mutations emit changed() and persist (the write is debounced).
     QString addFolder(const QString& name, const QString& parent_id);
     void renameFolder(const QString& id, const QString& name);
     // Deletes the folder's whole subtree (its folders and filters).
@@ -131,10 +132,13 @@ private:
     void load();
     void seedExamples();
     void save() const;
+    // Relaunches the debounce timer; the actual write happens on timeout.
+    void scheduleSave();
     bool folderIsInSubtree(const QString& candidate_id, const QString& root_id) const;
 
     std::vector<FilterFolder> folders_;
     std::vector<FilterDocument> filters_;
+    QTimer* save_timer_ = nullptr;
 };
 
 } // namespace bonsaiviewer::services
