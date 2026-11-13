@@ -55,6 +55,10 @@
 #include <QPointer>
 #include <QStandardPaths>
 #include <QThread>
+#include <QThreadPool>
+
+#include <atomic>
+#include <mutex>
 #include <QTreeView>
 #include <QUuid>
 
@@ -833,35 +837,50 @@ void runMassConversion(SessionState& session, QWidget& host, const QString& titl
     }
 
     session.beginProgress(title);
-    session.setStatusMessage("Convert", QStringLiteral("%1 file(s) selected").arg(inputs.size()));
+    session.setStatusMessage("Convert",
+                             QStringLiteral("%1 file(s) selected, %2 at a time")
+                                 .arg(inputs.size())
+                                 .arg(qMin(4, QThread::idealThreadCount())));
 
     auto errors = std::make_shared<QStringList>();
-    auto converted = std::make_shared<int>(0);
+    auto converted = std::make_shared<std::atomic<int>>(0);
     const int total = static_cast<int>(inputs.size());
-    QThread* thread = QThread::create([&session, inputs, outputs, work, errors, converted, total]() {
+    // Several conversions at once: each file is independent (own serializer /
+    // own bake), so a small pool of workers is safe and much faster than one
+    // file at a time. Bounded to keep the memory peak reasonable.
+    const int workers = qMin(4, QThread::idealThreadCount());
+    QThread* coordinator = QThread::create([&session, &host, inputs, outputs, work, errors, converted, total, title, workers]() {
+        QThreadPool pool;
+        pool.setMaxThreadCount(workers);
+        std::atomic<int> done{0};
+        std::mutex errors_mutex;
         for (int i = 0; i < total; ++i) {
-            QString error;
-            if (work(inputs[i], outputs[i], error)) {
-                ++*converted;
-            } else {
-                errors->append(QStringLiteral("%1: %2").arg(QFileInfo(inputs[i]).fileName(), error));
-            }
-            QMetaObject::invokeMethod(&session, [&session, i, total]() {
-                session.setProgress(static_cast<int>(100.0 * (i + 1) / total));
-            }, Qt::QueuedConnection);
+            pool.start([&, i]() {
+                QString error;
+                if (work(inputs[i], outputs[i], error)) {
+                    ++*converted;
+                } else {
+                    std::lock_guard<std::mutex> lock(errors_mutex);
+                    errors->append(QStringLiteral("%1: %2").arg(QFileInfo(inputs[i]).fileName(), error));
+                }
+                const int d = ++done;
+                QMetaObject::invokeMethod(&session, [&session, d, total]() {
+                    session.setProgress(static_cast<int>(100.0 * d / total));
+                }, Qt::QueuedConnection);
+            });
         }
+        pool.waitForDone();
+        QMetaObject::invokeMethod(&host, [&session, &host, errors, converted, total, title]() {
+            session.endProgress();
+            const QString summary = QStringLiteral("%1/%2 converted").arg(converted->load()).arg(total);
+            session.setStatusMessage("Convert", summary);
+            QString text = summary;
+            if (!errors->isEmpty()) text += QStringLiteral("\n\nFailed:\n") + errors->join('\n');
+            QMessageBox::information(&host, title, text);
+        }, Qt::QueuedConnection);
     });
-    QObject::connect(thread, &QThread::finished, &host,
-                     [&session, &host, thread, errors, converted, total, title]() {
-        session.endProgress();
-        thread->deleteLater();
-        const QString summary = QStringLiteral("%1/%2 converted").arg(*converted).arg(total);
-        session.setStatusMessage("Convert", summary);
-        QString text = summary;
-        if (!errors->isEmpty()) text += QStringLiteral("\n\nFailed:\n") + errors->join('\n');
-        QMessageBox::information(&host, title, text);
-    });
-    thread->start();
+    QObject::connect(coordinator, &QThread::finished, coordinator, &QObject::deleteLater);
+    coordinator->start();
 }
 
 } // namespace
