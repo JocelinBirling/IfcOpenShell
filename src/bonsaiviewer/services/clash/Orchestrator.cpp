@@ -297,6 +297,7 @@ void Orchestrator::reportRule(const RuleCheck& rule) {
     // engine only (a cascade runs its rule as Select anyway).
     RuleRun run = runRule(rule, QStringLiteral("Final"));
         outcome.results = std::move(run.results);
+        outcome.set_aside = std::move(run.set_aside);
         outcome.groups = std::move(run.groups);
         outcome.messages = std::move(run.messages);
         outcome.not_checked = std::move(run.not_checked);
@@ -398,12 +399,34 @@ Orchestrator::RuleRun Orchestrator::runRule(const RuleCheck& rule, const QString
     }
 
     // The pipeline (ResultPipeline.apply).
-    if (spec->isTwoObject()) applyException(rule, run.results);
+    if (spec->isTwoObject()) applyException(rule, run);
     if (state == QLatin1String("Final")) {
         applyLabels(rule.criticity, run.results, true);
         applyLabels(rule.actor, run.results, false);
         if (rule.must) applyMust(rule, run);
         else run.groups = group(rule, run.results);
+        // Whatever an exception invalidated is set aside, not shown in the
+        // results. The groups are reindexed to the kept results.
+        std::vector<ClashResult> kept;
+        std::vector<int> remap(run.results.size(), -1);
+        for (size_t i = 0; i < run.results.size(); ++i) {
+            if (!run.results[i].status) {
+                run.set_aside.push_back(std::move(run.results[i]));
+            } else {
+                remap[i] = static_cast<int>(kept.size());
+                kept.push_back(std::move(run.results[i]));
+            }
+        }
+        run.results = std::move(kept);
+        for (ResultGroup& g : run.groups) {
+            std::vector<int> reindexed;
+            for (int index : g.results) {
+                if (index >= 0 && index < static_cast<int>(remap.size()) && remap[index] >= 0) {
+                    reindexed.push_back(remap[index]);
+                }
+            }
+            g.results = std::move(reindexed);
+        }
     }
     if (state == QLatin1String("Select")) run.selection = selectionOf(rule, run, element_to_pass, element_state_to_pass);
     return run;
@@ -411,7 +434,8 @@ Orchestrator::RuleRun Orchestrator::runRule(const RuleCheck& rule, const QString
 
 // --- exceptions (RuleCheck.run_exception, BooleanLeaf.evaluate_result) -----------
 
-void Orchestrator::applyException(const RuleCheck& rule, std::vector<ClashResult>& results) {
+void Orchestrator::applyException(const RuleCheck& rule, RuleRun& run) {
+    std::vector<ClashResult>& results = run.results;
     if (rule.exception.empty() || results.empty()) return;
     std::vector<bool> excepted(results.size(), false);
     if (!rule.exception.relation.isEmpty()) {
@@ -430,10 +454,11 @@ void Orchestrator::applyException(const RuleCheck& rule, std::vector<ClashResult
         for (size_t j = 0; j < indexes.size(); ++j) excepted[indexes[j]] = holds[j];
     }
     if (rule.exception.timing == QLatin1String("before")) {
-        // The excepted pairs leave the run.
+        // The excepted pairs are set aside, not dropped.
         std::vector<ClashResult> kept;
         for (size_t i = 0; i < results.size(); ++i) {
-            if (!excepted[i]) kept.push_back(std::move(results[i]));
+            if (excepted[i]) run.set_aside.push_back(std::move(results[i]));
+            else kept.push_back(std::move(results[i]));
         }
         results = std::move(kept);
     } else {
@@ -693,9 +718,13 @@ std::vector<ResultGroup> Orchestrator::group(const RuleCheck& rule, const std::v
 void Orchestrator::applyMust(const RuleCheck& rule, RuleRun& run) {
     const AbsOrRelCheck& must = *rule.must;
     if (!must.count_excepted) {
-        // The pairs an exception invalidated stay out of the groups.
-        run.results.erase(std::remove_if(run.results.begin(), run.results.end(), [](const ClashResult& r) { return !r.status; }),
-                          run.results.end());
+        // The pairs an exception invalidated stay out of the groups — set aside.
+        std::vector<ClashResult> kept;
+        for (auto& r : run.results) {
+            if (!r.status) run.set_aside.push_back(std::move(r));
+            else kept.push_back(std::move(r));
+        }
+        run.results = std::move(kept);
     }
     std::vector<ResultGroup> groups = group(rule, run.results);
     if (groups.empty()) {
@@ -744,7 +773,12 @@ void Orchestrator::applyMust(const RuleCheck& rule, RuleRun& run) {
         groups[g].results = {static_cast<int>(g)};
         verdicts.push_back(std::move(verdict));
     }
-    run.results = std::move(verdicts);
+    // The Must verdicts are set aside, not results of the run. The group
+    // indexes point into set_aside, where the verdicts are appended after
+    // any pairs an exception already set aside.
+    const int offset = static_cast<int>(run.set_aside.size());
+    for (size_t g = 0; g < groups.size(); ++g) groups[g].results = {offset + static_cast<int>(g)};
+    for (auto& v : verdicts) run.set_aside.push_back(std::move(v));
     run.groups = std::move(groups);
 }
 

@@ -129,6 +129,13 @@ public:
     // results of the other rules are kept, with their review and group). A
     // new row with the key of a replaced one keeps its review and group.
     void mergeResults(std::vector<ResultRow> rows, const std::set<QString>& ran);
+    // The set-aside list (Must verdicts, excepted pairs): same lifecycle as
+    // the results, but shown only in set-aside mode and never numbered.
+    void mergeSetAsideResults(std::vector<ResultRow> rows, const std::set<QString>& ran);
+    // Set-aside mode: the panel shows the set-aside list instead of the
+    // results (the Rule Result Tools "Set aside" button).
+    void setSetAsideMode(bool on);
+    bool setAsideMode() const { return aside_mode_; }
     // The rules the panel shows (node ids; none: every rule), `label` above the table.
     void setScope(std::optional<std::set<QString>> node_ids, const QString& label);
     // Whether the rule ran (it may have no result).
@@ -142,10 +149,16 @@ public:
     void mergeMessages(const std::vector<Message>& messages, const std::set<QString>& ran);
     void clearMessages();
     const std::vector<Message>& messages() const { return run_messages_; }
-    const std::vector<ResultRow>& rows() const { return rows_; }
+    // The rows of the list currently shown (set-aside mode: the set-aside list).
+    const std::vector<ResultRow>& rows() const { return activeRows(); }
+    // The two lists, whatever the mode (save, numbering: the main one only).
+    const std::vector<ResultRow>& mainRows() const { return rows_; }
+    const std::vector<ResultRow>& asideRows() const { return aside_rows_; }
     // Changes every row in place (the viewer ids after a model change), the
     // scope, the filters and the selection kept.
     void updateRows(const std::function<void(ResultRow&)>& update);
+    // Changes every row of the main list only, whatever the mode (numbering).
+    void updateMainRows(const std::function<void(ResultRow&)>& update);
     void setGroupMode(GroupMode mode);
     void setFilterOnlyNonDetermined(bool on);
     void setHideExcepted(bool on);
@@ -178,6 +191,8 @@ signals:
     void reviewChanged();
 
 private:
+    std::vector<ResultRow>& activeRows() { return aside_mode_ ? aside_rows_ : rows_; }
+    const std::vector<ResultRow>& activeRows() const { return aside_mode_ ? aside_rows_ : rows_; }
     void rebuild();
     QTreeWidgetItem* appendRow(QTreeWidgetItem* parent, int row);
     // The review as the style of a row: Valid bold, Invalid struck out and
@@ -190,6 +205,8 @@ private:
     void refreshMessages();
 
     std::vector<ResultRow> rows_;
+    std::vector<ResultRow> aside_rows_;
+    bool aside_mode_ = false;
     QHash<QString, TopicInfo> topics_;
     GroupMode mode_ = GroupMode::Flat;
     bool only_non_determined_ = false;

@@ -177,6 +177,11 @@ QJsonObject toJson(const SavedClash& clash) {
     QJsonArray results;
     for (const ResultRow& row : clash.results) results.append(rowToJson(row));
     json["results"] = results;
+    if (!clash.set_aside.empty()) {
+        QJsonArray set_aside;
+        for (const ResultRow& row : clash.set_aside) set_aside.append(rowToJson(row));
+        json["set_aside"] = set_aside;
+    }
     QJsonArray messages;
     for (const auto& [node, text] : clash.messages) messages.append(QJsonObject{{"node_id", node}, {"text", text}});
     if (!messages.isEmpty()) json["messages"] = messages;
@@ -230,6 +235,10 @@ SavedClash fromJson(const QJsonObject& json, QStringList* warnings) {
     }
     for (const QJsonValue& value : json.value("results").toArray()) {
         clash.results.push_back(rowFromJson(value.toObject(), warnings));
+    }
+    // Optional (older projects have none): the set-aside list.
+    for (const QJsonValue& value : json.value("set_aside").toArray()) {
+        clash.set_aside.push_back(rowFromJson(value.toObject(), warnings));
     }
     for (const QJsonValue& value : json.value("messages").toArray()) {
         const QJsonObject entry = value.toObject();

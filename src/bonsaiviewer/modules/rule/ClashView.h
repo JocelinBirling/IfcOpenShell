@@ -233,6 +233,8 @@ private:
 
     // The run in progress, then the results shown.
     std::vector<ResultRow> pending_rows_;
+    // The set-aside rows of the run in progress (Must verdicts, excepted pairs).
+    std::vector<ResultRow> pending_aside_rows_;
     std::set<QString> pending_nodes_; // the rules of the run (their old rows are replaced)
     // The elements each rule run checked (viewer object ids), for the Clash
     // section of the Properties panel ("checked, no result").

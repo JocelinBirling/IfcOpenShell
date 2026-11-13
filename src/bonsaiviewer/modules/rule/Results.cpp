@@ -140,6 +140,7 @@ ResultPanel::ResultPanel(QWidget* parent) : QWidget(parent) {
 
 void ResultPanel::setResults(std::vector<ResultRow> rows) {
     rows_ = std::move(rows);
+    aside_rows_.clear();
     run_nodes_.clear();
     for (const ResultRow& row : rows_) run_nodes_.insert(row.node_id);
     scope_.reset();
@@ -167,6 +168,32 @@ void ResultPanel::mergeResults(std::vector<ResultRow> rows, const std::set<QStri
     rebuild();
 }
 
+void ResultPanel::mergeSetAsideResults(std::vector<ResultRow> rows, const std::set<QString>& ran) {
+    // Same lifecycle as mergeResults, on the set-aside list.
+    std::map<QString, const ResultRow*> previous;
+    for (const ResultRow& row : aside_rows_) {
+        if (ran.count(row.node_id) && !row.key.isEmpty()) previous[row.key] = &row;
+    }
+    for (ResultRow& row : rows) {
+        const auto found = previous.find(row.key);
+        if (found == previous.end()) continue;
+        row.review = found->second->review;
+        row.manual_group = found->second->manual_group;
+        row.topic_guid = found->second->topic_guid;
+    }
+    aside_rows_.erase(std::remove_if(aside_rows_.begin(), aside_rows_.end(),
+                                     [&ran](const ResultRow& row) { return ran.count(row.node_id) > 0; }),
+                      aside_rows_.end());
+    for (ResultRow& row : rows) aside_rows_.push_back(std::move(row));
+    rebuild();
+}
+
+void ResultPanel::setSetAsideMode(bool on) {
+    if (aside_mode_ == on) return;
+    aside_mode_ = on;
+    rebuild();
+}
+
 void ResultPanel::setTopics(QHash<QString, TopicInfo> topics) {
     topics_ = std::move(topics);
     rebuild();
@@ -186,7 +213,7 @@ QString ResultPanel::topicTitle(const QString& guid) const {
 
 void ResultPanel::setTopicOf(const std::vector<int>& rows, const QString& guid) {
     for (int row : rows) {
-        if (row >= 0 && row < static_cast<int>(rows_.size())) rows_[static_cast<size_t>(row)].topic_guid = guid;
+        if (row >= 0 && row < static_cast<int>(activeRows().size())) activeRows()[static_cast<size_t>(row)].topic_guid = guid;
     }
     rebuild();
     emit reviewChanged();
@@ -194,12 +221,19 @@ void ResultPanel::setTopicOf(const std::vector<int>& rows, const QString& guid) 
 
 void ResultPanel::updateRows(const std::function<void(ResultRow&)>& update) {
     const std::vector<int> selected = selectedRows();
-    for (ResultRow& row : rows_) update(row);
+    for (ResultRow& row : activeRows()) update(row);
     rebuild();
     const QSignalBlocker blocker(tree_);
     for (QTreeWidgetItemIterator it(tree_); *it; ++it) {
         if (std::find(selected.begin(), selected.end(), rowOf(*it)) != selected.end()) (*it)->setSelected(true);
     }
+}
+
+void ResultPanel::updateMainRows(const std::function<void(ResultRow&)>& update) {
+    // The main list only, whatever the mode (the numbering never touches the
+    // set-aside list).
+    for (ResultRow& row : rows_) update(row);
+    rebuild();
 }
 
 void ResultPanel::setScope(std::optional<std::set<QString>> node_ids, const QString& label) {
@@ -296,7 +330,7 @@ void ResultPanel::setHiddenValues(HiddenValues hidden) {
 
 QStringList ResultPanel::manualGroups() const {
     QStringList names;
-    for (const ResultRow& row : rows_) {
+    for (const ResultRow& row : activeRows()) {
         if (!row.manual_group.isEmpty() && !names.contains(row.manual_group)) names << row.manual_group;
     }
     return names;
@@ -304,14 +338,14 @@ QStringList ResultPanel::manualGroups() const {
 
 void ResultPanel::setManualGroup(const std::vector<int>& rows, const QString& name) {
     for (int row : rows) {
-        if (row >= 0 && row < static_cast<int>(rows_.size())) rows_[static_cast<size_t>(row)].manual_group = name;
+        if (row >= 0 && row < static_cast<int>(activeRows().size())) activeRows()[static_cast<size_t>(row)].manual_group = name;
     }
     rebuild();
     emit reviewChanged();
 }
 
 void ResultPanel::renameManualGroup(const QString& from, const QString& to) {
-    for (ResultRow& row : rows_) {
+    for (ResultRow& row : activeRows()) {
         if (row.manual_group == from) row.manual_group = to;
     }
     rebuild();
@@ -353,8 +387,8 @@ void ResultPanel::clearFilters() {
 
 std::vector<int> ResultPanel::shownRows() const {
     std::vector<int> shown;
-    for (int i = 0; i < static_cast<int>(rows_.size()); ++i) {
-        const ResultRow& row = rows_[static_cast<size_t>(i)];
+    for (int i = 0; i < static_cast<int>(activeRows().size()); ++i) {
+        const ResultRow& row = activeRows()[static_cast<size_t>(i)];
         if (only_non_determined_ && row.review != ReviewStatus::NonDetermined) continue;
         if (hide_excepted_ && !row.status) continue;
         if (hide_linked_ && isLinked(row)) continue;
@@ -376,7 +410,7 @@ std::vector<int> ResultPanel::shownRows() const {
 }
 
 QTreeWidgetItem* ResultPanel::appendRow(QTreeWidgetItem* parent, int index) {
-    const ResultRow& row = rows_[static_cast<size_t>(index)];
+    const ResultRow& row = activeRows()[static_cast<size_t>(index)];
     auto* item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(tree_);
     item->setText(kSource, row.source_name);
     item->setText(kTarget, row.target_name);
@@ -422,7 +456,7 @@ void ResultPanel::rebuild() {
     std::vector<QString> order;
     std::map<QString, std::vector<int>> groups;
     for (int i : shown) {
-        const ResultRow& row = rows_[static_cast<size_t>(i)];
+        const ResultRow& row = activeRows()[static_cast<size_t>(i)];
         QStringList keys;
         switch (mode_) {
         case GroupMode::BySource: keys << row.source_name; break;
@@ -483,12 +517,12 @@ void ResultPanel::selectRow(int row) {
 
 void ResultPanel::setReview(const std::vector<int>& rows, ReviewStatus status) {
     for (int row : rows) {
-        if (row >= 0 && row < static_cast<int>(rows_.size())) rows_[static_cast<size_t>(row)].review = status;
+        if (row >= 0 && row < static_cast<int>(activeRows().size())) activeRows()[static_cast<size_t>(row)].review = status;
     }
     const QSignalBlocker blocker(tree_);
     for (QTreeWidgetItemIterator it(tree_); *it; ++it) {
         const int row = rowOf(*it);
-        if (row >= 0) styleRow(*it, rows_[static_cast<size_t>(row)]);
+        if (row >= 0) styleRow(*it, activeRows()[static_cast<size_t>(row)]);
     }
     emit reviewChanged();
 }
@@ -531,7 +565,7 @@ void ResultPanel::contextMenu(const QPoint& pos) {
     QMenu* add_to = menu.addMenu("Add to Topic");
     add_to->setToolTipsVisible(true);
     QStringList known;
-    for (const ResultRow& row : rows_) {
+    for (const ResultRow& row : activeRows()) {
         if (isLinked(row) && !known.contains(row.topic_guid)) known << row.topic_guid;
     }
     for (const QString& guid : known) {
@@ -542,7 +576,7 @@ void ResultPanel::contextMenu(const QPoint& pos) {
     QStringList guids;
     bool any_linked = false;
     for (int row : rows) {
-        const ResultRow& r = rows_[static_cast<size_t>(row)];
+        const ResultRow& r = activeRows()[static_cast<size_t>(row)];
         if (!isLinked(r)) continue;
         any_linked = true;
         if (!guids.contains(r.topic_guid)) guids << r.topic_guid;
@@ -567,14 +601,14 @@ void ResultPanel::contextMenu(const QPoint& pos) {
     if (!groups.isEmpty()) add->addSeparator();
     for (const QString& name : groups) add->addAction(name, this, [this, rows, name]() { setManualGroup(rows, name); });
     bool grouped = false;
-    for (int row : rows) grouped = grouped || !rows_[static_cast<size_t>(row)].manual_group.isEmpty();
+    for (int row : rows) grouped = grouped || !activeRows()[static_cast<size_t>(row)].manual_group.isEmpty();
     QAction* remove = menu.addAction("Remove from its group", this, [this, rows]() { setManualGroup(rows, QString()); });
     remove->setEnabled(grouped);
     // Hide the results sharing a value of the clicked one (Categories shows them again).
     const int first = clicked && rowOf(clicked) >= 0 ? rowOf(clicked) : rows.front();
     QMenu* hide = menu.addMenu("Hide the results with the same");
     for (Category category : categories()) {
-        for (const QString& value : valuesOf(rows_[static_cast<size_t>(first)], category)) {
+        for (const QString& value : valuesOf(activeRows()[static_cast<size_t>(first)], category)) {
             hide->addAction(QString("%1: %2").arg(categoryName(category), value), this, [this, category, value]() {
                 HiddenValues hidden = hidden_;
                 hidden[category].insert(value);

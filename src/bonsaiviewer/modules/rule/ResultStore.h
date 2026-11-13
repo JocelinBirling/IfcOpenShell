@@ -69,6 +69,10 @@ struct SavedClash {
     // The rows as saved: what the panel shows, without the viewer ids
     // (source_model, target_model, *_objects), filled at the resolution.
     std::vector<ResultRow> results;
+    // The set-aside rows (Must verdicts, excepted pairs): saved like the
+    // results (review, manual group, topic), shown only in set-aside mode
+    // and never numbered.
+    std::vector<ResultRow> set_aside;
     std::vector<std::pair<QString, QString>> messages; // node id (empty: the run), text
     QString bcf_file; // the BCF file of the topics of the results (empty: not saved yet)
     // The short numbers of the results (resultNumberText): result key -> number,

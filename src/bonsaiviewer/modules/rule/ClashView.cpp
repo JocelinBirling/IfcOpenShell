@@ -376,6 +376,7 @@ void ClashView::run(const std::vector<clash::RuleNode>& nodes) {
         else copy.push_back(clash::json::cloneRule(*std::get<std::shared_ptr<clash::RuleCheck>>(node)));
     }
     pending_rows_.clear();
+    pending_aside_rows_.clear();
     pending_nodes_.clear();
     pending_inputs_.clear();
     pending_saved_nodes_.clear();
@@ -565,6 +566,19 @@ void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
         if (!outcome.results[i].status) ++excepted;
         pending_rows_.push_back(rowOf(outcome, outcome.results[i], group_of[i]));
     }
+    // The set-aside results (Must verdicts, excepted pairs): same rows, kept
+    // in the aside list. After a Must the group indexes point into set_aside.
+    std::vector<QString> aside_group_of(outcome.set_aside.size());
+    for (const clash::ResultGroup& group : outcome.groups) {
+        for (int index : group.results) {
+            if (index >= 0 && index < static_cast<int>(aside_group_of.size())) {
+                aside_group_of[static_cast<size_t>(index)] = group.label;
+            }
+        }
+    }
+    for (size_t i = 0; i < outcome.set_aside.size(); ++i) {
+        pending_aside_rows_.push_back(rowOf(outcome, outcome.set_aside[i], aside_group_of[i]));
+    }
     QString text = QString("%1 result%2").arg(outcome.results.size()).arg(outcome.results.size() == 1 ? "" : "s");
     if (excepted > 0) text += QString(" (%1 %2)").arg(excepted).arg(outcome.results.front().complex ? "failing" : "excepted");
     if (!outcome.results.empty() && outcome.results.front().complex) {
@@ -597,10 +611,13 @@ void ClashView::onRunFinished(bool cancelled, const QString& error) {
     }
     // The results of the other rules stay (a click on a rule shows its own).
     results_->mergeResults(std::move(pending_rows_), pending_nodes_);
+    results_->mergeSetAsideResults(std::move(pending_aside_rows_), pending_nodes_);
+    pending_aside_rows_.clear();
     numberResults();
     for (const ResultRow& row : results_->rows()) topics_before.remove(row.topic_guid);
     resolved_topics_.unite(topics_before);
     pending_rows_.clear();
+    pending_aside_rows_.clear();
     for (const QString& node : pending_nodes_) rule_inputs_.erase(node);
     for (auto& [node, inputs] : pending_inputs_) rule_inputs_[node] = std::move(inputs);
     pending_inputs_.clear();
@@ -754,7 +771,8 @@ void ClashView::saveToFederation() {
     }
     clash.runs = saved_runs_;
     for (const auto& [node, saved] : saved_nodes_) clash.nodes.push_back(saved);
-    clash.results = results_->rows();
+    clash.results = results_->mainRows();
+    clash.set_aside = results_->asideRows();
     clash.messages = results_->messages();
     clash.numbers = result_numbers_;
     clash.next_number = next_result_number_;
@@ -766,7 +784,8 @@ void ClashView::saveToFederation() {
 }
 
 void ClashView::numberResults() {
-    results_->updateRows([this](ResultRow& row) {
+    // Only the main results get a number; the set-aside list has none.
+    results_->updateMainRows([this](ResultRow& row) {
         if (row.key.isEmpty()) return;
         auto [it, added] = result_numbers_.try_emplace(row.key, next_result_number_);
         if (added) ++next_result_number_;
@@ -898,7 +917,7 @@ void ClashView::tryRestore() {
             }
         }
     }
-    const int unresolved = resolveRows(clash.results);
+    const int unresolved = resolveRows(clash.results) + resolveRows(clash.set_aside);
     if (unresolved > 0) {
         clash.messages.emplace_back(QString(), QString("%1 result(s) point at elements not found in the loaded models.").arg(unresolved));
     }
@@ -916,11 +935,13 @@ void ClashView::tryRestore() {
         saved_nodes_[node.node_id] = node;
     }
     for (const ResultRow& row : clash.results) nodes.insert(row.node_id);
+    for (const ResultRow& row : clash.set_aside) nodes.insert(row.node_id);
     saved_runs_ = clash.runs;
     results_->setResults({});
     result_numbers_ = clash.numbers;
     next_result_number_ = clash.next_number;
     results_->mergeResults(std::move(clash.results), nodes);
+    results_->mergeSetAsideResults(std::move(clash.set_aside), nodes);
     numberResults();
     results_->clearMessages();
     results_->mergeMessages(clash.messages, nodes);
@@ -1777,6 +1798,10 @@ QWidget* ClashView::buildClashFilterRibbon() {
     excepted->setCheckable(true);
     describe(excepted, "Hide the results an exception invalidated.");
     connect(excepted, &QToolButton::toggled, results_, &ResultPanel::setHideExcepted);
+    auto* set_aside = components::buttons::makeButton("Set aside", ":/icons/box-eye.svg", page);
+    set_aside->setCheckable(true);
+    describe(set_aside, "Show the set-aside results (Must verdicts, excepted pairs) instead of the results.");
+    connect(set_aside, &QToolButton::toggled, results_, &ResultPanel::setSetAsideMode);
     auto* with_topic = components::buttons::makeButton("Hide With Topic", ":/icons/eye-closed.svg", page);
     with_topic->setCheckable(true);
     describe(with_topic, "Hide the results already in a BCF topic (a closed topic counts, a deleted one does not).");

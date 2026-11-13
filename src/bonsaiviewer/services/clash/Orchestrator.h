@@ -85,6 +85,9 @@ struct RuleOutcome {
     QString rule_type;
     QString label;
     std::vector<ClashResult> results;
+    // Set aside, not shown in the results: the Must verdicts (complex) and
+    // the pairs an exception invalidated (status false).
+    std::vector<ClashResult> set_aside;
     std::vector<ResultGroup> groups;
     QStringList messages;     // warnings of the engine (elements without geometry...)
     Elements not_checked;     // elements the engine could not test
@@ -117,6 +120,7 @@ public:
 private:
     struct RuleRun {
         std::vector<ClashResult> results;
+        std::vector<ClashResult> set_aside; // Must verdicts + excepted pairs
         std::vector<ResultGroup> groups;
         Elements sources;
         Elements targets;
@@ -134,7 +138,7 @@ private:
                     bool element_state_to_pass = true);
     ifcclash::RunResult runEngine(const RuleCheck& rule, const Elements& sources, const Elements& targets,
                                   const Elements& context);
-    void applyException(const RuleCheck& rule, std::vector<ClashResult>& results);
+    void applyException(const RuleCheck& rule, RuleRun& run);
     std::vector<bool> evaluateTree(const BooleanNode& node, const std::vector<ifcclash::KeyPair>& pairs);
     bool evaluateTree(const BooleanNode& node);
     bool relationException(const QString& relation, const ElementKey& a, const ElementKey& b);
