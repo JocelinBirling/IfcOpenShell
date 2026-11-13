@@ -98,7 +98,10 @@ IfcSource::IfcSource(const std::vector<IfcSourceFile>& files, IfcSourceOptions o
             if (!std::filesystem::exists(source_file.path)) {
                 throw ConfigError("IFC file not found: " + source_file.path.string());
             }
-            entry->file = std::make_shared<ifcopenshell::file>(source_file.path.string());
+            // Read-only: a no-op for an IFC file; a RocksDB database (.rdb)
+            // opens without its exclusive lock, beside the viewer's reader.
+            entry->file = std::make_shared<ifcopenshell::file>(source_file.path.string(),
+                                                               ifcopenshell::FT_AUTODETECT, /*read_only=*/true);
         }
         if (!entry->file->good()) {
             throw ConfigError("IFC file could not be parsed: " + source_file.path.string());

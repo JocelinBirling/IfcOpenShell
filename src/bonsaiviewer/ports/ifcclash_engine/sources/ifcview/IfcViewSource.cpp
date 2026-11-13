@@ -52,6 +52,18 @@ std::optional<Manifest> read_manifest(const std::filesystem::path& ifcview) {
     return m;
 }
 
+// The time a .ifcview is compared with (ifcview_freshness=mtime). A RocksDB
+// database (.rdb directory) is written after the .ifcview by the mass
+// conversion, both from the same .ifc: its own time says nothing, so the
+// reference is the .ifc of the same name next to it; none without it.
+std::optional<std::filesystem::file_time_type> source_time(const std::filesystem::path& source,
+                                                           std::error_code& ec) {
+    if (!std::filesystem::is_directory(source, ec)) return std::filesystem::last_write_time(source, ec);
+    const auto ifc = source.parent_path() / (source.stem().string() + ".ifc");
+    if (!std::filesystem::exists(ifc, ec)) return std::nullopt;
+    return std::filesystem::last_write_time(ifc, ec);
+}
+
 // Linear deflection of the IFC triangulation (ifcopenshell.geom.settings()
 // default, the settings of IfcSource).
 constexpr double kIfcLinearDeflection = 0.001;
@@ -78,14 +90,16 @@ IfcViewSource::IfcViewSource(const std::vector<IfcViewFile>& files, const IfcVie
             continue;
         }
         if (options.freshness == Freshness::Mtime && !manifest) {
+            std::error_code ec_source;
             const auto t_view = std::filesystem::last_write_time(file.ifcview_path, ec);
-            const auto t_ifc = std::filesystem::last_write_time(file.ifc_path, ec);
-            if (ec || t_view < t_ifc) {
+            const auto t_ifc = source_time(file.ifc_path, ec_source);
+            if (ec || ec_source || (t_ifc && t_view < *t_ifc)) {
                 reject("older than the IFC (ifcview_freshness=mtime)");
                 continue;
             }
             diagnostics.add(Severity::Info, "ifcview_no_manifest",
-                            name + ": no manifest, accepted because it is newer than the IFC");
+                            name + (t_ifc ? ": no manifest, accepted because it is newer than the IFC"
+                                          : ": no manifest and no IFC next to the database, accepted"));
         }
 
         // ---- Format (version, readability)

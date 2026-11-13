@@ -45,6 +45,7 @@
 #include "../../../ifcviewer/OverlayRenderer.h"
 #include "../../../ifcviewer/SceneLoader.h"
 #include "../../../ifcviewer/ViewportWindow.h"
+#include "../../../ifcparse/file.h"
 
 #include "api/Engine.h"
 
@@ -127,9 +128,13 @@ OverlayRenderer::LineGroup lineGroup(const QColor& colour, float width, float da
     return group;
 }
 
-bool isIfcPath(const QString& path) {
-    const QString suffix = QFileInfo(path).suffix().toLower();
-    return (suffix == QLatin1String("ifc") || suffix == QLatin1String("ifcxml")) && QFileInfo::exists(path);
+// The sources the rule engine opens: an IFC file (.ifc, .ifcXML) or a
+// RocksDB database (.rdb), opened read-only like the loader does.
+bool isRuleSourcePath(const QString& path) {
+    const QFileInfo info(path);
+    if (info.isDir()) return ifcopenshell::guess_file_type(path.toUtf8().toStdString()) == ifcopenshell::FT_ROCKSDB;
+    const QString suffix = info.suffix().toLower();
+    return (suffix == QLatin1String("ifc") || suffix == QLatin1String("ifcxml")) && info.exists();
 }
 
 } // namespace
@@ -269,7 +274,7 @@ bool ClashView::prepareModels(QString* error) {
     QStringList skipped;
     for (std::uint32_t id : s_.session.sessionModelIds()) {
         const QString path = loader ? loader->filePath(id) : QString();
-        if (!isIfcPath(path)) {
+        if (!isRuleSourcePath(path)) {
             skipped << (loader ? loader->displayName(id) : QString::number(id));
             continue;
         }
@@ -279,11 +284,12 @@ bool ClashView::prepareModels(QString* error) {
     }
     if (run_models_.empty()) {
         *error = skipped.isEmpty() ? QStringLiteral("Load an IFC model before running the rules.")
-                                   : QStringLiteral("The rules run on IFC files: the loaded models have no IFC file on disk.");
+                                   : QStringLiteral("The rules run on IFC files or .rdb databases: none of the "
+                                                    "loaded models has one on disk.");
         return false;
     }
     if (!skipped.isEmpty()) {
-        run_messages_.emplace_back(QString(), "Left out (no IFC file on disk): " + skipped.join(", "));
+        run_messages_.emplace_back(QString(), "Left out (no IFC file or .rdb database on disk): " + skipped.join(", "));
     }
     if (key != engine_key_) {
         engine_.reset(); // the worker opens a new session

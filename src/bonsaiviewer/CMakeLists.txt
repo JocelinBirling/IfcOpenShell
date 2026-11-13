@@ -445,7 +445,8 @@ add_executable(bonsaiviewer_clash_rule_tests EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_clash_rule_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(bonsaiviewer_clash_rule_tests PRIVATE
     BONSAIVIEWER_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
-target_link_libraries(bonsaiviewer_clash_rule_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core)
+target_link_libraries(bonsaiviewer_clash_rule_tests PRIVATE ifcclash_engine plugin Qt${QT_VERSION}::Core)
+target_compile_definitions(bonsaiviewer_clash_rule_tests PRIVATE BOOST_DLL_USE_STD_FS)
 add_test(NAME bonsaiviewer_clash_rule_tests COMMAND bonsaiviewer_clash_rule_tests)
 
 # BonsaiViewer32: the node table of the Tree Explorer (Qt Core only; not built by default).
