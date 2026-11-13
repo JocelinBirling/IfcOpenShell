@@ -1873,7 +1873,7 @@ QWidget* ClashView::buildClashFilterRibbon() {
     describe(save, "Save the results of the last run (and the rules) to a JSON file, with the reviews.");
     connect(save, &QToolButton::clicked, this, &ClashView::saveResults);
     const QList<QWidget*> groups{
-        flowGroup("CONTEXT VIEW", {save_context, show_context, always, colour, everything}),
+        flowGroup("CONTEXT VIEW", {save_context, show_context, always, colour, everything, set_aside}),
         flowGroup("REGROUP RESULT", {reset, undetermined, excepted, with_topic, categories, group}),
         flowGroup("RESULT GEOMETRY", geometry),
         flowGroup("EXPORT", {save}),
