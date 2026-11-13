@@ -89,6 +89,10 @@ void saveModelToCloud(SessionState& session, QWidget& host, const QString& model
 void saveModelAsToCloud(SessionState& session, QWidget& host, const QString& model_id);
 void convertIfcToDatabase(SessionState& session, QWidget& host);
 void exportGeometryDatabase(SessionState& session, QWidget& host);
+// Mass versions: pick several IFC files at once, convert them one after
+// another. Each output sits next to its input, named <file>.rdb / <file>.ifcview.
+void massConvertIfcToDatabase(SessionState& session, QWidget& host);
+void massBuildIfcViews(SessionState& session, QWidget& host);
 void openSettings(SessionState& session, QWidget& host);
 
 // Remove the scratch dir used to unzip .rdbview bundles for loading. Call once
@@ -98,6 +102,11 @@ void cleanupRdbviewCache();
 // Internal building blocks shared by commands here and by ProjectController.
 // These NEVER call notify*() — the caller is responsible for emitting once
 // at the end of its execution.
+namespace detail {
+// One IFC -> one .rdb through the "rdb" document serializer. Synchronous;
+// call from a worker thread.
+bool convertOneIfcToRdb(const QString& input_path, const QString& output_path, QString& error);
+}
 namespace detail {
 
 // Queues already-federated models on the loader and maps their federation-ids to mids.

@@ -313,6 +313,37 @@ void viewModels(SessionState& session, ViewportWindow& viewport, const QStringLi
 
 namespace detail {
 
+bool convertOneIfcToRdb(const QString& input_path, const QString& output_path, QString& error) {
+    try {
+        ifcopenshell::serializers::document_serializer_context context;
+        context.file = nullptr;
+        context.input_filename = input_path.toStdString();
+        context.output_filename = output_path.toStdString();
+        context.stream = true;
+
+        auto& registry = ifcopenshell::serializers::document_serializer_registry_instance();
+        const auto* info = registry.find("rdb");
+        if (!info) {
+            error = QStringLiteral("No 'rdb' document serializer is registered. "
+                                   "The RocksDB serializer plugin may not be installed.");
+            return false;
+        }
+        if (!info->supports_input_filename) {
+            error = QStringLiteral("RDB serializer does not support streaming from an input filename");
+            return false;
+        }
+
+        std::shared_ptr<ifcopenshell::geom::serializer> serializer = registry.create("rdb", context);
+        serializer->finalize();
+        return true;
+    } catch (const std::exception& e) {
+        error = QString::fromUtf8(e.what());
+    } catch (...) {
+        error = QStringLiteral("Unknown error during IFC to RDB conversion");
+    }
+    return false;
+}
+
 void loadModels(SessionState& session, const QStringList& paths, const QStringList& model_ids) {
     if (paths.isEmpty()) return;
 
@@ -397,6 +428,12 @@ void addModel(SessionState& session, QWidget& host) {
         return;
     case SourceMode::ExportGeometryDatabase:
         exportGeometryDatabase(session, host);
+        return;
+    case SourceMode::MassConvertToDatabase:
+        massConvertIfcToDatabase(session, host);
+        return;
+    case SourceMode::MassBuildIfcView:
+        massBuildIfcViews(session, host);
         return;
     case SourceMode::None:
         return;
@@ -713,30 +750,7 @@ void convertIfcToDatabase(SessionState& session, QWidget& host) {
     auto error_message = std::make_shared<QString>();
 
     QThread* thread = QThread::create([input_path, output_path, error_message]() {
-        try {
-            ifcopenshell::serializers::document_serializer_context context;
-            context.file = nullptr;
-            context.input_filename = input_path.toStdString();
-            context.output_filename = output_path.toStdString();
-            context.stream = true;
-
-            auto& registry = ifcopenshell::serializers::document_serializer_registry_instance();
-            const auto* info = registry.find("rdb");
-            if (!info) {
-                throw ifcopenshell::exception(
-                    "No 'rdb' document serializer is registered. The RocksDB serializer plugin may not be installed.");
-            }
-            if (!info->supports_input_filename) {
-                throw ifcopenshell::exception("RDB serializer does not support streaming from an input filename");
-            }
-
-            std::shared_ptr<ifcopenshell::geom::serializer> serializer = registry.create("rdb", context);
-            serializer->finalize();
-        } catch (const std::exception& e) {
-            *error_message = QString::fromUtf8(e.what());
-        } catch (...) {
-            *error_message = "Unknown error during IFC to RDB conversion";
-        }
+        detail::convertOneIfcToRdb(input_path, output_path, *error_message);
     });
 
     QObject::connect(thread, &QThread::finished, &host,
@@ -764,6 +778,117 @@ void convertIfcToDatabase(SessionState& session, QWidget& host) {
     });
 
     thread->start();
+}
+
+namespace {
+
+// Shared driver of the mass conversions: pick several IFC files, compute the
+// output next to each input (<base><suffix>), confirm overwriting the ones
+// that already exist, then run `work` on each pair one after another on a
+// worker thread, with progress on the session and a summary at the end.
+void runMassConversion(SessionState& session, QWidget& host, const QString& title,
+                       const QString& name_filter, const QString& output_suffix,
+                       const std::function<bool(const QString&, const QString&, QString&)>& work) {
+    QFileDialog dialog(&host, title);
+    dialog.setFileMode(QFileDialog::ExistingFiles);
+    dialog.setNameFilter(name_filter);
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    bonsaiviewer::components::acceptPastedPaths(dialog);
+    if (dialog.exec() != QDialog::Accepted) return;
+    QStringList inputs = dialog.selectedFiles();
+    if (inputs.isEmpty()) return;
+
+    QStringList outputs;
+    for (const QString& input : inputs) {
+        const QFileInfo info(input);
+        outputs << info.absoluteDir().filePath(info.completeBaseName() + output_suffix);
+    }
+
+    // Skip the pairs whose output already exists, unless the user agrees to
+    // overwrite them.
+    int existing = 0;
+    for (const QString& output : outputs) {
+        if (QFileInfo::exists(output)) ++existing;
+    }
+    if (existing > 0) {
+        const auto answer = QMessageBox::question(
+            &host, title,
+            QStringLiteral("%1 output file(s) already exist. Overwrite them?").arg(existing),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes) {
+            QStringList kept_in, kept_out;
+            for (int i = 0; i < inputs.size(); ++i) {
+                if (!QFileInfo::exists(outputs[i])) {
+                    kept_in << inputs[i];
+                    kept_out << outputs[i];
+                }
+            }
+            inputs = kept_in;
+            outputs = kept_out;
+            if (inputs.isEmpty()) {
+                session.setStatusMessage("Convert", QStringLiteral("Nothing to do: every output exists"));
+                return;
+            }
+        }
+    }
+
+    session.beginProgress(title);
+    session.setStatusMessage("Convert", QStringLiteral("%1 file(s) selected").arg(inputs.size()));
+
+    auto errors = std::make_shared<QStringList>();
+    auto converted = std::make_shared<int>(0);
+    const int total = static_cast<int>(inputs.size());
+    QThread* thread = QThread::create([&session, inputs, outputs, work, errors, converted, total]() {
+        for (int i = 0; i < total; ++i) {
+            QString error;
+            if (work(inputs[i], outputs[i], error)) {
+                ++*converted;
+            } else {
+                errors->append(QStringLiteral("%1: %2").arg(QFileInfo(inputs[i]).fileName(), error));
+            }
+            QMetaObject::invokeMethod(&session, [&session, i, total]() {
+                session.setProgress(static_cast<int>(100.0 * (i + 1) / total));
+            }, Qt::QueuedConnection);
+        }
+    });
+    QObject::connect(thread, &QThread::finished, &host,
+                     [&session, &host, thread, errors, converted, total, title]() {
+        session.endProgress();
+        thread->deleteLater();
+        const QString summary = QStringLiteral("%1/%2 converted").arg(*converted).arg(total);
+        session.setStatusMessage("Convert", summary);
+        QString text = summary;
+        if (!errors->isEmpty()) text += QStringLiteral("\n\nFailed:\n") + errors->join('\n');
+        QMessageBox::information(&host, title, text);
+    });
+    thread->start();
+}
+
+} // namespace
+
+void massConvertIfcToDatabase(SessionState& session, QWidget& host) {
+    runMassConversion(session, host, QStringLiteral("Mass Convert IFC Files to Database"),
+                      QStringLiteral("IFC Files (*.ifc);;All Files (*)"),
+                      QStringLiteral(".rdb"),
+                      [](const QString& input, const QString& output, QString& error) {
+                          return detail::convertOneIfcToRdb(input, output, error);
+                      });
+}
+
+void massBuildIfcViews(SessionState& session, QWidget& host) {
+    runMassConversion(session, host, QStringLiteral("Mass Build .ifcview From IFC Files"),
+                      QStringLiteral("IFC Files (*.ifc);;All Files (*)"),
+                      QStringLiteral(".ifcview"),
+                      [](const QString& input, const QString& /*output*/, QString& error) {
+                          // The IFC is never loaded in the viewer: the bake runs
+                          // offline through the IfcViewBuilder pipeline.
+                          IfcViewBuilder builder;
+                          if (!builder.build(input, input)) {
+                              error = builder.lastError();
+                              return false;
+                          }
+                          return true;
+                      });
 }
 
 void exportGeometryDatabase(SessionState& session, QWidget& host) {

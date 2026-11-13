@@ -114,6 +114,12 @@ void AddModelDialog::setupUi() {
          "Convert IFC files to a read-only geometry database for smaller filesizes, "
          "reduced memory, and faster access. Ideal for cloud read-only coordination "
          "workflows. Only parametric geometry editing capabilities are lost."},
+        {SourceMode::MassConvertToDatabase, "Mass Convert IFC\nto Database", ":/icons/database-restore.svg",
+         "Pick several IFC files at once and convert them one after another to .rdb "
+         "databases, each written next to its file."},
+        {SourceMode::MassBuildIfcView, "Mass Build\n.ifcview", ":/icons/cube-bandage.svg",
+         "Pick several IFC files at once and bake a .ifcview geometry cache next to "
+         "each, without loading the models in the viewer."},
     };
 
     QStringList descriptions = {default_description};

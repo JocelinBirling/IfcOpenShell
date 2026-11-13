@@ -33,6 +33,8 @@ enum class SourceMode {
     CloudModel,
     ConvertToDatabase,
     ExportGeometryDatabase,
+    MassConvertToDatabase,
+    MassBuildIfcView,
 };
 
 class AddModelDialog : public components::Dialog {
