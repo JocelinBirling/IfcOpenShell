@@ -67,7 +67,7 @@ endif()
 if(WITH_ROCKSDB)
     target_link_libraries(IfcParse ${IFCOPENSHELL_ROCKSDB_TARGET})
     if(WITH_ZSTD)
-        target_link_libraries(IfcParse zstd::libzstd_static)
+        target_link_libraries(IfcParse zstd::libzstd)
     endif()
 endif()
 

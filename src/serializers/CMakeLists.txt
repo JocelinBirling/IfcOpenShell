@@ -166,7 +166,7 @@ if(NOT WASM_BUILD)
             ${ifcviewer_src_dir}/IfcViewLayout.cpp
             ${ifcviewer_src_dir}/ChunkPlanner.cpp
             ${ifcviewer_src_dir}/LodBuilder.cpp
-        LIBRARIES Eigen3::Eigen zstd::libzstd_static
+        LIBRARIES Eigen3::Eigen zstd::libzstd
     )
     target_include_directories(geometry_serializer_ifcview PRIVATE ${ifcviewer_src_dir})
     if(WITH_MESH_OPTIMIZER)
