@@ -464,6 +464,13 @@ target_include_directories(bonsaiviewer_bake_budget_tests PRIVATE ${CMAKE_CURREN
 target_link_libraries(bonsaiviewer_bake_budget_tests PRIVATE Qt${QT_VERSION}::Core)
 add_test(NAME bonsaiviewer_bake_budget_tests COMMAND bonsaiviewer_bake_budget_tests)
 
+# Bench of the mass .ifcview / .rdb conversions, one file per run (not built by default).
+add_executable(bonsaiviewer_mass_convert_bench EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/BakeBudget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/bench_mass_convert.cpp)
+target_include_directories(bonsaiviewer_mass_convert_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_mass_convert_bench PRIVATE IfcViewer plugin Qt${QT_VERSION}::Core)
+target_compile_definitions(bonsaiviewer_mass_convert_bench PRIVATE BOOST_DLL_USE_STD_FS)
 
 # The trees read from the IFC relations (IfcParse; IFC2X3 test model).
 add_executable(bonsaiviewer_ifc_trees_tests EXCLUDE_FROM_ALL
