@@ -434,6 +434,15 @@ add_executable(bonsaiviewer_clash_topic_tests EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_clash_topic_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bonsaiviewer_clash_topic_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core Qt${QT_VERSION}::Widgets)
 add_test(NAME bonsaiviewer_clash_topic_tests COMMAND bonsaiviewer_clash_topic_tests)
+# The clash rules on the Duplex test model (tests/data), ported from the
+# IfcClash_Plus Python suite (not built by default).
+add_executable(bonsaiviewer_clash_rule_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_clash_rules.cpp)
+target_include_directories(bonsaiviewer_clash_rule_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(bonsaiviewer_clash_rule_tests PRIVATE
+    BONSAIVIEWER_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+target_link_libraries(bonsaiviewer_clash_rule_tests PRIVATE ifcclash_engine Qt${QT_VERSION}::Core)
+add_test(NAME bonsaiviewer_clash_rule_tests COMMAND bonsaiviewer_clash_rule_tests)
 
 # BonsaiViewer32: the node table of the Tree Explorer (Qt Core only; not built by default).
 add_executable(bonsaiviewer_tree_index_tests EXCLUDE_FROM_ALL
