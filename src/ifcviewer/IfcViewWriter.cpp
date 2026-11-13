@@ -29,10 +29,6 @@
 
 namespace {
 
-// zstd level for baking. 19 is near-max ratio; decode speed is level-
-// independent and the bake is offline, so favour ratio.
-constexpr int kIfcViewZstdLevel = 19;
-
 // --- In-memory serialisation (a block is built in RAM, then compressed) ------
 template<typename T>
 void appendVec(std::vector<std::uint8_t>& buffer, const std::vector<T>& values) {
@@ -125,7 +121,7 @@ std::vector<std::uint8_t> compressIfcViewFrame(const std::uint8_t* src, std::siz
     return out;
 }
 
-bool writeIfcView(const std::string& ifc_path, const IfcViewData& data) {
+bool writeIfcView(const std::string& ifc_path, const IfcViewData& data, int zstd_level) {
     std::string path = ifcViewPathFor(ifc_path);
     FILE* f = fopen(path.c_str(), "wb");
     if (!f) return false;
@@ -135,7 +131,7 @@ bool writeIfcView(const std::string& ifc_path, const IfcViewData& data) {
     };
     auto wrU64 = [&](std::uint64_t v) { return write_bytes(&v, sizeof(v)); };
     auto wrBlock = [&](const std::vector<std::uint8_t>& raw) -> bool {
-        auto z = compressIfcViewFrame(raw.data(), raw.size(), kIfcViewZstdLevel);
+        auto z = compressIfcViewFrame(raw.data(), raw.size(), zstd_level);
         if (raw.size() > 0 && z.empty()) return false;  // compress failed
         return wrU64(z.size()) && wrU64(raw.size()) && (z.empty() || write_bytes(z.data(), z.size()));
     };
@@ -172,8 +168,8 @@ bool writeIfcView(const std::string& ifc_path, const IfcViewData& data) {
                 extractChunkGeometry(data, chunks[idx], vraw, iraw);
                 blobs[idx].v_raw = vraw.size();
                 blobs[idx].i_raw = iraw.size();
-                blobs[idx].vz = compressIfcViewFrame(vraw.data(), vraw.size(), kIfcViewZstdLevel);
-                blobs[idx].iz = compressIfcViewFrame(iraw.data(), iraw.size(), kIfcViewZstdLevel);
+                blobs[idx].vz = compressIfcViewFrame(vraw.data(), vraw.size(), zstd_level);
+                blobs[idx].iz = compressIfcViewFrame(iraw.data(), iraw.size(), zstd_level);
                 if ((vraw.size() && blobs[idx].vz.empty()) ||
                     (iraw.size() && blobs[idx].iz.empty())) {
                     compress_ok.store(false, std::memory_order_relaxed);

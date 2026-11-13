@@ -24,13 +24,18 @@
 #include "IfcViewAssembler.h"
 #include "IfcViewWriter.h"
 
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QObject>
 
 bool IfcViewBuilder::build(const QString& ifc_path,
                            const QString& anchor_path,
-                           int num_threads) {
+                           int num_threads,
+                           int zstd_level) {
     last_error_.clear();
+    timings_ = Timings();
+    QElapsedTimer timer;
+    timer.start();
 
     GeometryStreamer streamer;
     IfcViewAssembler assembler;
@@ -38,7 +43,10 @@ bool IfcViewBuilder::build(const QString& ifc_path,
     bool failed = false;
 
     QObject::connect(&streamer, &GeometryStreamer::meshReady, &loop,
-                     [&](const StreamedMesh& mesh) { assembler.onMeshReady(mesh); });
+                     [&](const StreamedMesh& mesh) {
+        if (timings_.first_mesh_ms < 0) timings_.first_mesh_ms = timer.elapsed();
+        assembler.onMeshReady(mesh);
+    });
     QObject::connect(&streamer, &GeometryStreamer::instanceReady, &loop,
                      [&](const StreamedInstance& instance) { assembler.onInstanceReady(instance); });
     QObject::connect(&streamer, &GeometryStreamer::finished, &loop, &QEventLoop::quit);
@@ -55,6 +63,7 @@ bool IfcViewBuilder::build(const QString& ifc_path,
                       num_threads);
 
     loop.exec();
+    timings_.stream_ms = timer.restart();
 
     if (failed) return false;
 
@@ -64,8 +73,12 @@ bool IfcViewBuilder::build(const QString& ifc_path,
     }
 
     IfcViewData data = assembler.finalize(georef, streamer.drainElements());
+    timings_.finalize_ms = timer.restart();
 
-    if (!writeIfcView(anchor_path.toStdString(), data)) {
+    const bool written = writeIfcView(anchor_path.toStdString(), data,
+                                      zstd_level < 0 ? kIfcViewZstdLevel : zstd_level);
+    timings_.write_ms = timer.elapsed();
+    if (!written) {
         last_error_ = "writeIfcView failed";
         return false;
     }

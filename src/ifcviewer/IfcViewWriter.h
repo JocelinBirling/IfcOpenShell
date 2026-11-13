@@ -31,13 +31,19 @@
 #include <string>
 #include <vector>
 
+// Default zstd level for baking: 19 is near-max ratio; decode speed is
+// level-independent and the live viewer's bake is asynchronous, so it favours
+// ratio. Mass offline bakes pass a faster level.
+constexpr int kIfcViewZstdLevel = 19;
+
 // Compress [src, src+n) as one zstd frame at `level`. Returns the frame, or an
 // empty vector on error.
 std::vector<std::uint8_t> compressIfcViewFrame(const std::uint8_t* src, std::size_t n,
                                                int level);
 
 // Write `data` to the .ifcview path for `ifc_path` (see ifcViewPathFor),
-// compressing every chunk's geometry in parallel.
-bool writeIfcView(const std::string& ifc_path, const IfcViewData& data);
+// compressing every chunk's geometry in parallel at `zstd_level`.
+bool writeIfcView(const std::string& ifc_path, const IfcViewData& data,
+                  int zstd_level = kIfcViewZstdLevel);
 
 #endif // IFCVIEWWRITER_H

@@ -32,14 +32,28 @@ public:
     // anchor_path is normalised to <stem>.ifcview by writeIfcView.  Call from
     // a non-GUI worker thread with a Qt event dispatcher; build() spins a
     // local QEventLoop until the streamer's worker thread completes.
+    // zstd_level < 0 keeps writeIfcView's default.
     bool build(const QString& ifc_path,
                const QString& anchor_path,
-               int num_threads = 0);
+               int num_threads = 0,
+               int zstd_level = -1);
 
     const QString& lastError() const { return last_error_; }
 
+    // Wall time of the last build()'s phases, in ms: until the first mesh
+    // (parse + geometry setup), the whole geometry stream (includes the
+    // first), the assembly (LOD + chunk layout) and the compressed write.
+    struct Timings {
+        qint64 first_mesh_ms = -1;
+        qint64 stream_ms = 0;
+        qint64 finalize_ms = 0;
+        qint64 write_ms = 0;
+    };
+    const Timings& timings() const { return timings_; }
+
 private:
     QString last_error_;
+    Timings timings_;
 };
 
 #endif // IFCVIEWBUILDER_H
