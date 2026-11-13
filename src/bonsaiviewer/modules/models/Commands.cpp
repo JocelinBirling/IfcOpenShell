@@ -786,6 +786,10 @@ void convertIfcToDatabase(SessionState& session, QWidget& host) {
 
 namespace {
 
+// Below this size a file is "small": the bake may use several cores. Above it,
+// the bake runs single-threaded so the OCC kernel's memory stays bounded.
+constexpr qint64 kSmallIfcBytes = 50 * 1024 * 1024;  // 50 MiB
+
 // Shared driver of the mass conversions: pick several IFC files, compute the
 // output next to each input (<base><suffix>), confirm overwriting the ones
 // that already exist, then run `work` on each pair one after another on a
@@ -900,12 +904,13 @@ void massBuildIfcViews(SessionState& session, QWidget& host) {
                       [](const QString& input, const QString& /*output*/, QString& error) {
                           // The IFC is never loaded in the viewer: the bake runs
                           // offline through the IfcViewBuilder pipeline. Several
-                          // cores per file, but never all of them (num_threads = 0
-                          // would take every core; the cap also bounds the OCC
-                          // kernel's memory).
+                          // cores per file, but never all of them — and only for
+                          // a small file; a big one is baked single-threaded so
+                          // the OCC kernel's memory stays bounded.
+                          const bool small = QFileInfo(input).size() < kSmallIfcBytes;
+                          const int threads = small ? qMin(8, QThread::idealThreadCount() - 1) : 1;
                           IfcViewBuilder builder;
-                          if (!builder.build(input, input,
-                                             qMin(8, QThread::idealThreadCount() - 1))) {
+                          if (!builder.build(input, input, threads)) {
                               error = builder.lastError();
                               return false;
                           }
