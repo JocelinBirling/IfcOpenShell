@@ -836,21 +836,18 @@ void runMassConversion(SessionState& session, QWidget& host, const QString& titl
         }
     }
 
-    // Never take every core: leave at least one to the system / UI.
-    const int workers = qMax(1, qMin(4, QThread::idealThreadCount() - 1));
+    // One file at a time (predictable memory peak); the parallelism is inside
+    // each file, in the bake's num_threads below. Never take every core: leave
+    // at least one to the system / UI.
+    const int workers = 1;
 
     session.beginProgress(title);
     session.setStatusMessage("Convert",
-                             QStringLiteral("%1 file(s) selected, %2 at a time")
-                                 .arg(inputs.size())
-                                 .arg(workers));
+                             QStringLiteral("%1 file(s) selected, one at a time").arg(inputs.size()));
 
     auto errors = std::make_shared<QStringList>();
     auto converted = std::make_shared<std::atomic<int>>(0);
     const int total = static_cast<int>(inputs.size());
-    // Several conversions at once: each file is independent (own serializer /
-    // own bake), so a small pool of workers is safe and much faster than one
-    // file at a time. Bounded to keep the memory peak reasonable.
     QThread* coordinator = QThread::create([&session, &host, inputs, outputs, work, errors, converted, total, title, workers]() {
         QThreadPool pool;
         pool.setMaxThreadCount(workers);
@@ -902,10 +899,13 @@ void massBuildIfcViews(SessionState& session, QWidget& host) {
                       QStringLiteral(".ifcview"),
                       [](const QString& input, const QString& /*output*/, QString& error) {
                           // The IFC is never loaded in the viewer: the bake runs
-                          // offline through the IfcViewBuilder pipeline. Leave one
-                          // core to the system (num_threads = 0 would take them all).
+                          // offline through the IfcViewBuilder pipeline. Several
+                          // cores per file, but never all of them (num_threads = 0
+                          // would take every core; the cap also bounds the OCC
+                          // kernel's memory).
                           IfcViewBuilder builder;
-                          if (!builder.build(input, input, QThread::idealThreadCount() - 1)) {
+                          if (!builder.build(input, input,
+                                             qMin(8, QThread::idealThreadCount() - 1))) {
                               error = builder.lastError();
                               return false;
                           }
