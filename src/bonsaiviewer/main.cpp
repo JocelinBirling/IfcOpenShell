@@ -22,6 +22,7 @@
 #include "ViewerSettings.h"
 #include "components/Style.h"
 #include "modules/models/Commands.h"
+#include "modules/models/MassConversion.h"
 #include "../ifcparse/parse.h"
 #include "../plugin/plugin.h"
 
@@ -109,6 +110,11 @@ void installUiFont() {
 } // namespace
 
 int main(int argc, char* argv[]) {
+    // A mass-conversion worker is headless: no QApplication, no window.
+    if (bonsaiviewer::modules::models::isMassConvertWorker(argc, argv)) {
+        return bonsaiviewer::modules::models::runMassConvertWorker(argc, argv);
+    }
+
     QApplication app(argc, argv);
     app.setApplicationName("Bonsai Viewer");
     app.setOrganizationName("IfcOpenShell");

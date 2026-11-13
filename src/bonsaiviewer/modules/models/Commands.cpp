@@ -21,6 +21,7 @@
 #include "Commands.h"
 
 #include "AddModelDialog.h"
+#include "MassConversion.h"
 #include "SettingsDialog.h"
 
 #include "../../ElementRegistry.h"
@@ -55,10 +56,7 @@
 #include <QPointer>
 #include <QStandardPaths>
 #include <QThread>
-#include <QThreadPool>
 
-#include <atomic>
-#include <mutex>
 #include <QTreeView>
 #include <QUuid>
 
@@ -786,17 +784,13 @@ void convertIfcToDatabase(SessionState& session, QWidget& host) {
 
 namespace {
 
-// Below this size a file is "small": the bake may use several cores. Above it,
-// the bake runs single-threaded so the OCC kernel's memory stays bounded.
-constexpr qint64 kSmallIfcBytes = 50 * 1024 * 1024;  // 50 MiB
-
 // Shared driver of the mass conversions: pick several IFC files, compute the
 // output next to each input (<base><suffix>), confirm overwriting the ones
-// that already exist, then run `work` on each pair one after another on a
-// worker thread, with progress on the session and a summary at the end.
+// that already exist, then hand them to a MassConversionRunner (one worker
+// process per file, several at once while the RAM allows), with progress on
+// the session and a summary at the end.
 void runMassConversion(SessionState& session, QWidget& host, const QString& title,
-                       const QString& name_filter, const QString& output_suffix,
-                       const std::function<bool(const QString&, const QString&, QString&)>& work) {
+                       const QString& name_filter, const QString& output_suffix, MassKind kind) {
     QFileDialog dialog(&host, title);
     dialog.setFileMode(QFileDialog::ExistingFiles);
     dialog.setNameFilter(name_filter);
@@ -840,50 +834,27 @@ void runMassConversion(SessionState& session, QWidget& host, const QString& titl
         }
     }
 
-    // One file at a time (predictable memory peak); the parallelism is inside
-    // each file, in the bake's num_threads below. Never take every core: leave
-    // at least one to the system / UI.
-    const int workers = 1;
-
     session.beginProgress(title);
-    session.setStatusMessage("Convert",
-                             QStringLiteral("%1 file(s) selected, one at a time").arg(inputs.size()));
+    session.setStatusMessage("Convert", QStringLiteral("%1 file(s) selected").arg(inputs.size()));
 
-    auto errors = std::make_shared<QStringList>();
-    auto converted = std::make_shared<std::atomic<int>>(0);
-    const int total = static_cast<int>(inputs.size());
-    QThread* coordinator = QThread::create([&session, &host, inputs, outputs, work, errors, converted, total, title, workers]() {
-        QThreadPool pool;
-        pool.setMaxThreadCount(workers);
-        std::atomic<int> done{0};
-        std::mutex errors_mutex;
-        for (int i = 0; i < total; ++i) {
-            pool.start([&, i]() {
-                QString error;
-                if (work(inputs[i], outputs[i], error)) {
-                    ++*converted;
-                } else {
-                    std::lock_guard<std::mutex> lock(errors_mutex);
-                    errors->append(QStringLiteral("%1: %2").arg(QFileInfo(inputs[i]).fileName(), error));
-                }
-                const int d = ++done;
-                QMetaObject::invokeMethod(&session, [&session, d, total]() {
-                    session.setProgress(static_cast<int>(100.0 * d / total));
-                }, Qt::QueuedConnection);
-            });
-        }
-        pool.waitForDone();
-        QMetaObject::invokeMethod(&host, [&session, &host, errors, converted, total, title]() {
-            session.endProgress();
-            const QString summary = QStringLiteral("%1/%2 converted").arg(converted->load()).arg(total);
-            session.setStatusMessage("Convert", summary);
-            QString text = summary;
-            if (!errors->isEmpty()) text += QStringLiteral("\n\nFailed:\n") + errors->join('\n');
-            QMessageBox::information(&host, title, text);
-        }, Qt::QueuedConnection);
-    });
-    QObject::connect(coordinator, &QThread::finished, coordinator, &QObject::deleteLater);
-    coordinator->start();
+    auto* runner = new MassConversionRunner(kind, inputs, outputs, &host);
+    runner->on_progress = [&session](int done, int total) {
+        session.setProgress(static_cast<int>(100.0 * done / total));
+    };
+    runner->on_finished = [&session, &host, title](const MassConversionRunner::Outcome& outcome) {
+        session.endProgress();
+        const QString summary = QStringLiteral("%1/%2 converted in %3 s")
+                                    .arg(outcome.converted)
+                                    .arg(outcome.total)
+                                    .arg(outcome.elapsed_ms / 1000.0, 0, 'f', 1);
+        session.setStatusMessage("Convert", summary);
+        QString text = summary;
+        if (!outcome.errors.isEmpty()) text += QStringLiteral("\n\nFailed:\n") + outcome.errors.join('\n');
+        QMessageBox box(QMessageBox::Information, title, text, QMessageBox::Ok, &host);
+        box.setDetailedText(outcome.report.join('\n'));
+        box.exec();
+    };
+    runner->start();
 }
 
 } // namespace
@@ -891,31 +862,15 @@ void runMassConversion(SessionState& session, QWidget& host, const QString& titl
 void massConvertIfcToDatabase(SessionState& session, QWidget& host) {
     runMassConversion(session, host, QStringLiteral("Mass Convert IFC Files to Database"),
                       QStringLiteral("IFC Files (*.ifc);;All Files (*)"),
-                      QStringLiteral(".rdb"),
-                      [](const QString& input, const QString& output, QString& error) {
-                          return detail::convertOneIfcToRdb(input, output, error);
-                      });
+                      QStringLiteral(".rdb"), MassKind::Rdb);
 }
 
 void massBuildIfcViews(SessionState& session, QWidget& host) {
+    // The IFC is never loaded in the viewer: each file is baked offline by a
+    // worker process through the IfcViewBuilder pipeline.
     runMassConversion(session, host, QStringLiteral("Mass Build .ifcview From IFC Files"),
                       QStringLiteral("IFC Files (*.ifc);;All Files (*)"),
-                      QStringLiteral(".ifcview"),
-                      [](const QString& input, const QString& /*output*/, QString& error) {
-                          // The IFC is never loaded in the viewer: the bake runs
-                          // offline through the IfcViewBuilder pipeline. Several
-                          // cores per file, but never all of them — and only for
-                          // a small file; a big one is baked single-threaded so
-                          // the OCC kernel's memory stays bounded.
-                          const bool small = QFileInfo(input).size() < kSmallIfcBytes;
-                          const int threads = small ? qMin(8, QThread::idealThreadCount() - 1) : 1;
-                          IfcViewBuilder builder;
-                          if (!builder.build(input, input, threads)) {
-                              error = builder.lastError();
-                              return false;
-                          }
-                          return true;
-                      });
+                      QStringLiteral(".ifcview"), MassKind::IfcView);
 }
 
 void exportGeometryDatabase(SessionState& session, QWidget& host) {

@@ -79,6 +79,10 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/connectors/Registry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/AddModelDialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/AddModelDialog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/BakeBudget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/BakeBudget.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/MassConversion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/MassConversion.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/SettingsDialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/SettingsDialog.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/SettingsView.cpp
@@ -451,6 +455,15 @@ add_executable(bonsaiviewer_tree_index_tests EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_tree_index_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bonsaiviewer_tree_index_tests PRIVATE Qt${QT_VERSION}::Core)
 add_test(NAME bonsaiviewer_tree_index_tests COMMAND bonsaiviewer_tree_index_tests)
+
+# The RAM / thread budget of the mass conversions (Qt Core only; not built by default).
+add_executable(bonsaiviewer_bake_budget_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/models/BakeBudget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_bake_budget.cpp)
+target_include_directories(bonsaiviewer_bake_budget_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_bake_budget_tests PRIVATE Qt${QT_VERSION}::Core)
+add_test(NAME bonsaiviewer_bake_budget_tests COMMAND bonsaiviewer_bake_budget_tests)
+
 
 # The trees read from the IFC relations (IfcParse; IFC2X3 test model).
 add_executable(bonsaiviewer_ifc_trees_tests EXCLUDE_FROM_ALL
