@@ -202,7 +202,13 @@ bool isIfcfedUnchanged(const QString& current_path, const QString& candidate_pat
     QFile b(candidate_path);
     if (!a.open(QIODevice::ReadOnly) || !b.open(QIODevice::ReadOnly)) return false;
     if (a.size() != b.size()) return false;
-    return a.readAll() == b.readAll();
+    // Block-wise with early exit: readAll() would load both files entirely
+    // just to find the first differing byte.
+    constexpr qint64 kBlockSize = 256 * 1024;
+    while (!a.atEnd()) {
+        if (a.read(kBlockSize) != b.read(kBlockSize)) return false;
+    }
+    return true;
 }
 
 bool openProjectAt(SessionState& session, QWidget& host, ViewportWindow& viewport, const QString& path) {

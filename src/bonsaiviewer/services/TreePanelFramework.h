@@ -109,6 +109,9 @@ public:
     // shows an eye icon toggled by a click instead of a checkbox.
     void setLazyChildren(bool lazy) { lazy_ = lazy; }
     void setEyeColumn(bool eye) { eye_column_ = eye; }
+    // Expand / collapse items at the end of the right-click menu: the
+    // subtree of the node, or the whole tree.
+    void setExpandMenu(bool on) { expand_menu_ = on; }
     // The next refresh opens the folders the data source asks to open,
     // whatever the user had open (a new search).
     void forgetExpandedState() {
@@ -124,6 +127,9 @@ private:
     void applyExpansion(const QList<QTreeWidgetItem*>& items);
     QTreeWidgetItem* makeItem(const TreeNode& node, QTreeWidgetItem* parent) const;
     void onContextMenu(const QPoint& global_pos, const QString& key);
+    QTreeWidgetItem* findItem(const QString& key) const;
+    // Lazy mode builds the children as the folders open.
+    void setSubtreeExpanded(QTreeWidgetItem* item, bool expanded);
 
     QTreeWidget* widget_ = nullptr;
     TreeDataSource* data_source_ = nullptr;
@@ -133,6 +139,7 @@ private:
     bool lazy_ = false;
     bool eye_column_ = false;
     bool forget_expanded_ = false;
+    bool expand_menu_ = false;
     // Lazy mode: the expanded state per key, kept for the folders not built.
     std::unordered_map<QString, bool> saved_expanded_;
 };

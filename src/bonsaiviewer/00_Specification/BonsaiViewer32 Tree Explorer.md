@@ -55,7 +55,11 @@ The same for every tree:
 
 ### Existing panels
 
-The Spatial Hierarchy and IFC Class Tree panels become the trees "Spatial" and "Classes" of the Tree Explorer, with the same content and behaviour. To decide: remove the two old panels, or keep them as shortcuts that open a Trees panel on that tree.
+The Spatial Hierarchy and IFC Class Tree panels become the trees "Spatial" and "Classes" of the Tree Explorer, with the same content and behaviour. Decided (2026-11-12): the old panels (Spatial Tree, Ifc Tree, USpatial Tree) are kept as they are, for beginners; the Trees panel is added beside them.
+
+### Materials
+
+Decided (2026-11-12): material sets are detailed. A set (layer set, profile set, constituent set, material list) is a folder; its layers, profiles or constituents are below it; the elements are below each of them, with the "×N" mark when an element is listed under several of them. A usage (IfcMaterialLayerSetUsage, IfcMaterialProfileSetUsage) shows its set. An occurrence without its own material is listed under the material of its type.
 
 ### Implementation note
 
@@ -63,9 +67,7 @@ The panel is built on the existing TreePanelFramework (TreeDataSource): one data
 
 ## Open Subject
 
-- Remove or keep the old Spatial Hierarchy and IFC Class Tree panels.
 - Custom tree ("Group by"): the user stacks levels (model, unified level, class, system, Pset.Property...). Proposed, not retained for now.
-- Materials tree: material sets (layers, profiles, constituents) shown as one node or detailed.
 - Manual editing of the Unified tree (BonsaiViewer13, later version).
 
 

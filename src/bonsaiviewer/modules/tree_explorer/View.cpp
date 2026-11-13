@@ -44,9 +44,14 @@ TreeExplorerView::TreeExplorerView(TreeExplorerPanel* panel, const Context& cont
 {
     QComboBox* selector = panel_->treeSelector();
     for (const TreeKind& kind : treeKinds()) selector->addItem(kind.title, kind.id);
-    panel_->tree()->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
     connect(panel_, &TreeExplorerPanel::treeChosen, this, &TreeExplorerView::setTree);
+    connect(panel_, &TreeExplorerPanel::computeSettingsRequested, this, [this]() {
+        if (source_) source_->openComputeSettings();
+    });
+    connect(panel_, &TreeExplorerPanel::computeRunRequested, this, [this]() {
+        if (source_) source_->runCompute();
+    });
     connect(panel_, &TreeExplorerPanel::searchChanged, this, [this](const QString& text) {
         filter_ = text;
         if (tree_panel_) tree_panel_->forgetExpandedState();
@@ -75,13 +80,23 @@ void TreeExplorerView::setTree(const QString& tree_id) {
     QComboBox* selector = panel_->treeSelector();
     selector->setCurrentIndex(selector->findData(tree_id));
     panel_->setInterpreted(source_->interpreted());
+    panel_->setComputeRowVisible(source_->hasCompute());
+    const auto showComputeStatus = [this]() {
+        panel_->setComputeStatus(source_->computeStatus());
+        panel_->setComputeRunning(source_->isComputing());
+    };
+    showComputeStatus();
+    connect(source_, &IndexedSource::computeStatusChanged, this, showComputeStatus);
 
     source_->setFilter(filter_);
     tree_panel_ = new bonsaiviewer::services::tree::TreePanelWidget(panel_->tree(), source_, this);
     tree_panel_->setLazyChildren(true);
     tree_panel_->setEyeColumn(true);
+    tree_panel_->setExpandMenu(true);
     // Several nodes at once (Ctrl / Shift); the viewport selection follows.
+    // After the TreePanelWidget, which sets single selection.
     QTreeWidget* tree = panel_->tree();
+    tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     connect(tree, &QTreeWidget::itemSelectionChanged, source_, [this, tree]() {
         QStringList keys;
         for (QTreeWidgetItem* item : tree->selectedItems()) keys << item->data(0, Qt::UserRole).toString();

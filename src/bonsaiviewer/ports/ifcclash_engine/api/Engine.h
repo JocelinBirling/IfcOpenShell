@@ -73,6 +73,13 @@ struct RunRequest {
 class Session {
 public:
     Session(std::vector<std::filesystem::path> ifc_paths, SessionOptions options = {});
+    // BonsaiViewer: same, but reuses the files the viewer already parsed
+    // (aligned with ifc_paths; a null entry is opened from its path) instead
+    // of parsing every IFC again. The session only reads them, and keeps
+    // them alive through shared ownership for as long as it lives.
+    Session(std::vector<std::filesystem::path> ifc_paths,
+            std::vector<std::shared_ptr<ifcopenshell::file>> open_files,
+            SessionOptions options = {});
     // BonsaiViewer: a source built on the data already loaded by the viewer.
     Session(std::unique_ptr<GeometrySource> source, SessionOptions options = {});
     ~Session();

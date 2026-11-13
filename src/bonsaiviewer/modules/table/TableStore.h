@@ -22,6 +22,8 @@
 #include <optional>
 #include <vector>
 
+class QTimer;
+
 namespace bonsaiviewer::modules::table {
 
 // TI07 phase 2 — the saved tables: folders and table configurations (name,
@@ -52,7 +54,7 @@ public:
     std::optional<TableFolder> folder(const QString& id) const;
     bool isFolder(const QString& id) const;
 
-    // Mutations persist immediately and emit changed().
+    // Mutations emit changed() and persist (the write is debounced).
     QString addFolder(const QString& name, const QString& parent_id);
     void renameFolder(const QString& id, const QString& name);
     // Deletes the folder's whole subtree (its folders and tables).
@@ -80,10 +82,13 @@ private:
     void load();
     void seedExamples();
     void save() const;
+    // Relaunches the debounce timer; the actual write happens on timeout.
+    void scheduleSave();
     bool folderIsInSubtree(const QString& candidate_id, const QString& root_id) const;
 
     std::vector<TableFolder> folders_;
     std::vector<TableDocument> tables_;
+    QTimer* save_timer_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::table

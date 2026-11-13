@@ -90,7 +90,9 @@ public:
 
 private:
     struct ModelIndex {
-        // object_id -> (Name, IfcClass)
+        // object_id -> (lowercased Name, lowercased IfcClass). Stored
+        // lowercased once at indexing time, so a search does not re-lower
+        // every field of every element on each keystroke.
         std::unordered_map<std::uint32_t, std::pair<QString, QString>> fields;
     };
 

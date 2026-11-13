@@ -20,6 +20,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSettings>
+#include <QTimer>
 #include <QUuid>
 
 #include <algorithm>
@@ -108,7 +109,15 @@ TableColumn columnFromJson(const QJsonObject& json) {
 
 TableStore::TableStore(QObject* parent)
     : QObject(parent)
+    , save_timer_(new QTimer(this))
 {
+    // Persist debounced: each mutation used to rewrite the whole document
+    // synchronously. The timer relaunches on every mutation; the write also
+    // happens on destruction so a fast quit loses nothing.
+    save_timer_->setSingleShot(true);
+    save_timer_->setInterval(300);
+    connect(save_timer_, &QTimer::timeout, this, [this]() { save(); });
+    connect(this, &QObject::destroyed, this, [this]() { save(); });
     load();
 }
 
@@ -144,7 +153,7 @@ QString TableStore::addFolder(const QString& name, const QString& parent_id) {
     entry.name = name;
     entry.parent_id = parent_id;
     folders_.push_back(entry);
-    save();
+    scheduleSave();
     emit changed();
     return entry.id;
 }
@@ -153,7 +162,7 @@ void TableStore::renameFolder(const QString& id, const QString& name) {
     for (auto& entry : folders_) {
         if (entry.id == id) {
             entry.name = name;
-            save();
+            scheduleSave();
             emit changed();
             return;
         }
@@ -174,7 +183,7 @@ void TableStore::deleteFolder(const QString& id) {
     tables_.erase(std::remove_if(tables_.begin(), tables_.end(), [&doomed](const TableDocument& document) {
         return std::find(doomed.begin(), doomed.end(), document.folder_id) != doomed.end();
     }), tables_.end());
-    save();
+    scheduleSave();
     emit changed();
 }
 
@@ -183,7 +192,7 @@ QString TableStore::addTable(const TableDocument& document, const QString& folde
     stored.id = QUuid::createUuid().toString();
     stored.folder_id = folder_id;
     tables_.push_back(stored);
-    save();
+    scheduleSave();
     emit changed();
     return stored.id;
 }
@@ -192,7 +201,7 @@ void TableStore::updateTable(const TableDocument& document) {
     for (auto& entry : tables_) {
         if (entry.id == document.id) {
             entry.definition = document.definition;
-            save();
+            scheduleSave();
             emit changed();
             return;
         }
@@ -203,7 +212,7 @@ void TableStore::deleteTable(const QString& id) {
     tables_.erase(std::remove_if(tables_.begin(), tables_.end(), [&id](const TableDocument& document) {
         return document.id == id;
     }), tables_.end());
-    save();
+    scheduleSave();
     emit changed();
 }
 
@@ -215,7 +224,7 @@ void TableStore::moveNode(const QString& id, const QString& new_parent) {
         for (auto& entry : folders_) {
             if (entry.id == id && entry.parent_id != new_parent) {
                 entry.parent_id = new_parent;
-                save();
+                scheduleSave();
                 emit changed();
                 return;
             }
@@ -224,7 +233,7 @@ void TableStore::moveNode(const QString& id, const QString& new_parent) {
         for (auto& entry : tables_) {
             if (entry.id == id && entry.folder_id != new_parent) {
                 entry.folder_id = new_parent;
-                save();
+                scheduleSave();
                 emit changed();
                 return;
             }
@@ -271,7 +280,7 @@ QString TableStore::importTable(const QString& file_path, const QString& folder_
     document.id = QUuid::createUuid().toString();
     document.folder_id = folder_id;
     tables_.push_back(document);
-    save();
+    scheduleSave();
     emit changed();
     return document.id;
 }
@@ -360,8 +369,12 @@ void TableStore::seedExamples() {
         document.definition = definition;
         tables_.push_back(document);
     }
-    save();
+    scheduleSave();
     settings.setValue(QStringLiteral("examples/tables_version"), kExamplesVersion);
+}
+
+void TableStore::scheduleSave() {
+    save_timer_->start();
 }
 
 void TableStore::save() const {

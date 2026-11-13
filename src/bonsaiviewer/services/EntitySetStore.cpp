@@ -43,9 +43,12 @@ std::vector<std::uint32_t> subtract(const std::vector<std::uint32_t>& base,
 
 std::vector<std::uint32_t> unite(std::vector<std::uint32_t> base,
                                 const std::vector<std::uint32_t>& added) {
+    if (added.empty()) return base;
+    // Hash set: a linear std::find per added id was quadratic on large sets.
+    std::unordered_set<std::uint32_t> present(base.begin(), base.end());
     base.reserve(base.size() + added.size());
     for (std::uint32_t id : added) {
-        if (std::find(base.begin(), base.end(), id) == base.end()) base.push_back(id);
+        if (present.insert(id).second) base.push_back(id);
     }
     return base;
 }

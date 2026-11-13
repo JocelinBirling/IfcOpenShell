@@ -74,12 +74,27 @@ unsigned rule_threads(const SessionOptions& options) {
 
 }  // namespace
 
-Session::Session(std::vector<std::filesystem::path> ifc_paths, SessionOptions options) : options_(std::move(options)) {
+Session::Session(std::vector<std::filesystem::path> ifc_paths, SessionOptions options)
+    : Session(std::move(ifc_paths), {}, std::move(options)) {
+}
+
+Session::Session(std::vector<std::filesystem::path> ifc_paths,
+                 std::vector<std::shared_ptr<ifcopenshell::file>> open_files,
+                 SessionOptions options)
+    : options_(std::move(options)) {
     if (ifc_paths.empty()) throw ConfigError("a session needs at least one IFC file");
+    if (!open_files.empty() && open_files.size() != ifc_paths.size()) {
+        throw ConfigError("open_files must give one entry per IFC path (null = open it)");
+    }
     auto cache = make_cache(ifc_paths, options_, session_diagnostics_);
     IfcSourceOptions source_options;
     source_options.iterator_threads = options_.iterator_threads;
-    auto source = std::make_unique<IfcSource>(ifc_paths, source_options);
+    std::vector<IfcSourceFile> files;
+    files.reserve(ifc_paths.size());
+    for (size_t i = 0; i < ifc_paths.size(); ++i) {
+        files.push_back({ifc_paths[i], i < open_files.size() ? std::move(open_files[i]) : nullptr});
+    }
+    auto source = std::make_unique<IfcSource>(files, source_options);
     ifc_ = source.get();
     provider_ = std::make_unique<GeometryProvider>(std::move(source), std::move(cache));
     provider_->set_threads(rule_threads(options_));

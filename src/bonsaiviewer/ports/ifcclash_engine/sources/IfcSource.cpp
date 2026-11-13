@@ -27,7 +27,7 @@ namespace ifcclash {
 
 struct IfcSource::FileEntry {
     std::filesystem::path path;
-    std::unique_ptr<ifcopenshell::file> file;
+    std::shared_ptr<ifcopenshell::file> file;
     bool guid_index_built = false;
     std::unordered_map<std::string, std::vector<int>> by_guid;
 };
@@ -76,16 +76,32 @@ std::shared_ptr<const Mesh> make_mesh(std::shared_ptr<ifcopenshell::geom::triang
 }  // namespace
 
 IfcSource::IfcSource(const std::vector<std::filesystem::path>& paths, IfcSourceOptions options)
+    : IfcSource([&paths] {
+          std::vector<IfcSourceFile> files;
+          files.reserve(paths.size());
+          for (const auto& path : paths) files.push_back({path, nullptr});
+          return files;
+      }(),
+               std::move(options)) {
+}
+
+IfcSource::IfcSource(const std::vector<IfcSourceFile>& files, IfcSourceOptions options)
     : options_(options) {
-    for (const auto& path : paths) {
-        if (!std::filesystem::exists(path)) {
-            throw ConfigError("IFC file not found: " + path.string());
-        }
+    for (const auto& source_file : files) {
         auto entry = std::make_unique<FileEntry>();
-        entry->path = path;
-        entry->file = std::make_unique<ifcopenshell::file>(path.string());
+        entry->path = source_file.path;
+        if (source_file.file) {
+            // Already parsed by the viewer: adopt it (shared ownership) and
+            // skip the disk parse entirely.
+            entry->file = source_file.file;
+        } else {
+            if (!std::filesystem::exists(source_file.path)) {
+                throw ConfigError("IFC file not found: " + source_file.path.string());
+            }
+            entry->file = std::make_shared<ifcopenshell::file>(source_file.path.string());
+        }
         if (!entry->file->good()) {
-            throw ConfigError("IFC file could not be parsed: " + path.string());
+            throw ConfigError("IFC file could not be parsed: " + source_file.path.string());
         }
         files_.push_back(std::move(entry));
     }

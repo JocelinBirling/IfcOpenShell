@@ -301,8 +301,10 @@ std::optional<ActionPipeline::ElementValues> FilterRunner::propertyValues(
         std::optional<std::string> value;
         try {
             const express::base element = file->instance_by_id(express_id);
-            value = find(get_psets(element, /*psets_only=*/true));
-            if (!value) value = find(get_psets(element, /*psets_only=*/false, /*qtos_only=*/true));
+            // One pass over the element's relations: the default get_psets
+            // returns psets and quantities together, so a second call just
+            // to look in the quantities was pure duplicate work.
+            value = find(get_psets(element));
         } catch (...) {
         }
         values.emplace_back(object->second, std::move(value));

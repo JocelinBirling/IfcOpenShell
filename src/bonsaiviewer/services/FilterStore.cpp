@@ -22,6 +22,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
+#include <QTimer>
 #include <QUuid>
 
 #include <algorithm>
@@ -67,7 +68,15 @@ QString actionTypeToString(FilterAction::Type type) {
 
 FilterStore::FilterStore(QObject* parent)
     : QObject(parent)
+    , save_timer_(new QTimer(this))
 {
+    // Persist debounced: each mutation used to rewrite the whole document
+    // synchronously. The timer relaunches on every mutation; the write also
+    // happens on destruction so a fast quit loses nothing.
+    save_timer_->setSingleShot(true);
+    save_timer_->setInterval(300);
+    connect(save_timer_, &QTimer::timeout, this, [this]() { save(); });
+    connect(this, &QObject::destroyed, this, [this]() { save(); });
     load();
 }
 
@@ -113,7 +122,7 @@ QString FilterStore::addFolder(const QString& name, const QString& parent_id) {
     entry.name = name;
     entry.parent_id = parent_id;
     folders_.push_back(entry);
-    save();
+    scheduleSave();
     emit changed();
     return entry.id;
 }
@@ -122,7 +131,7 @@ void FilterStore::renameFolder(const QString& id, const QString& name) {
     for (auto& entry : folders_) {
         if (entry.id == id) {
             entry.name = name;
-            save();
+            scheduleSave();
             emit changed();
             return;
         }
@@ -143,7 +152,7 @@ void FilterStore::deleteFolder(const QString& id) {
     filters_.erase(std::remove_if(filters_.begin(), filters_.end(), [&doomed](const FilterDocument& document) {
         return std::find(doomed.begin(), doomed.end(), document.folder_id) != doomed.end();
     }), filters_.end());
-    save();
+    scheduleSave();
     emit changed();
 }
 
@@ -152,7 +161,7 @@ QString FilterStore::addFilter(const FilterDocument& document, const QString& fo
     stored.id = document.id.isEmpty() ? QUuid::createUuid().toString() : document.id;
     stored.folder_id = folder_id;
     filters_.push_back(stored);
-    save();
+    scheduleSave();
     emit changed();
     return stored.id;
 }
@@ -161,7 +170,7 @@ void FilterStore::setActive(const QString& id, bool active) {
     for (auto& document : filters_) {
         if (document.id != id || document.active == active) continue;
         document.active = active;
-        save();
+        scheduleSave();
         emit changed();
         return;
     }
@@ -173,7 +182,7 @@ void FilterStore::updateFilter(const FilterDocument& document) {
             entry.name = document.name;
             entry.description = document.description;
             entry.layers = document.layers;
-            save();
+            scheduleSave();
             emit changed();
             return;
         }
@@ -184,7 +193,7 @@ void FilterStore::deleteFilter(const QString& id) {
     filters_.erase(std::remove_if(filters_.begin(), filters_.end(), [&id](const FilterDocument& document) {
         return document.id == id;
     }), filters_.end());
-    save();
+    scheduleSave();
     emit changed();
 }
 
@@ -196,7 +205,7 @@ void FilterStore::moveNode(const QString& id, const QString& new_parent) {
         for (auto& entry : folders_) {
             if (entry.id == id && entry.parent_id != new_parent) {
                 entry.parent_id = new_parent;
-                save();
+                scheduleSave();
                 emit changed();
                 return;
             }
@@ -205,7 +214,7 @@ void FilterStore::moveNode(const QString& id, const QString& new_parent) {
         for (auto& entry : filters_) {
             if (entry.id == id && entry.folder_id != new_parent) {
                 entry.folder_id = new_parent;
-                save();
+                scheduleSave();
                 emit changed();
                 return;
             }
@@ -291,7 +300,7 @@ int FilterStore::importFile(const QString& file_path, const QString& folder_id, 
         document.id = QUuid::createUuid().toString();
         document.folder_id = folder_id;
         filters_.push_back(document);
-        save();
+        scheduleSave();
         emit changed();
         return 1;
     }
@@ -322,7 +331,7 @@ int FilterStore::importFile(const QString& file_path, const QString& folder_id, 
         filters_.push_back(document);
         ++count;
     }
-    save();
+    scheduleSave();
     emit changed();
     return count;
 }
@@ -468,8 +477,12 @@ void FilterStore::seedExamples() {
     for (const QString& id : previous) deleteFolder(id);
     folders_.push_back(examples);
     filters_.insert(filters_.end(), added.begin(), added.end());
-    save();
+    scheduleSave();
     settings.setValue(QStringLiteral("examples/filters_version"), kExamplesVersion);
+}
+
+void FilterStore::scheduleSave() {
+    save_timer_->start();
 }
 
 void FilterStore::save() const {

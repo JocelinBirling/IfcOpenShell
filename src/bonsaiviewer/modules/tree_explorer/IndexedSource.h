@@ -38,6 +38,9 @@ namespace bonsaiviewer::services {
 class ActionPipeline;
 class SelectionService;
 }
+namespace bonsaiviewer::modules::unified_tree {
+class UnifiedTreeView;
+}
 
 namespace bonsaiviewer::modules::tree_explorer {
 
@@ -46,6 +49,8 @@ struct Context {
     bonsaiviewer::SessionState& session;
     bonsaiviewer::services::SelectionService& selection;
     bonsaiviewer::services::ActionPipeline& actions;
+    // The Unified Tree computation (BonsaiViewer13), shared with its panel.
+    bonsaiviewer::modules::unified_tree::UnifiedTreeView* unified = nullptr;
 };
 
 // BonsaiViewer32 — the base of the Tree Explorer data sources. A tree only
@@ -64,6 +69,14 @@ public:
     virtual bool interpreted() const { return false; }
     // The message of an empty tree when models are open.
     virtual QString emptyText() const { return QStringLiteral("Nothing to show."); }
+    // Trees in the builder's own order, not sorted by name.
+    virtual bool sorted() const { return true; }
+    // Trees computed on demand (Unified): the Settings / Run row.
+    virtual bool hasCompute() const { return false; }
+    virtual void openComputeSettings() {}
+    virtual void runCompute() {}
+    virtual QString computeStatus() const { return {}; }
+    virtual bool isComputing() const { return false; }
 
     // Filters the nodes by name; the parents of a match stay shown.
     void setFilter(const QString& text);
@@ -80,6 +93,9 @@ public:
 
     // The tree's selection changed (Ctrl / Shift for several nodes).
     void onSelectionChanged(const QStringList& keys);
+
+signals:
+    void computeStatusChanged();
 
 protected:
     // Fills `index` (finish() is called afterwards) for `models`.

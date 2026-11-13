@@ -23,6 +23,7 @@
 #include "components/Style.h"
 
 #include <QColor>
+#include <QHash>
 #include <QSettings>
 
 namespace {
@@ -78,13 +79,22 @@ const std::vector<Spec> kThemeColorSpecs = {
     {"icon_accent_active_color", "Accent Icon Active Color", "#53c763", "#267e37"},
 };
 
-int colorIndexForKey(const QString& key) {
-    for (size_t i = 0; i < kThemeColorSpecs.size(); ++i) {
-        if (QString::fromUtf8(kThemeColorSpecs[i].key) == key) {
-            return static_cast<int>(i);
+// Key -> index lookup, built once: color() is called on every repaint and a
+// linear scan with a QString constructed per entry was measurable.
+const QHash<QString, int>& colorIndexMap() {
+    static const QHash<QString, int> map = [] {
+        QHash<QString, int> m;
+        m.reserve(static_cast<int>(kThemeColorSpecs.size() * 2));
+        for (size_t i = 0; i < kThemeColorSpecs.size(); ++i) {
+            m.insert(QString::fromUtf8(kThemeColorSpecs[i].key), static_cast<int>(i));
         }
-    }
-    return -1;
+        return m;
+    }();
+    return map;
+}
+
+int colorIndexForKey(const QString& key) {
+    return colorIndexMap().value(key, -1);
 }
 
 QString normalizedColor(const QString& value, const QString& fallback) {

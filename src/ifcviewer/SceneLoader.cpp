@@ -80,6 +80,11 @@ ifcopenshell::file* SceneLoader::ifcFile(uint32_t session_model_id) const {
     return it == models_.end() ? nullptr : it->second.streamer->ifcFile();
 }
 
+std::shared_ptr<ifcopenshell::file> SceneLoader::ifcFileShared(uint32_t session_model_id) const {
+    auto it = models_.find(session_model_id);
+    return it == models_.end() ? nullptr : it->second.streamer->ifcFileShared();
+}
+
 const ModelGeoref* SceneLoader::modelGeoref(uint32_t session_model_id) {
     auto it = models_.find(session_model_id);
     if (it == models_.end()) return nullptr;
@@ -299,9 +304,9 @@ void SceneLoader::startDataSourceLoad(uint32_t session_model_id) {
     std::string data_path_std = it->second.file_path.toStdString();
     data_source_threads_.emplace_back([this, session_model_id, data_path_std]() {
         QElapsedTimer timer; timer.start();
-        std::unique_ptr<ifcopenshell::file> file;
+        std::shared_ptr<ifcopenshell::file> file;
         try {
-            file = std::make_unique<ifcopenshell::file>(
+            file = std::make_shared<ifcopenshell::file>(
                 data_path_std, ifcopenshell::FT_AUTODETECT, /*read_only=*/true);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "[warn]   Data source load failed: %s (%s)\n",
@@ -311,8 +316,7 @@ void SceneLoader::startDataSourceLoad(uint32_t session_model_id) {
         std::fprintf(stderr, "[info]   Data source load: %lld ms (%s)\n",
                      (long long)timer.elapsed(), data_path_std.c_str());
 
-        auto shared = std::make_shared<std::unique_ptr<ifcopenshell::file>>(std::move(file));
-        QMetaObject::invokeMethod(this, [this, session_model_id, shared]() {
+        QMetaObject::invokeMethod(this, [this, session_model_id, file = std::move(file)]() {
             auto it = models_.find(session_model_id);
             if (it == models_.end()) return;
             auto* streamer = it->second.streamer;
@@ -320,7 +324,7 @@ void SceneLoader::startDataSourceLoad(uint32_t session_model_id) {
             // If the streamer already has a file (e.g. a later stream-fallback
             // path somehow populated it), don't clobber it.
             if (streamer->ifcFile() != nullptr) return;
-            streamer->setIfcFile(std::move(*shared));
+            streamer->setIfcFile(std::move(file));
             emit dataSourceReady(session_model_id);
         }, Qt::QueuedConnection);
     });

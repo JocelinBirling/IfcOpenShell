@@ -61,6 +61,25 @@ protected:
     void build(bonsaiviewer::services::tree::TreeIndex& index, const QList<std::uint32_t>& models) override;
 };
 
+// Unified: the interpreted tree of BonsaiViewer13, the result of the
+// computation shared with the USpatial Tree panel.
+class UnifiedSource : public IndexedSource {
+    Q_OBJECT
+public:
+    explicit UnifiedSource(const Context& context, QObject* parent = nullptr);
+    bool interpreted() const override { return true; }
+    bool sorted() const override { return false; }
+    QString emptyText() const override { return QStringLiteral("Not computed. Choose the settings, then Run."); }
+    bool hasCompute() const override { return true; }
+    void openComputeSettings() override;
+    void runCompute() override;
+    QString computeStatus() const override;
+    bool isComputing() const override;
+
+protected:
+    void build(bonsaiviewer::services::tree::TreeIndex& index, const QList<std::uint32_t>& models) override;
+};
+
 // The trees read from the IFC relations (ifc_trees builders), one model at
 // a time: a model folder on top when several models are shown (always for
 // the Spatial tree, where it stands for the whole model).

@@ -22,6 +22,7 @@
 
 #include "../ElementRegistry.h"
 #include "../SessionState.h"
+#include "../ifcparse/instance_data.h"
 #include "../ifcviewer/SceneLoader.h"
 
 #include <QRegularExpression>
@@ -37,6 +38,39 @@ ifcopenshell::file* ifcFileOf(bonsaiviewer::SessionState& session,
                               std::uint32_t session_model_id) {
     if (!session.loader()) return nullptr;
     return session.loader()->ifcFile(session_model_id);
+}
+
+void addUsage(std::map<int, std::vector<int>>& index, int target_id, int source_id) {
+    index[target_id].push_back(source_id);
+}
+
+// Reference ids held by one attribute value (entity, list of entities, list
+// of lists of entities); the other argument types carry no reference.
+void collectReferences(const ifcopenshell::attribute_value& attr, int source_id,
+                       std::map<int, std::vector<int>>& index) {
+    switch (attr.type()) {
+    case ifcopenshell::Argument_ENTITY_INSTANCE: {
+        const express::base ref = attr;
+        if (ref) addUsage(index, static_cast<int>(ref.id()), source_id);
+        break;
+    }
+    case ifcopenshell::Argument_AGGREGATE_OF_ENTITY_INSTANCE: {
+        for (const express::base& ref : static_cast<std::vector<express::base>>(attr)) {
+            if (ref) addUsage(index, static_cast<int>(ref.id()), source_id);
+        }
+        break;
+    }
+    case ifcopenshell::Argument_AGGREGATE_OF_AGGREGATE_OF_ENTITY_INSTANCE: {
+        for (const auto& list : static_cast<std::vector<std::vector<express::base>>>(attr)) {
+            for (const express::base& ref : list) {
+                if (ref) addUsage(index, static_cast<int>(ref.id()), source_id);
+            }
+        }
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 } // namespace
@@ -107,18 +141,26 @@ void StepTextService::buildUsageIndex(std::uint32_t session_model_id) {
         usage_indexes_.insert(session_model_id, {});
         return;
     }
+    // Walk the attributes directly instead of serializing every instance to
+    // a STEP line and re-parsing its hashtags: no string is built at all.
     std::map<int, std::vector<int>> index;
     for (auto it = file->begin(); it != file->end(); ++it) {
-        // (id, instance) pairs from the id map.
-        std::ostringstream out;
-        it->second.to_string(out);
-        const QString line = QString::fromStdString(out.str());
-        for (int referenced : parseHashtags(line.mid(line.indexOf(QLatin1Char('=')) + 1))) {
-            auto& users = index[referenced];
-            if (users.empty() || users.back() != int(it->first)) {
-                users.push_back(int(it->first));
-            }
+        const express::base instance = it->second;
+        if (!instance) continue;
+        const auto* decl = instance.declaration().as_entity();
+        if (!decl) continue;
+        const int source_id = static_cast<int>(it->first);
+        const size_t attribute_count = decl->all_attributes().size();
+        for (size_t i = 0; i < attribute_count; ++i) {
+            collectReferences(instance.get_attribute_value(i), source_id, index);
         }
+    }
+    // Ascending, deduplicated users per target (one instance may reference
+    // the same target from several attributes).
+    for (auto& entry : index) {
+        auto& users = entry.second;
+        std::sort(users.begin(), users.end());
+        users.erase(std::unique(users.begin(), users.end()), users.end());
     }
     usage_indexes_.insert(session_model_id, std::move(index));
 }

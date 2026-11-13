@@ -83,7 +83,8 @@ void PropertyIndex::indexModel(std::uint32_t session_model_id) {
     ModelIndex& index = models_[session_model_id];
     index.fields.clear();
     for (const auto& info : registry_.basicElementInfoForModel(session_model_id)) {
-        index.fields.emplace(info.object_id, std::make_pair(info.name, info.type));
+        index.fields.emplace(info.object_id,
+                             std::make_pair(info.name.toLower(), info.type.toLower()));
     }
 }
 
@@ -99,8 +100,7 @@ std::vector<std::uint32_t> PropertyIndex::search(const QString& needle) const {
     std::vector<std::uint32_t> result;
     for (auto it = models_.cbegin(); it != models_.cend(); ++it) {
         for (const auto& [object_id, fields] : it->fields) {
-            if (fields.first.toLower().contains(lowered)
-                || fields.second.toLower().contains(lowered)) {
+            if (fields.first.contains(lowered) || fields.second.contains(lowered)) {
                 result.push_back(object_id);
             }
         }
@@ -116,7 +116,7 @@ std::vector<std::uint32_t> PropertyIndex::idsWithFieldValue(const QString& value
     std::vector<std::uint32_t> result;
     for (auto it = models_.cbegin(); it != models_.cend(); ++it) {
         for (const auto& [object_id, fields] : it->fields) {
-            if (fields.first.toLower() == lowered || fields.second.toLower() == lowered) {
+            if (fields.first == lowered || fields.second == lowered) {
                 result.push_back(object_id);
             }
         }

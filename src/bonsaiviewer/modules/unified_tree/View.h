@@ -55,9 +55,20 @@ public:
                     bonsaiviewer::services::ActionPipeline& actions,
                     QObject* parent = nullptr);
 
-private:
+    // BonsaiViewer32: the Unified tree of the Trees panels shows the same
+    // computation (settings, Run, result) as this panel.
+    const services::unified::Result& result() const { return result_; }
+    QString status() const { return status_; }
+    bool isRunning() const { return running_; }
     void openSettings();
     void run();
+
+signals:
+    void resultChanged();
+    void statusChanged();
+
+private:
+    void setStatus(const QString& text);
     void clear(const QString& status);
     // Collects the input of the builder; false (with `error`) when a model
     // cannot be read.
@@ -80,6 +91,8 @@ private:
     services::unified::Settings settings_;
     bool settings_chosen_ = false;
     services::unified::Result result_;
+    QString status_ = QStringLiteral("Not computed. Choose the settings, then Run.");
+    bool running_ = false;
 };
 
 } // namespace bonsaiviewer::modules::unified_tree
