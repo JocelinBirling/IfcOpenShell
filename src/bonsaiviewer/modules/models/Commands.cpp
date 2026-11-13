@@ -836,11 +836,14 @@ void runMassConversion(SessionState& session, QWidget& host, const QString& titl
         }
     }
 
+    // Never take every core: leave at least one to the system / UI.
+    const int workers = qMax(1, qMin(4, QThread::idealThreadCount() - 1));
+
     session.beginProgress(title);
     session.setStatusMessage("Convert",
                              QStringLiteral("%1 file(s) selected, %2 at a time")
                                  .arg(inputs.size())
-                                 .arg(qMin(4, QThread::idealThreadCount())));
+                                 .arg(workers));
 
     auto errors = std::make_shared<QStringList>();
     auto converted = std::make_shared<std::atomic<int>>(0);
@@ -848,7 +851,6 @@ void runMassConversion(SessionState& session, QWidget& host, const QString& titl
     // Several conversions at once: each file is independent (own serializer /
     // own bake), so a small pool of workers is safe and much faster than one
     // file at a time. Bounded to keep the memory peak reasonable.
-    const int workers = qMin(4, QThread::idealThreadCount());
     QThread* coordinator = QThread::create([&session, &host, inputs, outputs, work, errors, converted, total, title, workers]() {
         QThreadPool pool;
         pool.setMaxThreadCount(workers);
@@ -900,9 +902,10 @@ void massBuildIfcViews(SessionState& session, QWidget& host) {
                       QStringLiteral(".ifcview"),
                       [](const QString& input, const QString& /*output*/, QString& error) {
                           // The IFC is never loaded in the viewer: the bake runs
-                          // offline through the IfcViewBuilder pipeline.
+                          // offline through the IfcViewBuilder pipeline. Leave one
+                          // core to the system (num_threads = 0 would take them all).
                           IfcViewBuilder builder;
-                          if (!builder.build(input, input)) {
+                          if (!builder.build(input, input, QThread::idealThreadCount() - 1)) {
                               error = builder.lastError();
                               return false;
                           }
