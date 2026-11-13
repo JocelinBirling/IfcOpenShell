@@ -313,14 +313,26 @@ bool ClashView::startWork(const QString& label, std::function<void(ifcclash::Ses
     s_.session.setStatusMessage("Clash", label + "…");
     std::vector<std::filesystem::path> paths;
     for (const QString& path : run_paths_) paths.emplace_back(path.toStdString());
+    // Reuse the files the loader already parsed instead of re-parsing every
+    // IFC from disk. One shared_ptr per path, aligned with run_models_; null
+    // when the loader has no open data source for that model yet (the engine
+    // then opens the path itself). Shared ownership keeps the file alive for
+    // the whole run even if the model is removed meanwhile.
+    std::vector<std::shared_ptr<ifcopenshell::file>> open_files;
+    if (auto* loader = s_.session.loader()) {
+        open_files.reserve(run_models_.size());
+        for (std::uint32_t session_model_id : run_models_) {
+            open_files.push_back(loader->ifcFileShared(session_model_id));
+        }
+    }
     auto engine = engine_;
-    worker_ = std::thread([this, paths, engine, work]() mutable {
+    worker_ = std::thread([this, paths, open_files = std::move(open_files), engine, work]() mutable {
         QString error;
         try {
             if (!engine) {
                 ifcclash::SessionOptions options;
                 options.triangle_source = "auto";
-                engine = std::make_shared<ifcclash::Session>(paths, options);
+                engine = std::make_shared<ifcclash::Session>(paths, open_files, options);
             }
             work(*engine, engine->file_count());
         } catch (const ifcclash::Cancelled&) {

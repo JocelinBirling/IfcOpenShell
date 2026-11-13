@@ -51,7 +51,7 @@ GeometryStreamer::~GeometryStreamer() {
     }
 }
 
-void GeometryStreamer::setIfcFile(std::unique_ptr<ifcopenshell::file> file) {
+void GeometryStreamer::setIfcFile(std::shared_ptr<ifcopenshell::file> file) {
     ifc_file_ = std::move(file);
 }
 
@@ -215,7 +215,7 @@ void GeometryStreamer::run(const std::string& path, int num_threads) {
     try {
         // read_only is a no-op for SPF; for RocksDB it allows concurrent
         // readers and avoids acquiring the exclusive DB lock.
-        ifc_file_ = std::make_unique<ifcopenshell::file>(
+        ifc_file_ = std::make_shared<ifcopenshell::file>(
             path, ifcopenshell::FT_AUTODETECT, /*read_only=*/true);
     } catch (const std::exception& e) {
         emit errorOccurred(QString("Failed to parse IFC file: %1").arg(e.what()));

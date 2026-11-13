@@ -88,6 +88,10 @@ public:
     QString filePath(uint32_t session_model_id) const;
     QString displayName(uint32_t session_model_id) const;
     ifcopenshell::file* ifcFile(uint32_t session_model_id) const;
+    // Shared ownership of the parsed file, for consumers that outlive the
+    // model's own streamer (e.g. the clash engine reusing the parse instead
+    // of re-opening the file from disk). Null when no data source is loaded.
+    std::shared_ptr<ifcopenshell::file> ifcFileShared(uint32_t session_model_id) const;
 
     // Lazily computes the model's georef matrix + unit scales the first
     // time it's asked for, caches the result, and returns a pointer into the

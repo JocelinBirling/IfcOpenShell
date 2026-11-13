@@ -39,10 +39,20 @@ struct IfcSourceOptions {
     int iterator_threads = 0;
 };
 
+// A file to read: either already parsed (file != null, shared with the
+// viewer's loader so the parse is not repeated) or opened from path.
+struct IfcSourceFile {
+    std::filesystem::path path;
+    std::shared_ptr<ifcopenshell::file> file;
+};
+
 class IfcSource final : public GeometrySource, public IfcQueries, public RayTreeService {
 public:
     // Throws ConfigError when a file cannot be opened.
     IfcSource(const std::vector<std::filesystem::path>& paths, IfcSourceOptions options = {});
+    // Same, adopting the already-parsed files (aligned with `files`; a null
+    // entry is opened from its path). The source only reads them.
+    IfcSource(const std::vector<IfcSourceFile>& files, IfcSourceOptions options = {});
     ~IfcSource() override;
 
     std::string_view name() const override { return "ifc"; }
@@ -72,7 +82,7 @@ public:
     size_t converted_elements() const { return converted_elements_; }
     const std::filesystem::path& path(uint32_t file_index) const;
     // BonsaiViewer: the parsed file, for the IDS selections of the viewer's
-    // rule orchestration (TI09). Owned by the source.
+    // rule orchestration (TI09). Shared ownership: may be the viewer's own.
     ifcopenshell::file* file(uint32_t file_index) const;
 
     // Selection resolution. A GlobalId shared by several entities resolves

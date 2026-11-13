@@ -48,13 +48,16 @@ public:
     // Adopt an externally-opened ifcopenshell::file as the data source
     // (e.g. for the .ifcview-hit path, where loadFile never runs).  The
     // streamer must not be running geometry iteration when this is called.
-    void setIfcFile(std::unique_ptr<ifcopenshell::file> file);
+    void setIfcFile(std::shared_ptr<ifcopenshell::file> file);
 
     bool isRunning() const { return running_.load(); }
     int progress() const { return progress_.load(); }
     uint32_t sessionModelId() const { return session_model_id_; }
 
     ifcopenshell::file* ifcFile() const { return ifc_file_.get(); }
+    // Shared ownership, so long-lived consumers (e.g. the clash engine's
+    // session) can keep the parsed file alive past this streamer.
+    std::shared_ptr<ifcopenshell::file> ifcFileShared() const { return ifc_file_; }
 
     // Thread-safe access to discovered elements
     std::vector<ElementInfo> drainElements();
@@ -70,7 +73,7 @@ signals:
 private:
     void run(const std::string& path, int num_threads);
 
-    std::unique_ptr<ifcopenshell::file> ifc_file_;
+    std::shared_ptr<ifcopenshell::file> ifc_file_;
     std::unique_ptr<QThread> worker_thread_;
     std::atomic<bool> running_{false};
     std::atomic<bool> cancel_requested_{false};
