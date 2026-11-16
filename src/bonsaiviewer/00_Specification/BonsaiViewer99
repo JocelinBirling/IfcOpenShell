@@ -9,14 +9,15 @@ The current About dialog only talks about Bonsai Viewer. It should be updated to
 
 ## Startup time optimization
 
-For clash detection, a precision level is used at some point, and it varies with distance. Since models are very far apart, this could be pre-computed locally to save startup time.
+For clash detection, a precision level is used at some point, and it varies with distance. Since models are very far apart, this could be pre-computed locally to save startup time. We could win some time by using local distance.
 
 ## Easier model loading
-
-Even with the recent additions, adding a model is still not easy enough.
+Even with the recent additions, adding a model is still not easy enough. It should be clear in the UI, that for big models or slow computer you need to convert file before opening them.
 
 ### Default folder
 When opening the file-add dialog, it should open by default in a folder the user can choose. This folder can be changed in the settings.
+We can save favorite place, that can be stored in the side.
+You need to be able to have a better explorer windows.
 
 ### Open Recent
 Open Recent should only save `.ifcfed` files.
@@ -27,17 +28,8 @@ Add calculation functions for surface, volume, perimeter, and "surface minus ope
 
 The goal is a small set of on-the-fly measuring tools: quick and efficient data consultation, good enough for pre-sizing.
 
-### Guiding principles for measurements
-
-- For each IfcClass, identify the quantities that matter for that object. This gives a list of quantity rules that can be implemented. The difficulty is with elements calculated indirectly.
-- A CCTP (specification of works) could be used to know which quantities are identified in each work package, building a library of what should be calculated.
-- Each quantity must have at least two calculation methods:
-  - A precise calculation, on modelled objects.
-  - A ratio, when it is not modelled but can be deduced from other objects (e.g. a floor finish surface can be derived from the floor area of the rooms).
-- Example: dividing a length by a quantity, for tiling/layout purposes, and colouring objects accordingly.
 
 ### Reliability of measurement rules
-
 To make these rules reliable, the viewer must display the zone that is actually measured, so anyone can quickly verify what was taken into account. Likewise, the selected linear quantities must also be displayed, so everyone can check that the measured surface matches the expected surface.
 
 ### Measurement examples
@@ -49,6 +41,8 @@ The detailed list of measurements already exists elsewhere; below are examples o
 - Length of a wall, on one side only.
 - Length of a stair railing, i.e. its sloped length.
 - Slope calculation of a network (both low points at the extremities must be correctly positioned).
+
+Pour la main courante, on pourrait utiliser la surface haute coplanaire, la plus longue. On aurait alors la longueur develloper de la main courante.
 
 #### Perimeter
 
@@ -116,6 +110,5 @@ The use of the `.rdb` should be better explained:
 
 The idea: use it for small configurations at the price of a fairly heavy pre-calculation, but it brings stability and smoothness.
 
-## PDF and text viewer
-
-Integrate a PDF and text viewer, so that when paragraphs of a CCTP are linked, they can be visualized.
+## Mise en donnée WEB
+Pourquoi ne pas mettre en lien des données venant du WEB. On aura une maquette qui se construit automatiquement.

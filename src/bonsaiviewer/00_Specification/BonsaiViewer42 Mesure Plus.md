@@ -49,7 +49,6 @@ Dans un second temps, je veux pouvoir intégrer ces fonctions dans une Table. Ce
 - **M1 `compter`** → U / Nb / ens. Entrées : sélection + attribut de regroupement. 
 
 - **M2 `longueur_axe`** → ml. Éléments linéaires (`IfcRailing`, `IfcMember`, plinthes, `IfcKerb`, seuils, profilés, rails). Longueur suivant l'axe ; courbes en développé réel. 
-Absent : périmètre de local (M4/M21) pour plinthes ; arête de rive de dalle/trémie (M5) pour garde-corps.
 
 - **M3 `perimetre`** → ml. Sur la base de l'objet, on prend la longueur de base de l'objet.
 
@@ -59,17 +58,16 @@ Absent : périmètre de local (M4/M21) pour plinthes ; arête de rive de dalle/t
 
 - **M4 `surface_coplaine`** → m². Sélectionne une surface, la fonction vient trouver tous les triangles coplanaires adjacents et additionne les quantités.
 
-- **M6 `surface_top`** (Top Surface) → m² de la face horizontale **supérieure** d'un élément. Entrées : tout élément surfacique (`IfcSlab`, `IfcCovering`, `IfcRoof`, chape, revêtement de sol…) + seuil de déduction des ouvertures/trémies (paramétrable). La face est identifiée par sa normale verticale vers le haut. Par local et par type. Absent : surface du `IfcSpace` (M21).
-- **M7 `surface_bottom`** (Bottom Surface) → m² de la face horizontale **inférieure** d'un élément. Entrées : tout élément surfacique (`IfcSlab`, `IfcCovering` plafond, sous-face de dalle, sous-face de poutre…) + seuil de déduction des trémies/réservations (paramétrable). La face est identifiée par sa normale verticale vers le bas. Absent : sous-face de la dalle du local (M21).
+- **M6 `surface_top`** (Top Surface) → m² de la face horizontale **supérieure** d'un élément. Entrées : tout élément surfacique (`IfcSlab`, `IfcCovering`, `IfcRoof`, chape, revêtement de sol…) + seuil de déduction des ouvertures/trémies (paramétrable). La face est identifiée par sa normale verticale vers le haut. 
 
+- **M7 `surface_bottom`** (Bottom Surface) → m² de la face horizontale **inférieure** d'un élément. Entrées : tout élément surfacique (`IfcSlab`, `IfcCovering` plafond, sous-face de dalle, sous-face de poutre…) + seuil de déduction des trémies/réservations (paramétrable). La face est identifiée par sa normale verticale vers le bas.
 
 
 - **M8 `surface_lateral`** → m². Calcule la surface latérale d'un objet, cad sans le top et sans la surface bottom.
-Option: 1 face l on choissit la plus grande face, on obtiens sa surface.
+Option: 1 face l'on choissit la plus grande face coplanaire, on obtiens sa surface.
 2 faces: on prend les deux plus grandes face de l'objet.
 Wall faces: On prends toutes les faces latérale.
 Cette fonction sert principalement pour les murs.
-
 
 - **M9 `surface_vitrage`** → Calcul les surfaces transparente d'un objet. Utilise les matériaux de l'objet pour détecter sa surface transparente et calcul la surface de la plus grande face coplanaire de cette objet.
 
