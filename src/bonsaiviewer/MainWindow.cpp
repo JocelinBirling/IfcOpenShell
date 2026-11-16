@@ -982,15 +982,16 @@ void MainWindow::restoreSavedLayouts() {
 }
 
 // Default panels of each workspace (BonsaiViewer21, phase 1).
-// Every workspace: Models, Spatial Tree and USpatial Tree tabbed on the
-// left (Models in front), Properties on the whole right, 3D view in the
-// centre. Home, IDS and BCF: the tree group fills the whole left.
-// Filter / Table: the tree group on the top left, Filters / Tables on the
-// bottom left. Table, IDS and BCF: the Table / IDS / BCF panel on the whole
-// bottom (the bottom corners belong to the bottom area, Qt's default).
-// Diff (BonsaiViewer34): the tree group on the top left, IfcDiff on the
-// bottom left. GeometryRule and Clash Filter (BonsaiViewer09): the rule
-// panels on the left, Properties over Rule on the right.
+// Every workspace: Properties on the whole right, 3D view in the centre;
+// Models, Spatial Tree, USpatial Tree and Trees share one tab group on the
+// left, shown (Models in front) in IDS and BCF only. Home: Models alone on
+// the left. Filter: Filters alone. Table: Trees and USpatial Tree on the
+// top left, Tables on the bottom left. Diff (BonsaiViewer34): IfcDiff alone.
+// Table, IDS and BCF: the Table / IDS / BCF panel on the whole bottom (the
+// bottom corners belong to the bottom area, Qt's default). The panels left
+// out stay in the Window menu, at their place in the group.
+// GeometryRule and Clash Filter (BonsaiViewer09): the two rule panels split
+// the left in equal halves, Properties over Rule on the right.
 void MainWindow::applyWorkspaceDefaults(int index) {
     addDockWidget(Qt::LeftDockWidgetArea, models_panel_);
     tabifyDockWidget(models_panel_, spatial_panel_);
@@ -1000,17 +1001,22 @@ void MainWindow::applyWorkspaceDefaults(int index) {
 
     QStringList visible{QStringLiteral("models"), QStringLiteral("spatial"),
                         QStringLiteral("unifiedtree"), QStringLiteral("trees"), QStringLiteral("properties")};
-    if (index == 1) {
+    // The two panels of a rule workspace, given equal heights on the left.
+    QList<QDockWidget*> halves;
+    if (index == 0) {
+        visible = QStringList{QStringLiteral("models"), QStringLiteral("properties")};
+    } else if (index == 1) {
         splitDockWidget(models_panel_, filters_panel_, Qt::Vertical);
-        visible << QStringLiteral("filters");
+        visible = QStringList{QStringLiteral("filters"), QStringLiteral("properties")};
     } else if (index == 2) {
         splitDockWidget(models_panel_, tables_panel_, Qt::Vertical);
-        visible << QStringLiteral("tables") << QStringLiteral("sheets");
+        visible = QStringList{QStringLiteral("trees"), QStringLiteral("unifiedtree"), QStringLiteral("tables"),
+                              QStringLiteral("sheets"), QStringLiteral("properties")};
     } else if (index == 3) {
         visible << QStringLiteral("ids");
     } else if (index == 4) {
         splitDockWidget(models_panel_, diff_panel_, Qt::Vertical);
-        visible << QStringLiteral("diff");
+        visible = QStringList{QStringLiteral("diff"), QStringLiteral("properties")};
     } else if (index == 5) {
         // BonsaiViewer09 GeometryRule: Rule Library over Rule Config on the
         // left, Properties over Rule on the right (branch IfcViewer_Clash).
@@ -1019,6 +1025,7 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
         visible = QStringList{QStringLiteral("rule_library"), QStringLiteral("rule_config"),
                               QStringLiteral("properties"), QStringLiteral("rules")};
+        halves = {rule_library_dock_, rule_config_dock_};
     } else if (index == 6) {
         // Clash Filter: its tools on the top, Result over Result Info on the
         // left, Properties over Rule.
@@ -1028,6 +1035,7 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
         visible = QStringList{QStringLiteral("results"), QStringLiteral("result_info"),
                               QStringLiteral("properties"), QStringLiteral("rules"), QStringLiteral("clash_filter_tools")};
+        halves = {result_dock_, result_info_dock_};
     } else if (index == 7) {
         // The BCF panel docks on the right in the other workspaces: here at the bottom.
         addDockWidget(Qt::BottomDockWidgetArea, issues_panel_);
@@ -1036,7 +1044,15 @@ void MainWindow::applyWorkspaceDefaults(int index) {
     for (const QString& id : panel_manager_->registeredPanels()) {
         panel_manager_->setPanelVisible(id, visible.contains(id));
     }
-    models_panel_->raise();
+    if (index == 2) {
+        tree_panels_.front()->raise();
+    } else {
+        models_panel_->raise();
+    }
+    if (!halves.isEmpty()) {
+        const int half = centralWidget()->height() / 2;
+        resizeDocks(halves, {half, half}, Qt::Vertical);
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
