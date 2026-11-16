@@ -36,13 +36,22 @@ public:
     // `raw` bytes once decompressed into dst.
     bool frame(uint64_t off, uint64_t comp, uint64_t raw, uint8_t* dst) {
         if (raw == 0) return comp == 0;
-        if (!f_ || fseeko(f_, static_cast<off_t>(off), SEEK_SET) != 0) return false;
+        if (!f_ || seek(off) != 0) return false;
         buffer_.resize(static_cast<size_t>(comp));
         if (comp && std::fread(buffer_.data(), 1, buffer_.size(), f_) != buffer_.size()) return false;
         return decompressIfcViewFrame(buffer_.data(), buffer_.size(), dst, static_cast<size_t>(raw));
     }
 
 private:
+    // A 64-bit offset: fseeko is POSIX, MSVC has _fseeki64.
+    int seek(uint64_t off) {
+#ifdef _WIN32
+        return _fseeki64(f_, static_cast<__int64>(off), SEEK_SET);
+#else
+        return fseeko(f_, static_cast<off_t>(off), SEEK_SET);
+#endif
+    }
+
     FILE* f_;
     std::vector<uint8_t> buffer_;
 };

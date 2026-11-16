@@ -44,6 +44,9 @@ target_include_directories(ifcclash_engine PUBLIC
 target_link_libraries(ifcclash_engine PUBLIC IfcViewer)
 if(NOT MSVC)
     target_compile_options(ifcclash_engine PRIVATE -Wno-unused-parameter)
+else()
+    # M_PI and the other <cmath> constants.
+    target_compile_definitions(ifcclash_engine PRIVATE _USE_MATH_DEFINES)
 endif()
 
 # GEOS (the polygon operations of a few rules) is optional: without it those

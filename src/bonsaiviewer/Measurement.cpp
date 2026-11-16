@@ -23,6 +23,7 @@
 #include "ViewportWindow.h"
 
 #include <QtGlobal>
+#include <QtMath>
 #include <Eigen/Dense>
 
 #include <algorithm>
