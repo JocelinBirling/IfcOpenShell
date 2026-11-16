@@ -117,8 +117,13 @@ TableStore::TableStore(QObject* parent)
     save_timer_->setSingleShot(true);
     save_timer_->setInterval(300);
     connect(save_timer_, &QTimer::timeout, this, [this]() { save(); });
-    connect(this, &QObject::destroyed, this, [this]() { save(); });
     load();
+}
+
+// The pending write is flushed here, while the store still holds its data:
+// QObject::destroyed comes after the members are destroyed.
+TableStore::~TableStore() {
+    if (save_timer_->isActive()) save();
 }
 
 std::vector<TableDocument> TableStore::tablesInFolder(const QString& folder_id) const {

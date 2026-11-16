@@ -82,6 +82,7 @@ class FilterStore : public QObject {
 
 public:
     explicit FilterStore(QObject* parent = nullptr);
+    ~FilterStore() override;
 
     const std::vector<FilterFolder>& folders() const { return folders_; }
     std::vector<FilterDocument> filtersInFolder(const QString& folder_id) const;

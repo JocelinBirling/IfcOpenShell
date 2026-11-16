@@ -47,6 +47,7 @@ class TableStore : public QObject {
 
 public:
     explicit TableStore(QObject* parent = nullptr);
+    ~TableStore() override;
 
     const std::vector<TableFolder>& folders() const { return folders_; }
     std::vector<TableDocument> tablesInFolder(const QString& folder_id) const;
