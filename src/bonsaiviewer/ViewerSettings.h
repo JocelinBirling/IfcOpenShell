@@ -80,7 +80,7 @@ private:
     void load();
     void persist() const;
 
-    ThemeMode theme_mode_ = ThemeMode::Dark;
+    ThemeMode theme_mode_ = ThemeMode::Light;
     std::vector<QString> custom_colors_;
     ZoomPreset zoom_preset_ = ZoomPreset::CenterView;
     OrbitPreset orbit_preset_ = OrbitPreset::CenterView;

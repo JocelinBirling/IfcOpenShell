@@ -196,9 +196,9 @@ void ViewerSettings::setOrbitPreset(OrbitPreset preset) {
 
 void ViewerSettings::load() {
     QSettings settings;
-    int raw_mode = settings.value(kThemeModeKey, static_cast<int>(ThemeMode::Dark)).toInt();
+    int raw_mode = settings.value(kThemeModeKey, static_cast<int>(ThemeMode::Light)).toInt();
     if (raw_mode < static_cast<int>(ThemeMode::Dark) || raw_mode > static_cast<int>(ThemeMode::Custom)) {
-        raw_mode = static_cast<int>(ThemeMode::Dark);
+        raw_mode = static_cast<int>(ThemeMode::Light);
     }
     theme_mode_ = static_cast<ThemeMode>(raw_mode);
 
