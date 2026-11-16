@@ -116,6 +116,13 @@ Create BCF topics from clash results, with viewpoints, snapshots and result IDs 
 ### Trees panel
 A new panel gathers the model trees of every loaded model into a single unified tree, with lazy loading, visibility toggles and multi-selection.
 
+### IfcDiff
+Compare two loaded models (Before / After) from a dedicated **Diff** tab: the IfcDiff engine reports added, deleted and modified elements, coloured directly in the 3D view (green / red, orange vs blue for modified), with a report table, property-level diffs and JSON export.
+
+![](./src/bonsaiviewer/00_Images/IfcDiff_Picture.png)
+
+The colouring ideas go further than the diff itself: any rule result can drive a colour override on the model — filter results, IDS validation, clash verdicts — so the 3D view becomes a map of the model's data. Automatic Color by property or by relation (level, system, material…) gives one colour per value, and the diff adds the before/after superposition with the transparency toggle.
+
 ### Performance on large projects
 Multi-core baking, worker-pool mass conversions to `.rdb` with a dedicated benchmark, streaming exports and indexing optimizations make federating huge models smoother than ever.
 
