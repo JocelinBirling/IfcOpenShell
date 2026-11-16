@@ -471,6 +471,26 @@ target_compile_definitions(bonsaiviewer_rule_example_tests PRIVATE
 target_link_libraries(bonsaiviewer_rule_example_tests PRIVATE ifcclash_engine helpers plugin Qt${QT_VERSION}::Core)
 target_compile_definitions(bonsaiviewer_rule_example_tests PRIVATE BOOST_DLL_USE_STD_FS)
 add_test(NAME bonsaiviewer_rule_example_tests COMMAND bonsaiviewer_rule_example_tests)
+# The exceptions and Must checks of the rule pipeline, run by the
+# Orchestrator on the Duplex test model (not built by default).
+add_executable(bonsaiviewer_rule_pipeline_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/Orchestrator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleCatalogue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/clash/RuleJson.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Attr.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Classification.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Element.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifcopenshell_util/Unit.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/PyValue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Restriction.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/ifctester/Facets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_rule_pipeline.cpp)
+target_include_directories(bonsaiviewer_rule_pipeline_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(bonsaiviewer_rule_pipeline_tests PRIVATE
+    BONSAIVIEWER_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+target_link_libraries(bonsaiviewer_rule_pipeline_tests PRIVATE ifcclash_engine helpers plugin Qt${QT_VERSION}::Core)
+target_compile_definitions(bonsaiviewer_rule_pipeline_tests PRIVATE BOOST_DLL_USE_STD_FS)
+add_test(NAME bonsaiviewer_rule_pipeline_tests COMMAND bonsaiviewer_rule_pipeline_tests)
 
 # BonsaiViewer32: the node table of the Tree Explorer (Qt Core only; not built by default).
 add_executable(bonsaiviewer_tree_index_tests EXCLUDE_FROM_ALL

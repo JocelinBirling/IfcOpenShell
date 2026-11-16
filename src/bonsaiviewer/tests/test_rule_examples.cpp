@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
     check(results("4. Doors and windows under the beams (OBB Below)").results > 0, "doors and windows under beams");
     check(results("5. Doors in view of the windows (Ray Check)").results > 0, "doors in view of the windows");
     const Count in_front = results("6. Furniture in front of the doors (with an exception)");
-    check(in_front.results > 0 && in_front.set_aside > 0, "the exception keeps some pairs and sets others aside");
+    check(in_front.results == 1 && in_front.set_aside == 10, "the exception keeps 1 pair of 11, sets 10 aside");
     // The Must: one group per space of the model (21), some fail.
     const Count must = results("12. Every space is furnished or equipped (Must)");
     check(must.results == 21 && must.groups == 21, "one Must verdict per space: the results");
