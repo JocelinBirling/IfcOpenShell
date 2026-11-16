@@ -159,7 +159,6 @@ jobs:
 
   macos:
     name: macos-arm64
-    # Unchanged: this job already builds.
     runs-on: macos-14
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -177,20 +176,33 @@ jobs:
       - name: Install Ninja
         run: uv tool install ninja
 
+      # The packaging step builds the Autodesk connector (Rust) shipped with the viewer.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      # --shared as on Linux and in the official macOS build: the packaging
+      # step bundles the IfcOpenShell libraries next to the app.
       - name: Build BonsaiViewer
         shell: bash
         env:
           QT6_VERSION: '6.8.3'
-        run: uv run --python 3.13 nix/build-all.py BonsaiViewer --use-ninja --build-cfg Release
+        run: |
+          set -o pipefail
+          uv run --python 3.13 nix/build-all.py BonsaiViewer \
+            -v --shared --use-ninja --build-cfg Release \
+            2>&1 | tee build.log
 
-      - name: Collect BonsaiViewer
+      # Zips BonsaiViewer.app with its libraries, Qt and the connector.
+      - name: Package BonsaiViewer
         shell: bash
+        env:
+          QT6_VERSION: '6.8.3'
         run: |
           set -euo pipefail
+          uv run --python 3.13 nix/package-zip-archives.py macosm164
           mkdir -p dist
-          exe="$(find build -type f -name 'BonsaiViewer' | head -n 1)"
-          test -n "$exe"
-          cp "$exe" dist/
+          cp "$HOME"/output/BonsaiViewer-*.zip dist/
 
       - name: Upload BonsaiViewer
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -206,6 +218,7 @@ jobs:
         with:
           name: build-logs-macos-arm64
           path: |
+            build.log
             build/*/*/*/logs/
             build/**/CMakeFiles/*.log
           if-no-files-found: warn
