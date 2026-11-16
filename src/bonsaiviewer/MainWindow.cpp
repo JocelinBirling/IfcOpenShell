@@ -1001,8 +1001,8 @@ void MainWindow::applyWorkspaceDefaults(int index) {
 
     QStringList visible{QStringLiteral("models"), QStringLiteral("spatial"),
                         QStringLiteral("unifiedtree"), QStringLiteral("trees"), QStringLiteral("properties")};
-    // The two panels of a rule workspace, given equal heights on the left.
-    QList<QDockWidget*> halves;
+    // The two panels of a stack of a rule workspace, given equal heights.
+    QList<QList<QDockWidget*>> halves; // stacks split 50/50
     if (index == 0) {
         visible = QStringList{QStringLiteral("models"), QStringLiteral("properties")};
     } else if (index == 1) {
@@ -1025,7 +1025,7 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
         visible = QStringList{QStringLiteral("rule_library"), QStringLiteral("rule_config"),
                               QStringLiteral("properties"), QStringLiteral("rules")};
-        halves = {rule_library_dock_, rule_config_dock_};
+        halves = {{rule_library_dock_, rule_config_dock_}, {properties_panel_, rule_dock_}};
     } else if (index == 6) {
         // Clash Filter: its tools on the top, Result over Result Info on the
         // left, Properties over Rule.
@@ -1035,7 +1035,7 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         splitDockWidget(properties_panel_, rule_dock_, Qt::Vertical);
         visible = QStringList{QStringLiteral("results"), QStringLiteral("result_info"),
                               QStringLiteral("properties"), QStringLiteral("rules"), QStringLiteral("clash_filter_tools")};
-        halves = {result_dock_, result_info_dock_};
+        halves = {{result_dock_, result_info_dock_}};
     } else if (index == 7) {
         // The BCF panel docks on the right in the other workspaces: here at the bottom.
         addDockWidget(Qt::BottomDockWidgetArea, issues_panel_);
@@ -1049,10 +1049,8 @@ void MainWindow::applyWorkspaceDefaults(int index) {
     } else {
         models_panel_->raise();
     }
-    if (!halves.isEmpty()) {
-        const int half = centralWidget()->height() / 2;
-        resizeDocks(halves, {half, half}, Qt::Vertical);
-    }
+    const int half = centralWidget()->height() / 2;
+    for (const auto& stack : halves) resizeDocks(stack, {half, half}, Qt::Vertical);
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
