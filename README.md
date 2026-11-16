@@ -78,20 +78,57 @@ The results drive both the view and the Properties panel: colour the objects by 
 
 ![](./src/bonsaiviewer/00_Images/IDS_Validation.png)
 
+
+## Clash Management
+
+Detect clashes between the loaded models with rules running on a C++ engine, directly on the parsed IFC files — including federated models loaded from `.rdb`. Results are listed with short IDs, can be triaged with verdicts (Must / Set aside) and saved in the federation for later sessions.
+
+![](./src/bonsaiviewer/00_Images/Clash_Picture.png)
+
+## Local BCF
+
+Turn clash results into **BCF topics** from the Result menu: each topic gets a viewpoint with a snapshot, and every result keeps its ID in both the list and the BCF file. Topics are saved locally in a BCF file, with a prompt to save before closing.
+
+![](./src/bonsaiviewer/00_Images/BCF_Main_Picture.png)
+
+![](./src/bonsaiviewer/00_Images/BCF_Focus.png)
+
+## Optimisation for big project, mass convert to RDB
+
+This function will help for small computer or big project.
+Bonsai Viewer PLUS is built to federate huge models fast. Bonsai Viewer is converting while displaying the file. It takes some RAM and for smaller config, it's better to convert, then to open them.
+Baking uses several cores, mass conversions to `.rdb` run on a worker pool (with a benchmark tool to measure them), and exports and comparisons stream data block by block instead of loading whole files in memory.
+
+![](./src/bonsaiviewer/00_Images/Tools_To_MassBuild.png)
+
+
+
+## What's New
+
+This release brings the biggest additions to Bonsai Viewer PLUS yet.
+
+### Clash Management
+Clash rules now run on a C++ clash engine, directly on the parsed IFC files — including federated models loaded from `.rdb`. Results are serialized, can be saved in the federation, triaged with verdicts (Must / Set aside) and exported.
+
+### Local BCF
+Create BCF topics from clash results, with viewpoints, snapshots and result IDs linked back to the 3D view. You are prompted to save the BCF file before closing.
+
+### Trees panel
+A new panel gathers the model trees of every loaded model into a single unified tree, with lazy loading, visibility toggles and multi-selection.
+
+### Performance on large projects
+Multi-core baking, worker-pool mass conversions to `.rdb` with a dedicated benchmark, streaming exports and indexing optimizations make federating huge models smoother than ever.
+
 ## What's Next
 
-### BCF
-I plan to introduce BCF management. 
+### Improve BCF
+The BCF module in place only create a BCF localy. I plan to able to connect to BCF server.
 
-### A better tree management system
-There are a lot of tree in the Ifc Schema, IfcGroup, IfcSystem, IfcZone, etc...
-I plan to standardize a view to allow for a quick acces to it.
-
-### Clash Management tools
-My main part was to create a clash management tools. I have already build it in Pyhon, it need to be cleaned and exported there.
+### Add Drawing PDF and DXF or DWG
+I want to be able to overlay 2D images (drawing, etc..) in the 3D viewer.
 
 ### Calculation in table
-We could do some small calculation in the viewer, multiply, add to value together. Nothing to fancy, but it could save a small step from going to excel. 
+We could do some small calculation in the viewer, multiply, add to value together. Nothing to fancy, but it could save a small step from export, going to excel and correct the export.
 
 ### Draw small chart
 After the table, i could create a smalls charts about the models.
