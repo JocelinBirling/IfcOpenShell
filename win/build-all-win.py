@@ -401,8 +401,11 @@ def archive_executables(zip_template: str, connector_dir: Path, no_zip: bool) ->
         # IfcOpenShell plugins are loaded by name at runtime, so dumpbin cannot discover them.
         # svgfill links its provider plugin directly, so dumpbin can discover that dependency.
         if not file.name.lower().startswith("svgfill"):
+            # The clash engine of BonsaiViewer loads the geometry trees.
             plugins = {
-                plugin for plugin in ifc_runtime_plugins if not is_geometry_tree(plugin) and not is_svgfill(plugin)
+                plugin
+                for plugin in ifc_runtime_plugins
+                if (file.stem == "BonsaiViewer" or not is_geometry_tree(plugin)) and not is_svgfill(plugin)
             }
             if file.stem != "IfcConvert":
                 plugins = {

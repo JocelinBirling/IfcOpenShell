@@ -439,8 +439,11 @@ function(ifcopenshell_stage_app_bundle_dylibs APP_NAME)
         list(FILTER _ifc_dylibs EXCLUDE REGEX "ifcopenshell_geometry_writer")
         # Geometry serializers (obj, svg, glb, ...) and svgfill are only used by IfcConvert and Python.
         list(FILTER _ifc_dylibs EXCLUDE REGEX "ifcopenshell_geometry_[A-Za-z]+\\.dylib$")
-        # Geometry trees are only used by Python (`ifcopenshell.geom.tree`).
-        list(FILTER _ifc_dylibs EXCLUDE REGEX "ifcopenshell_geometry_tree_")
+        # Geometry trees are only used by Python (`ifcopenshell.geom.tree`) and
+        # by the clash engine of BonsaiViewer.
+        if(NOT _app STREQUAL "BonsaiViewer.app")
+            list(FILTER _ifc_dylibs EXCLUDE REGEX "ifcopenshell_geometry_tree_")
+        endif()
 
         set(_ifc_unused_documents ${_ifc_dylibs})
         list(FILTER _ifc_unused_documents INCLUDE REGEX "ifcopenshell_document_")

@@ -234,7 +234,8 @@ def is_svgfill(path: Path) -> bool:
 
 
 def is_geometry_tree(path: Path) -> bool:
-    # Geometry trees are only used by the Python bindings (`ifcopenshell.geom.tree`), the executables leave them out.
+    # Geometry trees are only used by the Python bindings (`ifcopenshell.geom.tree`) and the clash engine of
+    # BonsaiViewer, the other executables leave them out.
     return path.name.startswith("ifcopenshell_geometry_tree_")
 
 

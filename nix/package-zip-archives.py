@@ -499,6 +499,8 @@ def package_executable(
         include_geometry_serializers=exe == "IfcConvert",
         # svgfill links ifcopenshell_geometry_svgfill directly.
         include_svgfill=exe == "svgfill",
+        # The clash engine of BonsaiViewer loads the geometry trees.
+        include_geometry_trees=exe == "BonsaiViewer",
         include_wgpu=exe in ("BonsaiViewer", "IfcViewerMinimal"),
     )
 
