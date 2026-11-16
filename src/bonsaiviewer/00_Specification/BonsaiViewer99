@@ -1,0 +1,121 @@
+
+# BonsaiViewer99 - Ideas and Roadmap
+
+Backlog of ideas for Bonsai Viewer PLUS. Each section is a theme; items are proposals to discuss, refine and prioritize.
+
+## About dialog
+
+The current About dialog only talks about Bonsai Viewer. It should be updated to include a Bonsai Viewer PLUS section.
+
+## Startup time optimization
+
+For clash detection, a precision level is used at some point, and it varies with distance. Since models are very far apart, this could be pre-computed locally to save startup time.
+
+## Easier model loading
+
+Even with the recent additions, adding a model is still not easy enough.
+
+### Default folder
+When opening the file-add dialog, it should open by default in a folder the user can choose. This folder can be changed in the settings.
+
+### Open Recent
+Open Recent should only save `.ifcfed` files.
+
+## Measurement tools
+
+Add calculation functions for surface, volume, perimeter, and "surface minus openings".
+
+The goal is a small set of on-the-fly measuring tools: quick and efficient data consultation, good enough for pre-sizing.
+
+### Guiding principles for measurements
+
+- For each IfcClass, identify the quantities that matter for that object. This gives a list of quantity rules that can be implemented. The difficulty is with elements calculated indirectly.
+- A CCTP (specification of works) could be used to know which quantities are identified in each work package, building a library of what should be calculated.
+- Each quantity must have at least two calculation methods:
+  - A precise calculation, on modelled objects.
+  - A ratio, when it is not modelled but can be deduced from other objects (e.g. a floor finish surface can be derived from the floor area of the rooms).
+- Example: dividing a length by a quantity, for tiling/layout purposes, and colouring objects accordingly.
+
+### Reliability of measurement rules
+
+To make these rules reliable, the viewer must display the zone that is actually measured, so anyone can quickly verify what was taken into account. Likewise, the selected linear quantities must also be displayed, so everyone can check that the measured surface matches the expected surface.
+
+### Measurement examples
+
+The detailed list of measurements already exists elsewhere; below are examples of what it covers.
+
+#### Length
+
+- Length of a wall, on one side only.
+- Length of a stair railing, i.e. its sloped length.
+- Slope calculation of a network (both low points at the extremities must be correctly positioned).
+
+#### Perimeter
+
+From a space:
+
+- Perimeter of the space with one wall.
+- Perimeter with a wall but without doors and French windows.
+- Perimeter with a wall without doors, French windows, and behind furniture.
+
+#### Surface
+
+For a wall:
+
+- Floor surface.
+- Wall surface up to X m high.
+- One face of the wall.
+
+For a beam:
+
+- Bottom surface and two lateral faces (not the end faces).
+
+Other surfaces:
+
+- Lateral surface of the object.
+- Lateral surface with wall.
+- Lateral surface with wall but without doors or windows.
+- Lateral surface with wall, without doors or windows, and below the suspended ceiling.
+- Lateral surface with wall, without doors or windows, and below the raised floor.
+
+For a window:
+
+- Glazed surface of the window, i.e. the transparent surface minus the part inside the frame.
+
+- Contact surface with another object.
+
+#### Floor surface
+
+- Gross surface.
+- Net surface.
+- SHON (standard French net floor area metric).
+
+#### Other examples
+
+- Wall surface up to a storey level.
+- Room perimeter.
+- Formwork surface of a beam.
+- Span of a beam (taking columns into account).
+
+## Measurements in tables
+
+Advanced measurements could be integrated into the tables, so the information can be visualized and sorted.
+
+- One-object rules could be inserted into the table: for each object, there is always an answer to provide. One-object rules could be enriched to return a data value in the table, for later export.
+- Two-object rules could also be added, with a Must rule pointing at the source. This also produces a result for each object.
+- Applied to clashes, the result would be the number of clashes grouped by source. All clash rules could thus be integrated into a table, with constraints.
+
+## Clarity of the .rdb
+
+The use of the `.rdb` should be better explained:
+
+- Why is it used?
+- What does it bring?
+- What does it cost?
+- When should it be used?
+
+The idea: use it for small configurations at the price of a fairly heavy pre-calculation, but it brings stability and smoothness.
+
+## PDF and text viewer
+
+Integrate a PDF and text viewer, so that when paragraphs of a CCTP are linked, they can be visualized.
