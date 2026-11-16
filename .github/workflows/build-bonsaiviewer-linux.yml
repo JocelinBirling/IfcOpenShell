@@ -1,0 +1,96 @@
+# This file was generated with the assistance of an AI coding tool.
+name: Build BonsaiViewer (Linux)
+
+# Builds BonsaiViewer for Linux from this repository on GitHub runners and
+# uploads the result as a workflow artifact. One workflow per platform, so
+# each one runs on its own. Linux follows the official workflow (build-ifcopenshell-linux.yml),
+# without its dependency cache: the first run builds every dependency.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: linux-x64
+    runs-on: ubuntu-22.04
+    # Same image and packages as the official Linux build.
+    container:
+      image: rockylinux:9
+    steps:
+      - name: Install build tools
+        run: |
+          echo "fastestmirror=True" >> /etc/dnf/dnf.conf
+          dnf install -y epel-release
+          dnf install -y --enablerepo=crb gcc gcc-c++ git autoconf automake bison byacc make zip unzip \
+            cmake ninja-build bzip2 patch xz findutils patchelf libstdc++-static \
+            mesa-libGL-devel fontconfig-devel libxkbcommon-devel dbus-devel \
+            libffi-devel zlib-devel openssl-devel sqlite-devel bzip2-devel xz-devel libuuid-devel \
+            libXext-devel libXinerama-devel libXcursor-devel libXrender-devel libXfixes-devel \
+            libXft-devel pango-devel cairo-devel
+          git config --global --add safe.directory '*'
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      # The packaging step builds the Autodesk connector (Rust) shipped with the viewer.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: fork-bonsaiviewer-rockylinux9-x64
+          install: binary
+
+      # -v prints the output of each dependency build, so a failure shows its cause.
+      - name: Build BonsaiViewer
+        shell: bash
+        env:
+          QT6_VERSION: '6.8.3'
+        run: |
+          set -o pipefail
+          CXXFLAGS="-O3" CFLAGS="-O3" \
+            uv run --python 3.13 nix/build-all.py BonsaiViewer \
+              -v --shared --build-cfg Release --use-ninja \
+            2>&1 | tee build.log
+
+      # Bundles the executable with its libraries, Qt and the connector.
+      - name: Package BonsaiViewer
+        shell: bash
+        env:
+          QT6_VERSION: '6.8.3'
+        run: |
+          set -euo pipefail
+          uv run --python 3.13 nix/package-zip-archives.py linux64
+          mkdir -p dist
+          cp "$HOME"/output/BonsaiViewer-*.zip dist/
+
+      - name: Upload BonsaiViewer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bonsaiviewer-linux-x64
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-logs-linux-x64
+          path: |
+            build.log
+            build/*/*/logs/
+            build/**/CMakeFiles/*.log
+          if-no-files-found: warn
+          retention-days: 7

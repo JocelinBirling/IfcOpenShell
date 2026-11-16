@@ -1,0 +1,77 @@
+# This file was generated with the assistance of an AI coding tool.
+name: Build BonsaiViewer (Windows)
+
+# Builds BonsaiViewer for Windows from this repository on GitHub runners and
+# uploads the result as a workflow artifact. One workflow per platform, so
+# each one runs on its own. Windows follows the official workflow (build-ifcopenshell-windows.yml),
+# without its dependency cache: the first run builds every dependency.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: windows-x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      # The packaging step builds the Autodesk connector (Rust) shipped with the viewer.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: fork-bonsaiviewer-win-x64
+          max-size: 5000MB
+
+      # The Windows scripts of the project (win/), not nix/build-all.py:
+      # build-deps.py builds the dependencies and installs Qt 6 itself (aqtinstall).
+      - name: Build BonsaiViewer
+        shell: cmd # zizmor: ignore[misfeature] needed for vcvars environment
+        env:
+          QT6_VERSION: '6.8.3'
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cd win
+          uv run build-deps.py vs2022-x64 Release -y --reuse-boost --use-ninja --shared --python-version 3.13.6 || exit /b 1
+          uv run run-cmake.py vs2022-x64 --add-commit-sha --use-ninja --build-cfg Release -- -DENABLE_BUILD_OPTIMIZATIONS=ON -DGLTF_SUPPORT=ON -DWITH_PROJ=ON -DBUILD_EXAMPLES=OFF -DBUILD_BONSAIVIEWER=ON -DBUILD_CONVERT=OFF -DBUILD_GEOMSERVER=OFF -DBUILD_IFCPYTHON=OFF -DIFOPSH_SAFE_INSTANCE=OFF -DUSE_CCACHE=ON -DCREATE_BUNDLE=ON || exit /b 1
+          uv run install-ifcopenshell.py vs2022-x64 Release || exit /b 1
+          uv run build-all-win.py --skip-ifcopenshell-build || exit /b 1
+
+      # build-all-win.py zips each executable with its DLLs, Qt and the connector.
+      - name: Collect BonsaiViewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "$USERPROFILE"/output/BonsaiViewer-*.zip dist/
+
+      - name: Upload BonsaiViewer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bonsaiviewer-windows-x64
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-logs-windows-x64
+          path: |
+            _deps/*.log
+            _build-*/CMakeFiles/*.log
+            _build-*/**/CMakeFiles/*.log
+          if-no-files-found: warn
+          retention-days: 7
