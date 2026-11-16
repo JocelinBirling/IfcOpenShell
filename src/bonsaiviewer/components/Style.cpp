@@ -282,6 +282,7 @@ QString buildAppStyleSheet() {
             border: none;
             background: transparent;
         }
+    )" R"(
         QComboBox::down-arrow {
             width: 0px;
             height: 0px;
