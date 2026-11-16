@@ -257,6 +257,8 @@ RunResult Session::evaluate_pairs(const RunRequest& request, const std::vector<K
         auto kt = resolve_key(t, result.diagnostics);
         if (ks && kt) resolved.emplace_back(std::move(*ks), std::move(*kt));
     }
+    // A context rule (Ray_Check...) as an exception: its obstacles.
+    if (rule->uses_context()) rule->setup_context(resolve(request.selections.context, result.diagnostics), *provider_);
 
     CancelToken never;
     NullProgress quiet;

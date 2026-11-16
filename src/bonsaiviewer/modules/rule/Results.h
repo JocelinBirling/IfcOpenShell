@@ -82,6 +82,9 @@ struct ResultRow {
     // group), and the key of the result (resultKey): the review, the manual
     // group and the topic follow it from one run to the next.
     std::vector<ResultElement> sources, targets;
+    // A Must verdict of a grouping set: the element of the group (the space),
+    // shown as the source and first in source_objects.
+    std::vector<ResultElement> group_elements;
     QString key;
     QString topic_guid; // the BCF topic the result belongs to (empty: none)
     int number = 0;     // the short number shown to the users (resultNumberText), 0: none

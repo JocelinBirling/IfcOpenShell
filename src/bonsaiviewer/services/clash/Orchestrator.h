@@ -70,6 +70,8 @@ struct ClashResult {
     QStringList criticity;
     QStringList actor;
     std::shared_ptr<const ifcclash::ResultRecord> record; // the info blocks (null for a group)
+    // A Must verdict of a grouping set: the element of the group (the space).
+    std::optional<ElementKey> group_element;
 };
 
 struct ResultGroup {
@@ -77,6 +79,7 @@ struct ResultGroup {
     std::vector<int> results; // indexes in the outcome results
     Elements sources;
     Elements targets;
+    std::optional<ElementKey> element; // the grouping-set element of the group (the space)
 };
 
 // What a tree node reports at the end of its run.
@@ -85,8 +88,9 @@ struct RuleOutcome {
     QString rule_type;
     QString label;
     std::vector<ClashResult> results;
-    // Set aside, not shown in the results: the Must verdicts (complex) and
-    // the pairs an exception invalidated (status false).
+    // Set aside, not shown in the results: the pairs an exception
+    // invalidated (status false) and, after a Must, the pairs its verdicts
+    // (the results) gather.
     std::vector<ClashResult> set_aside;
     std::vector<ResultGroup> groups;
     QStringList messages;     // warnings of the engine (elements without geometry...)
@@ -120,7 +124,7 @@ public:
 private:
     struct RuleRun {
         std::vector<ClashResult> results;
-        std::vector<ClashResult> set_aside; // Must verdicts + excepted pairs
+        std::vector<ClashResult> set_aside; // excepted pairs + the pairs of a Must
         std::vector<ResultGroup> groups;
         Elements sources;
         Elements targets;

@@ -92,6 +92,7 @@ QJsonObject rowToJson(const ResultRow& row) {
     if (!target.isEmpty()) json["target"] = target;
     json["sources"] = elementsToJson(row.sources);
     if (!row.targets.empty()) json["targets"] = elementsToJson(row.targets);
+    if (!row.group_elements.empty()) json["group_elements"] = elementsToJson(row.group_elements);
     if (row.record) json["record"] = toQt(ifcclash::to_json(*row.record));
     if (!row.topic_guid.isEmpty()) json["topic_guid"] = row.topic_guid;
     return json;
@@ -117,6 +118,7 @@ ResultRow rowFromJson(const QJsonObject& json, QStringList* warnings) {
                  row.target_model_name, row.target_ifc_id);
     row.sources = elementsFromJson(json.value("sources"));
     row.targets = elementsFromJson(json.value("targets"));
+    row.group_elements = elementsFromJson(json.value("group_elements"));
     row.topic_guid = json.value("topic_guid").toString();
     if (json.value("record").isObject()) {
         try {

@@ -22,6 +22,7 @@
 
 #include "ClashTopic.h"
 #include "RuleEditDialog.h"
+#include "RuleExamples.h"
 #include "RulePanels.h"
 #include "RuleTree.h"
 
@@ -146,7 +147,8 @@ ClashView::ClashView(Services services, QWidget* host, QObject* parent) : QObjec
     results_ = new ResultPanel(host_);
     info_ = new ResultInfoPanel(host_);
     filter_ribbon_ = buildClashFilterRibbon();
-    document_.newFile();
+    // No rule yet: the example rules, as the Tables and Filters panels.
+    document_.setFile(exampleRuleFile(), QString());
 
     RuleTreeWidget* tree = rule_panel_->tree();
     connect(tree, &RuleTreeWidget::refSelected, config_, &RuleConfigPanel::showRef);
@@ -572,18 +574,10 @@ void ClashView::onOutcome(const clash::RuleOutcome& outcome) {
         if (!outcome.results[i].status) ++excepted;
         pending_rows_.push_back(rowOf(outcome, outcome.results[i], group_of[i]));
     }
-    // The set-aside results (Must verdicts, excepted pairs): same rows, kept
-    // in the aside list. After a Must the group indexes point into set_aside.
-    std::vector<QString> aside_group_of(outcome.set_aside.size());
-    for (const clash::ResultGroup& group : outcome.groups) {
-        for (int index : group.results) {
-            if (index >= 0 && index < static_cast<int>(aside_group_of.size())) {
-                aside_group_of[static_cast<size_t>(index)] = group.label;
-            }
-        }
-    }
-    for (size_t i = 0; i < outcome.set_aside.size(); ++i) {
-        pending_aside_rows_.push_back(rowOf(outcome, outcome.set_aside[i], aside_group_of[i]));
+    // The set-aside results (excepted pairs, the pairs a Must gathers): same
+    // rows, kept in the aside list. The group indexes point into the results.
+    for (const clash::ClashResult& result : outcome.set_aside) {
+        pending_aside_rows_.push_back(rowOf(outcome, result, QString()));
     }
     QString text = QString("%1 result%2").arg(outcome.results.size()).arg(outcome.results.size() == 1 ? "" : "s");
     if (excepted > 0) text += QString(" (%1 %2)").arg(excepted).arg(outcome.results.front().complex ? "failing" : "excepted");
@@ -707,11 +701,14 @@ ResultRow ClashView::rowOf(const clash::RuleOutcome& outcome, const clash::Clash
     if (result.complex) {
         row.sources = elementsOf(result.sources);
         row.targets = elementsOf(result.targets);
+        if (result.group_element) row.group_elements = elementsOf({*result.group_element});
     } else {
         row.sources.push_back(elementOf(result.source));
         if (result.target) row.targets.push_back(elementOf(*result.target));
     }
-    row.key = resultKey(outcome.node_id, result.complex, group, row.sources, row.targets);
+    // Two spaces of the same name (one per model) are two verdicts.
+    const QString key_group = row.group_elements.empty() ? group : group + '@' + row.group_elements.front().global_id;
+    row.key = resultKey(outcome.node_id, result.complex, key_group, row.sources, row.targets);
     if (result.complex) {
         row.source_objects = objectsOf(result.sources);
         row.target_objects = objectsOf(result.targets);
@@ -720,6 +717,16 @@ ResultRow ClashView::rowOf(const clash::RuleOutcome& outcome, const clash::Clash
         if (!result.sources.empty()) {
             QString n, g, c;
             describe(result.sources.front(), n, g, c, row.source_model_name, row.source_model, row.source_ifc_id);
+        }
+        if (result.group_element) {
+            // A grouping-set verdict: the source side is the group's element
+            // (the space), with the elements counted in it.
+            QString name;
+            describe(*result.group_element, name, row.source_guid, row.source_class, row.source_model_name,
+                     row.source_model, row.source_ifc_id);
+            const auto holder = objectsOf({*result.group_element});
+            row.source_objects.insert(row.source_objects.begin(), holder.begin(), holder.end());
+            row.source_name = QString("%1 — %2 source(s)").arg(name).arg(result.sources.size());
         }
         row.measure = result.status ? "passes" : "fails";
         return row;
@@ -865,11 +872,17 @@ std::vector<std::uint32_t> ClashView::objectsOfElements(const std::vector<Result
 int ClashView::resolveRows(std::vector<ResultRow>& rows) const {
     int unresolved = 0;
     for (ResultRow& row : rows) {
-        row.source_objects = objectsOfElements(row.sources);
+        row.source_objects = objectsOfElements(row.group_elements);
+        const auto sources = objectsOfElements(row.sources);
+        row.source_objects.insert(row.source_objects.end(), sources.begin(), sources.end());
         row.target_objects = objectsOfElements(row.targets);
-        row.source_model = row.sources.empty() ? 0 : s_.session.sessionModelIdForModelId(row.sources.front().model_id);
+        const auto& first_source = row.group_elements.empty() ? row.sources : row.group_elements;
+        row.source_model = first_source.empty() ? 0 : s_.session.sessionModelIdForModelId(first_source.front().model_id);
         row.target_model = row.targets.empty() ? 0 : s_.session.sessionModelIdForModelId(row.targets.front().model_id);
-        if (row.source_objects.size() < row.sources.size() || row.target_objects.size() < row.targets.size()) ++unresolved;
+        if (row.source_objects.size() < row.group_elements.size() + row.sources.size() ||
+            row.target_objects.size() < row.targets.size()) {
+            ++unresolved;
+        }
     }
     return unresolved;
 }
@@ -1806,7 +1819,7 @@ QWidget* ClashView::buildClashFilterRibbon() {
     connect(excepted, &QToolButton::toggled, results_, &ResultPanel::setHideExcepted);
     auto* set_aside = components::buttons::makeButton("Set aside", ":/icons/box-eye.svg", page);
     set_aside->setCheckable(true);
-    describe(set_aside, "Show the set-aside results (Must verdicts, excepted pairs) instead of the results.");
+    describe(set_aside, "Show the set-aside results (excepted pairs, the pairs a Must gathers) instead of the results.");
     connect(set_aside, &QToolButton::toggled, results_, &ResultPanel::setSetAsideMode);
     auto* with_topic = components::buttons::makeButton("Hide With Topic", ":/icons/eye-closed.svg", page);
     with_topic->setCheckable(true);

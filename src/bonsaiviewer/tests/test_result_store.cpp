@@ -77,6 +77,15 @@ store::SavedClash sample() {
     row.record = record;
     row.topic_guid = "5e0d4c2a-1b3c-4d5e-8f90-123456789abc";
     clash.results.push_back(row);
+    // A failing Must verdict of a grouping set: its space is kept.
+    ResultRow verdict;
+    verdict.node_id = "r1";
+    verdict.complex = true;
+    verdict.status = false;
+    verdict.group = "B104";
+    verdict.group_elements = {ResultElement{"m1", "0BTBFw6f90Nfh9rP1dl_3P", 1928}};
+    verdict.key = resultKey("r1", true, "B104@0BTBFw6f90Nfh9rP1dl_3P", verdict.sources, verdict.targets);
+    clash.set_aside.push_back(verdict);
     clash.bcf_file = "issues.bcf";
     clash.numbers = {{row.key, 1}, {"gone|a|b", 2}};
     clash.next_number = 3;
@@ -115,6 +124,10 @@ int main() {
     check(read.messages.size() == 1 && read.messages[0].first == "r1", "the warnings of the run");
     check(row.topic_guid == "5e0d4c2a-1b3c-4d5e-8f90-123456789abc" && read.bcf_file == "issues.bcf",
           "the topic of a result and the BCF file");
+
+    check(read.set_aside.size() == 1 && read.set_aside[0].group_elements.size() == 1 &&
+              read.set_aside[0].group_elements[0].step_id == 1928,
+          "the space of a Must verdict");
 
     check(read.numbers == clash.numbers && read.next_number == 3,
           "the short numbers of the results, those of results gone too");

@@ -406,11 +406,12 @@ Orchestrator::RuleRun Orchestrator::runRule(const RuleCheck& rule, const QString
         if (rule.must) applyMust(rule, run);
         else run.groups = group(rule, run.results);
         // Whatever an exception invalidated is set aside, not shown in the
-        // results. The groups are reindexed to the kept results.
+        // results (a failing Must verdict stays). The groups are reindexed to
+        // the kept results.
         std::vector<ClashResult> kept;
         std::vector<int> remap(run.results.size(), -1);
         for (size_t i = 0; i < run.results.size(); ++i) {
-            if (!run.results[i].status) {
+            if (!run.results[i].status && !run.results[i].complex) {
                 run.set_aside.push_back(std::move(run.results[i]));
             } else {
                 remap[i] = static_cast<int>(kept.size());
@@ -505,6 +506,7 @@ std::vector<bool> Orchestrator::evaluateTree(const BooleanNode& node, const std:
                 request.params[param.name.toStdString()] = toEngineJson(node.rule->params.value(param.name));
             }
         }
+        if (spec->hasSlot("context")) request.selections.context = fileSelections(select(node.rule->context));
         const ifcclash::RunResult raw = session_.evaluate_pairs(request, pairs);
         std::map<std::pair<KeyId, KeyId>, size_t> index;
         for (size_t i = 0; i < pairs.size(); ++i) index.emplace(std::make_pair(idOf(pairs[i].first), idOf(pairs[i].second)), i);
@@ -637,7 +639,8 @@ std::vector<ResultGroup> Orchestrator::group(const RuleCheck& rule, const std::v
     if (grouping.kind == Grouping::Kind::SelectFacet) {
         // The Grouping set of spec 09 (e.g. the spaces): one group per element
         // of the set, empty ones included, holding the results whose source or
-        // target lies in it (spatial container or aggregate chain).
+        // target is the element itself, or lies in it (spatial container or
+        // aggregate chain).
         const Elements set = select(grouping.select);
         std::map<KeyId, size_t> by_element;
         for (const ElementKey& key : set) {
@@ -645,7 +648,7 @@ std::vector<ResultGroup> Orchestrator::group(const RuleCheck& rule, const std::v
             QString label = QString::fromStdString(util::forwardString(e, "Name").value_or(""));
             if (label.isEmpty()) label = QString::fromStdString(key.global_id);
             by_element.emplace(idOf(key), groups.size());
-            groups.push_back(ResultGroup{label, {}, {}, {}});
+            groups.push_back(ResultGroup{label, {}, {}, {}, key});
         }
         const auto holder = [&](const ElementKey& key) -> std::optional<size_t> {
             express::base current = entity(key);
@@ -660,9 +663,18 @@ std::vector<ResultGroup> Orchestrator::group(const RuleCheck& rule, const std::v
             return std::nullopt;
         };
         for (size_t i = 0; i < results.size(); ++i) {
-            if (const auto g = holder(results[i].source)) add(groups[*g], static_cast<int>(i), &results[i].source, nullptr);
-            if (results[i].target) {
-                if (const auto g = holder(*results[i].target)) add(groups[*g], static_cast<int>(i), nullptr, &*results[i].target);
+            const ClashResult& r = results[i];
+            // A pair whose source (target) is itself an element of the set
+            // (an Intersection of the spaces with the furniture): its group
+            // holds the other element of the pair.
+            const auto own_source = by_element.find(idOf(r.source));
+            const auto own_target = r.target ? by_element.find(idOf(*r.target)) : by_element.end();
+            if (r.target && own_source != by_element.end()) add(groups[own_source->second], static_cast<int>(i), nullptr, &*r.target);
+            if (own_target != by_element.end()) add(groups[own_target->second], static_cast<int>(i), &r.source, nullptr);
+            if (own_source != by_element.end() || own_target != by_element.end()) continue;
+            if (const auto g = holder(r.source)) add(groups[*g], static_cast<int>(i), &r.source, nullptr);
+            if (r.target) {
+                if (const auto g = holder(*r.target)) add(groups[*g], static_cast<int>(i), nullptr, &*r.target);
             }
         }
         return groups;
@@ -766,6 +778,7 @@ void Orchestrator::applyMust(const RuleCheck& rule, RuleRun& run) {
         ClashResult verdict;
         verdict.id = json::newId();
         verdict.complex = true;
+        verdict.group_element = groups[g].element;
         verdict.sources = groups[g].sources;
         verdict.targets = groups[g].targets;
         if (!verdict.sources.empty()) verdict.source = verdict.sources.front();
@@ -773,12 +786,11 @@ void Orchestrator::applyMust(const RuleCheck& rule, RuleRun& run) {
         groups[g].results = {static_cast<int>(g)};
         verdicts.push_back(std::move(verdict));
     }
-    // The Must verdicts are set aside, not results of the run. The group
-    // indexes point into set_aside, where the verdicts are appended after
-    // any pairs an exception already set aside.
-    const int offset = static_cast<int>(run.set_aside.size());
-    for (size_t g = 0; g < groups.size(); ++g) groups[g].results = {offset + static_cast<int>(g)};
-    for (auto& v : verdicts) run.set_aside.push_back(std::move(v));
+    // The grouping gathers the results: the Must verdicts are the results
+    // of the rule, one per group (group g is result g); the pairs they
+    // gather are set aside, as their detail.
+    for (auto& r : run.results) run.set_aside.push_back(std::move(r));
+    run.results = std::move(verdicts);
     run.groups = std::move(groups);
 }
 
