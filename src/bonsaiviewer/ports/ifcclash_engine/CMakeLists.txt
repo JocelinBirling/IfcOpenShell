@@ -42,7 +42,9 @@ target_include_directories(ifcclash_engine PUBLIC
 # IfcViewer brings IfcParse, IfcGeom, OpenCASCADE, Eigen, Boost and zstd,
 # with the compile definitions the IfcParse classes were built with.
 target_link_libraries(ifcclash_engine PUBLIC IfcViewer)
-target_compile_options(ifcclash_engine PRIVATE -Wno-unused-parameter)
+if(NOT MSVC)
+    target_compile_options(ifcclash_engine PRIVATE -Wno-unused-parameter)
+endif()
 
 # GEOS (the polygon operations of a few rules) is optional: without it those
 # rules raise a ConfigError when they run.
