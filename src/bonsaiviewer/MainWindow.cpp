@@ -48,6 +48,7 @@
 #include "modules/searchbar/SearchBar.h"
 #include "modules/filters/View.h"
 #include "modules/filters/Panel.h"
+#include "modules/measurement/Panel.h"
 #include "modules/table/Panel.h"
 #include "modules/table/TableStore.h"
 #include "modules/table/TablesPanel.h"
@@ -1092,6 +1093,9 @@ void MainWindow::setupPanels() {
     search_panel_ = new components::Panel(
         "Search and Query", new modules::todo::TodoPanel("Search and Query", this), this);
     filters_panel_ = new modules::filters::FiltersPanel(this);
+    // BonsaiViewer50: the Mesure Plus panel (M1-M5 measurement functions).
+    measurement_panel_ = new modules::measurement::MeasurementPanel(
+        selection_service_, session_state_, viewport_widget_->viewport(), this);
     table_panel_ = new modules::table::TablePanel(this);
     text_digger_panel_ = new modules::text_digger::TextDiggerPanel(this);
     ids_panel_ = new components::Panel("IDS", nullptr, this);
@@ -1132,6 +1136,7 @@ void MainWindow::setupPanels() {
     addDockWidget(Qt::RightDockWidgetArea, layers_panel_);
     addDockWidget(Qt::RightDockWidgetArea, stored_views_panel_);
     addDockWidget(Qt::RightDockWidgetArea, search_panel_);
+    addDockWidget(Qt::RightDockWidgetArea, measurement_panel_);
     addDockWidget(Qt::RightDockWidgetArea, audit_panel_);
     addDockWidget(Qt::RightDockWidgetArea, rule_dock_);
     addDockWidget(Qt::LeftDockWidgetArea, rule_library_dock_);
@@ -1157,7 +1162,8 @@ void MainWindow::setupPanels() {
     tabifyDockWidget(layers_panel_, stored_views_panel_);
     tabifyDockWidget(stored_views_panel_, search_panel_);
     tabifyDockWidget(search_panel_, filters_panel_);
-    tabifyDockWidget(filters_panel_, audit_panel_);
+    tabifyDockWidget(filters_panel_, measurement_panel_);
+    tabifyDockWidget(measurement_panel_, audit_panel_);
     tabifyDockWidget(audit_panel_, issues_panel_);
     properties_panel_->raise();
 
@@ -1165,6 +1171,7 @@ void MainWindow::setupPanels() {
     stored_views_panel_->hide();
     search_panel_->hide();
     filters_panel_->hide();
+    measurement_panel_->raise();
     table_panel_->hide();
     text_digger_panel_->hide();
     ids_panel_->hide();
@@ -1263,10 +1270,12 @@ void MainWindow::setupLoader() {
     // freshly loaded model cannot resurrect a disabled category.
     selection_service_ = new bonsaiviewer::services::SelectionService(
         *session_state_, *viewport_widget_->viewport(), this);
+    measurement_panel_->setSelectionService(selection_service_);
     category_filter_ = new bonsaiviewer::services::CategoryOverrideFilter(
         *session_state_, *viewport_widget_->viewport(), this);
     active_view_ = new bonsaiviewer::services::ActiveView(
         *session_state_, *viewport_widget_->viewport(), *category_filter_);
+    measurement_panel_->setActiveView(active_view_);
     property_index_ = new bonsaiviewer::services::PropertyIndex(
         *session_state_->elementRegistry(), this);
     connect(session_state_, &bonsaiviewer::SessionState::modelGeometryReady, this,
@@ -1638,6 +1647,8 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("Search"), search_panel_, QStringLiteral("Properties"));
     panel_manager_->adoptPanel(QStringLiteral("filters"),
                                QStringLiteral("Filters"), filters_panel_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("measurement"),
+                               QStringLiteral("Mesure"), measurement_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("sheets"),
                                QStringLiteral("Table"), table_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("text_digger"),

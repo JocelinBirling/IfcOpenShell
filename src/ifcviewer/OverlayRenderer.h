@@ -89,6 +89,8 @@ public:
         float stroke_extra    = 0.5f;          // halo per side (px)
         float dash_period_px  = 0.0f;          // 0 = solid
         float dash_on_ratio   = 0.6f;          // [0..1], only when period > 0
+        bool  xray            = false;         // true = drawn without depth
+                                               // test, on top of geometry
     };
 
     // Replace the overlay-line set. Each call CPU-expands every segment
@@ -214,6 +216,7 @@ private:
     WGPUBindGroupLayout overlay_line_bgl_             = nullptr;
     WGPUPipelineLayout  overlay_line_pipeline_layout_ = nullptr;
     WGPURenderPipeline  overlay_line_pipeline_        = nullptr;
+    WGPURenderPipeline  overlay_line_xray_pipeline_   = nullptr;
     WGPUBuffer          overlay_line_vertex_buffer_   = nullptr;
     uint64_t            overlay_line_vertex_capacity_ = 0;
     WGPUBuffer          overlay_line_uniform_buffer_  = nullptr;
@@ -226,8 +229,10 @@ private:
     struct OverlayLineDraw {
         uint32_t first_vertex = 0;
         uint32_t vertex_count = 0;
+        uint32_t uniform_slot = 0;  // index into the per-group uniform buffer
     };
     std::vector<OverlayLineDraw> overlay_line_draws_;
+    std::vector<OverlayLineDraw> overlay_line_xray_draws_;
 
     // ---- Overlay points (sprite-style, quad-expanded per point) ----
     // Single draw per encode covering every point in the set. Vertex

@@ -79,6 +79,7 @@ namespace bonsaiviewer::services { class SelectionService; }
 namespace bonsaiviewer::services { class UndoStack; }
 namespace bonsaiviewer::modules::filters { class FiltersPanel; }
 namespace bonsaiviewer::modules::filters { class FiltersPanelView; }
+namespace bonsaiviewer::modules::measurement { class MeasurementPanel; }
 namespace bonsaiviewer::modules::menubar { class MenuBar; }
 namespace bonsaiviewer::modules::table { class TablePanel; }
 namespace bonsaiviewer::modules::table { class TablePanelView; }
@@ -208,6 +209,8 @@ private:
     QDockWidget* stored_views_panel_ = nullptr;
     QDockWidget* search_panel_ = nullptr;
     bonsaiviewer::modules::filters::FiltersPanel* filters_panel_ = nullptr;
+    // BonsaiViewer50: the Mesure Plus panel (M1-M5 measurement functions).
+    bonsaiviewer::modules::measurement::MeasurementPanel* measurement_panel_ = nullptr;
     bonsaiviewer::modules::table::TablePanel* table_panel_ = nullptr;
     bonsaiviewer::modules::table::TablesPanel* tables_panel_ = nullptr;
     // TI12: the Ifc Class Tree, tabbed with the Spatial Hierarchy.

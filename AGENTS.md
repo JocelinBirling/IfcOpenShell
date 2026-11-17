@@ -151,3 +151,54 @@ on CI to catch formatting issues.
 The library supports IFC2x3 TC1, IFC4 Add2 TC1, IFC4x1, IFC4x2, and
 IFC4x3 Add2. Schema-specific code is compiled conditionally. Be aware of
 which schema versions your change affects.
+
+---
+
+## Local Additions (Elobo, BonsaiViewerPlus fork)
+
+> This section is **not** part of the upstream IfcOpenShell guidelines. It was
+> added by the maintainer of this fork (Elobo) for work on BonsaiViewer on
+> their workstation (12 cores, 14 GB RAM). It takes precedence over the
+> generic advice above when building or testing here.
+
+### Build Directory
+
+- Build only in the existing out-of-tree build directory
+  `~/Documents/05 - Programmation/BUILD` (two levels above this repository).
+  No ad-hoc builds elsewhere (no scratch `g++` compiles or links).
+- Always build with `-j6`:
+  `cmake --build . --target BonsaiViewer -j6`
+- To build tests, enable them in that tree rather than compiling by hand.
+
+### Resource Limits
+
+- One heavy job at a time (a build, a test run, a benchmark), never several in
+  parallel.
+- Run heavy jobs memory-capped and at low priority:
+  `systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=0 nice -n 10 <command>`
+- Engine threads: at most 8 (`--threads 8`).
+- If a `-j6` build is OOM-killed inside the 4G cap (many heavy BonsaiViewer
+  files recompiling at once: `MainWindow.cpp` ~1.4 GB, each module ~1 GB),
+  compile the heavy objects one by one from `BUILD/bonsaiviewer`
+  (`make <path>.cpp.o`, same cap), then run the normal `cmake --build` to link.
+
+### Tests
+
+- Never run a whole test suite: run tests in groups of 1 to 3 (single
+  binaries, `-k`, Catch2 tags), one group after another.
+- `BUILD_BONSAIVIEWER_TESTS=ON` is set in BUILD (Catch2 is fetched into
+  `BUILD/_deps`). Build each test target on its own, for example
+  `test_visibility`, `test_viewport_camera` (binaries in `BUILD/ifcviewer/tests/`)
+  or `bonsaiviewer_display_services_tests` (in `BUILD/bonsaiviewer/`).
+- The BonsaiViewer tests are `EXCLUDE_FROM_ALL`: build them explicitly with
+  `cmake --build . --target <name> -j6`.
+
+### Known Build Quirks
+
+- A no-op BonsaiViewer build taking ~190 s means a stale AUTOMOC depfile:
+  delete `BUILD/bonsaiviewer/CMakeFiles/BonsaiViewer_autogen.dir/compiler_depend.make`
+  and `compiler_depend.internal`, recreate an empty `compiler_depend.make`, and
+  rebuild. It comes back whenever a header listed there is deleted or moved.
+- BUILD compiles only the IFC2X3 and IFC4 schemas (`SCHEMA_VERSIONS=2x3;4`).
+  An IFC4X3 model fails to parse there; adding `4x3_add2` is a long rebuild,
+  only with the maintainer's go-ahead.

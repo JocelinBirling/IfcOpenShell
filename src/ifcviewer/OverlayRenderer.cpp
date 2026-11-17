@@ -340,6 +340,7 @@ void OverlayRenderer::destroy() {
     // Overlay lines
     if (overlay_line_bind_group_)      { wgpuBindGroupRelease(overlay_line_bind_group_);          overlay_line_bind_group_ = nullptr; }
     if (overlay_line_pipeline_)        { wgpuRenderPipelineRelease(overlay_line_pipeline_);       overlay_line_pipeline_ = nullptr; }
+    if (overlay_line_xray_pipeline_)   { wgpuRenderPipelineRelease(overlay_line_xray_pipeline_);  overlay_line_xray_pipeline_ = nullptr; }
     if (overlay_line_shader_module_)   { wgpuShaderModuleRelease(overlay_line_shader_module_);    overlay_line_shader_module_ = nullptr; }
     if (overlay_line_pipeline_layout_) { wgpuPipelineLayoutRelease(overlay_line_pipeline_layout_); overlay_line_pipeline_layout_ = nullptr; }
     if (overlay_line_bgl_)             { wgpuBindGroupLayoutRelease(overlay_line_bgl_);           overlay_line_bgl_ = nullptr; }
@@ -744,11 +745,20 @@ bool OverlayRenderer::buildOverlayLines() {
     rp_desc.multisample.count   = uint32_t(sample_count_);
     rp_desc.multisample.mask    = 0xFFFFFFFFu;
     overlay_line_pipeline_ = wgpuDeviceCreateRenderPipeline(device_, &rp_desc);
-    return overlay_line_pipeline_ != nullptr;
+
+    // X-ray variant: same pipeline but depthCompare Always, so groups
+    // flagged xray draw on top of all geometry (measure traits visible
+    // through transparent objects).
+    depth.depthCompare         = WGPUCompareFunction_Always;
+    rp_desc.label              = svFromCStr("ifcviewer-wgpu.overlay_line_xray_pipeline");
+    overlay_line_xray_pipeline_ = wgpuDeviceCreateRenderPipeline(device_, &rp_desc);
+
+    return overlay_line_pipeline_ != nullptr && overlay_line_xray_pipeline_ != nullptr;
 }
 
 void OverlayRenderer::setOverlayLines(const std::vector<LineGroup>& groups) {
     overlay_line_draws_.clear();
+    overlay_line_xray_draws_.clear();
     if (groups.empty()) return;
 
     // Per-segment expansion: 6 vertices × 8 floats = 48 floats per segment.
@@ -762,9 +772,12 @@ void OverlayRenderer::setOverlayLines(const std::vector<LineGroup>& groups) {
     std::vector<float> verts;
     uint32_t first_vertex = 0;
     overlay_line_draws_.reserve(groups.size());
-    for (const auto& g : groups) {
+    overlay_line_xray_draws_.reserve(groups.size());
+    for (size_t gi = 0; gi < groups.size(); ++gi) {
+        const auto& g = groups[gi];
+        auto& draws = g.xray ? overlay_line_xray_draws_ : overlay_line_draws_;
         if (g.world_xyz.size() < 6) {
-            overlay_line_draws_.push_back({first_vertex, 0});
+            draws.push_back({first_vertex, 0, uint32_t(gi)});
             continue;
         }
         const size_t n_segs = g.world_xyz.size() / 6;
@@ -780,7 +793,7 @@ void OverlayRenderer::setOverlayLines(const std::vector<LineGroup>& groups) {
                 verts.push_back(CORNERS[c][1]);
             }
         }
-        overlay_line_draws_.push_back({first_vertex, group_vcount});
+        draws.push_back({first_vertex, group_vcount, uint32_t(gi)});
         first_vertex += group_vcount;
     }
 
@@ -863,7 +876,7 @@ void OverlayRenderer::setOverlayLines(const std::vector<LineGroup>& groups) {
 
 void OverlayRenderer::encodeOverlayLines(WGPURenderPassEncoder pass,
                                              const OverlayFrame& f) {
-    if (!overlay_line_pipeline_ || overlay_line_draws_.empty()) return;
+    if (overlay_line_draws_.empty() && overlay_line_xray_draws_.empty()) return;
     if (f.viewport_w_px <= 0 || f.viewport_h_px <= 0) return;
 
     // Per-frame slot prefix: view_proj (64 B) into [0..64), viewport_size
@@ -874,23 +887,30 @@ void OverlayRenderer::encodeOverlayLines(WGPURenderPassEncoder pass,
     const float viewport[2] = { float(f.viewport_w_px),
                                 float(f.viewport_h_px) };
 
-    wgpuRenderPassEncoderSetPipeline(pass, overlay_line_pipeline_);
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, overlay_line_vertex_buffer_,
-                                         0, WGPU_WHOLE_SIZE);
+    auto drawList = [&](WGPURenderPipeline pipe,
+                        const std::vector<OverlayLineDraw>& draws) {
+        if (!pipe || draws.empty()) return;
+        wgpuRenderPassEncoderSetPipeline(pass, pipe);
+        wgpuRenderPassEncoderSetVertexBuffer(pass, 0, overlay_line_vertex_buffer_,
+                                             0, WGPU_WHOLE_SIZE);
+        for (const auto& d : draws) {
+            if (d.vertex_count == 0) continue;
+            const uint64_t slot_off = uint64_t(d.uniform_slot) * kOverlayLineUniformSlotSize;
+            wgpuQueueWriteBuffer(queue_, overlay_line_uniform_buffer_,
+                                 slot_off + 0, vp, sizeof(vp));
+            wgpuQueueWriteBuffer(queue_, overlay_line_uniform_buffer_,
+                                 slot_off + 96, viewport, sizeof(viewport));
+            const uint32_t dynamic_offsets[1] = { uint32_t(slot_off) };
+            ifcviewer::setBindGroupDynamic(pass, 0, overlay_line_bind_group_,
+                                              1, dynamic_offsets);
+            wgpuRenderPassEncoderDraw(pass, d.vertex_count, 1, d.first_vertex, 0);
+        }
+    };
 
-    for (size_t i = 0; i < overlay_line_draws_.size(); ++i) {
-        const auto& d = overlay_line_draws_[i];
-        if (d.vertex_count == 0) continue;
-        const uint64_t slot_off = uint64_t(i) * kOverlayLineUniformSlotSize;
-        wgpuQueueWriteBuffer(queue_, overlay_line_uniform_buffer_,
-                             slot_off + 0, vp, sizeof(vp));
-        wgpuQueueWriteBuffer(queue_, overlay_line_uniform_buffer_,
-                             slot_off + 96, viewport, sizeof(viewport));
-        const uint32_t dynamic_offsets[1] = { uint32_t(slot_off) };
-        ifcviewer::setBindGroupDynamic(pass, 0, overlay_line_bind_group_,
-                                          1, dynamic_offsets);
-        wgpuRenderPassEncoderDraw(pass, d.vertex_count, 1, d.first_vertex, 0);
-    }
+    // Depth-tested groups first, x-ray groups last so they draw on top of
+    // everything (including transparent geometry).
+    drawList(overlay_line_pipeline_, overlay_line_draws_);
+    drawList(overlay_line_xray_pipeline_, overlay_line_xray_draws_);
 }
 
 // -----------------------------------------------------------------------------
