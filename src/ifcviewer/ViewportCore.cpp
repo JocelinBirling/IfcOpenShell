@@ -672,7 +672,26 @@ void ViewportCore::panBy(float dx_px, float dy_px, int viewport_height_px) {
 
 void ViewportCore::dollyBy(float notches) {
     // Each notch zooms ~10% in/out; sign matches "wheel up = in".
-    const float factor = std::pow(0.9f, notches);
+    float factor = std::pow(0.9f, notches);
+    // Approach braking: when geometry lies ahead within the brake radius,
+    // scale the zoom-in step down (down to 15% at the surface) so the
+    // approach feels slowed. Never a hard stop — the user can keep zooming
+    // through the object.
+    if (notches > 0.0f) {
+        constexpr float kBrakeRadius = 3.0f;
+        const Eigen::Vector3f eye = orbitEye(camera_target_, camera_distance_,
+                                             camera_yaw_deg_, camera_pitch_deg_);
+        const Eigen::Vector3f fwd =
+            (Eigen::Vector3f(camera_target_[0], camera_target_[1], camera_target_[2]) - eye).normalized();
+        const float o[3] = { eye.x(), eye.y(), eye.z() };
+        const float d[3] = { fwd.x(), fwd.y(), fwd.z() };
+        RaycastHit hit;
+        if (raycast(o, d, hit) && hit.distance < kBrakeRadius) {
+            const float closeness = std::clamp(hit.distance / kBrakeRadius, 0.0f, 1.0f);
+            const float slow = 0.15f + 0.85f * closeness;
+            factor = std::pow(0.9f, notches * slow);
+        }
+    }
     camera_distance_   = std::max(0.01f, camera_distance_ * factor);
     host_->requestFrame();
 }
