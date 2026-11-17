@@ -2,6 +2,38 @@
 
 # BonsaiViewer50 - Mesure Plus
 
+## Implémentation livrée (branche `bonsaiviewer50-mesure-plus`)
+
+Panneau dock **Mesure** (visible par défaut à droite, également pilotable via le menu **Window → Analyze → Mesure**).
+
+### Fonctions de mesure
+
+| Bouton | Fonction | Unité | Géométrie | Implémentation |
+|---|---|---|---|---|
+| M0 | `aire_face_sup` | m² | Face supérieure surlignée (triangles) | Détection par triangulation : triangles de normale verticale vers le haut (nz ≥ 0.9) situés au sommet de l'objet. Aire = somme des triangles coplanaires. |
+| M1 | `compter` | U | Aucune | Compte les éléments sélectionnés. |
+| M2 | `longueur_axe` | ml | Plus longue arête de l'AABB | Longueur suivant l'axe principal (approximation AABB). |
+| M3 | `perimetre` | ml | Rectangle de la base | 2 × (dx + dy) de l'AABB (base = plan XY, Z vertical). |
+| M4 | `longueur_arete` | ml | Plus longue arête de l'AABB | Approximation par la plus longue arête de l'AABB. |
+| M5 | `longueur_main_courante` | ml | Arête horizontale haute | Plus grande dimension horizontale (XY) de la face haute (z = max). |
+
+Chaque mesure s'applique à la **sélection courante** ; le résultat de plusieurs éléments est additionné.
+
+### Restitution dans le viewer
+
+- Traits de mesure tracés en **lignes x-ray** (pas de depth test) : visibles à travers les objets transparents.
+- M0 : la face détectée est **surlignée en triangles translucides**, décalée de 2 cm selon sa normale pour éviter le clipping.
+- **Label 3D** à chaque mesure (valeur + unité) et **HUD** avec le total des mesures visibles par unité.
+
+### Arbre des mesures (section Affichage)
+
+- Chaque mesure crée une **feuille** dans l'arbre (colonnes Mesure / Valeur, répartition **70/30**).
+- **Groupes imbriqués** (groupes de groupes) : bouton « Nouveau groupe », mesures déplaçables par drag & drop.
+- Chaque item a une **checkbox** : décocher masque le trait 3D (un groupe décoché masque tout son contenu).
+- Chaque groupe affiche la **somme de ses mesures par unité** (ex: `12.340 ml, 3 U`).
+- **Clic droit** : sur un groupe → Renommer / Supprimer le groupe (supprime aussi les mesures en dessous) ; sur une mesure → Zoomer dessus (fit caméra sur l'AABB) / Isoler (n'affiche que les objets mesurés) / Supprimer.
+- Boutons **Géométries** (masque/affiche tous les traits) et **Reset** (efface tout).
+
 ## Introduction
 
 **Mesure Plus** regroupe l'ensemble des fonctions de mesure avancées du viewer, au-delà du simple clic de distance (BonsaiViewer11) : comptage, longueurs, surfaces, volumes, mesures de locaux et de niveaux, masses, attributs et pentes.
