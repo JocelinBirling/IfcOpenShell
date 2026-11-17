@@ -156,8 +156,12 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     connect(measures_tree_, &QTreeWidget::itemChanged, this, &MeasurementPanel::onItemChanged);
     connect(measures_tree_, &QTreeWidget::customContextMenuRequested,
             this, &MeasurementPanel::onTreeContextMenu);
-    connect(measures_tree_->model(), &QAbstractItemModel::rowsMoved,
-            this, [this]() { refreshGroupSums(); });
+    // Any structural change (add / remove / move a measure or a group) must
+    // re-actualise the per-unit sums of every group.
+    auto onStructureChanged = [this]() { refreshGroupSums(); refreshOverlays(); };
+    connect(measures_tree_->model(), &QAbstractItemModel::rowsMoved, this, onStructureChanged);
+    connect(measures_tree_->model(), &QAbstractItemModel::rowsInserted, this, onStructureChanged);
+    connect(measures_tree_->model(), &QAbstractItemModel::rowsRemoved, this, onStructureChanged);
 }
 
 bool MeasurementPanel::eventFilter(QObject* obj, QEvent* ev) {
@@ -417,6 +421,7 @@ void MeasurementPanel::isolateRecord(int id) {
 
 void MeasurementPanel::onItemChanged(QTreeWidgetItem* /*item*/, int column) {
     if (column != 0) return;
+    refreshGroupSums();
     refreshOverlays();
 }
 
