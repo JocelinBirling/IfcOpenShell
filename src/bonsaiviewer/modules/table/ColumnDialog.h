@@ -55,6 +55,7 @@ private:
     QLineEdit* title_edit_ = nullptr;
     property_selection::PropertyField* property_field_ = nullptr;
     QCheckBox* auto_numeric_check_ = nullptr;
+    QComboBox* measure_combo_ = nullptr;  // BonsaiViewer50 — Mesure Plus picker
     QComboBox* aggregation_combo_ = nullptr;
     // The group key is set in the Creation window, not here: kept as is.
     bool group_key_ = false;

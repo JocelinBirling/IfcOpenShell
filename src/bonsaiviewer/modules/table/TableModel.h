@@ -36,10 +36,19 @@ class TableModel : public QAbstractTableModel {
 public:
     // The display name of a model, by session model id.
     using ModelNameProvider = std::function<QString(std::uint32_t)>;
+    // BonsaiViewer50 — Mesure Plus column: computes one measure on one
+    // element. Returns the value; `unit` receives the unit string.
+    using MeasureProvider = std::function<double(std::uint32_t object_id,
+                                                 const QString& measure_id,
+                                                 QString* unit)>;
 
     TableModel(bonsaiviewer::services::IfcDataAccess& data_access,
                ModelNameProvider model_name,
                QObject* parent = nullptr);
+
+    // Wire the Mesure Plus provider (viewport + element registry). Null
+    // disables Measure columns (cells stay empty).
+    void setMeasureProvider(MeasureProvider provider);
 
     void setColumns(const std::vector<TableColumn>& columns);
     // The elements of the table; they are grouped when a column is a group key.
@@ -73,6 +82,7 @@ private:
 
     bonsaiviewer::services::IfcDataAccess& data_access_;
     ModelNameProvider model_name_;
+    MeasureProvider measure_provider_;
     std::vector<TableColumn> columns_;
     std::vector<std::uint32_t> rows_;                 // the elements, in order
     std::vector<std::vector<std::uint32_t>> groups_;  // one entry per row

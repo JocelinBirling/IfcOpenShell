@@ -23,8 +23,11 @@
 
 #include "Measurements.h"
 
+#include <QString>
+
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 // Forward declarations to keep the IFC headers out of this header.
@@ -99,6 +102,23 @@ SousPlafondResult measureLocalSousPlafond(ViewportWindow& vp,
                                           bonsaiviewer::ElementRegistry& registry,
                                           std::uint32_t space_object_id,
                                           double surface_m2);
+
+// Dispatch one measurement function by its id ("M0".."M27b") on a single
+// object. Used by the table columns (one row = one element). `unit_out`
+// receives the unit ("m²", "ml", "m³", "U", "%", "m"). Returns 0 when the
+// measure id is unknown or the object cannot be measured.
+struct MeasureDispatchResult {
+    double value = 0.0;
+    QString unit;
+};
+MeasureDispatchResult runMeasureById(ViewportWindow& vp,
+                                     bonsaiviewer::ElementRegistry& registry,
+                                     std::uint32_t object_id,
+                                     const QString& measure_id);
+
+// The list of measure ids that can be used as table columns
+// (single-object functions; M20 needs two objects and is excluded).
+std::vector<std::pair<QString, QString>> measureIdList();  // (id, label)
 
 } // namespace bonsaiviewer::modules::measurement
 

@@ -77,6 +77,10 @@ public:
                             const std::vector<std::uint32_t>& ids,
                             const std::unordered_map<std::uint32_t, QColor>& object_colours = {});
 
+    // BonsaiViewer50 — wire the Mesure Plus provider so Measure columns
+    // recompute their value from the 3D geometry of each row's element.
+    void setMeasureProvider(TableModel::MeasureProvider provider);
+
 private:
     struct ModelSource {
         std::uint32_t session_model_id = 0;

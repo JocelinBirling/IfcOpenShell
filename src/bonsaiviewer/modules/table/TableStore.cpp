@@ -43,6 +43,7 @@ QString kindToString(TableColumn::Kind kind) {
     case TableColumn::Kind::Count: return "count";
     case TableColumn::Kind::Color: return "color";
     case TableColumn::Kind::Relation: return "relation";
+    case TableColumn::Kind::Measure: return "measure";
     }
     return "property";
 }
@@ -55,6 +56,7 @@ TableColumn::Kind kindFromString(const QString& value) {
     if (value == "count") return TableColumn::Kind::Count;
     if (value == "color") return TableColumn::Kind::Color;
     if (value == "relation") return TableColumn::Kind::Relation;
+    if (value == "measure") return TableColumn::Kind::Measure;
     return TableColumn::Kind::Property;
 }
 
@@ -90,6 +92,7 @@ QJsonObject columnToJson(const TableColumn& column) {
     json["auto_numeric"] = column.auto_numeric;
     json["group_key"] = column.group_key;
     json["aggregation"] = aggregationToString(column.aggregation);
+    json["measure"] = column.measure;  // BonsaiViewer50 — Mesure Plus column
     return json;
 }
 
@@ -102,6 +105,7 @@ TableColumn columnFromJson(const QJsonObject& json) {
     column.auto_numeric = json["auto_numeric"].toBool(true);
     column.group_key = json["group_key"].toBool(false);
     column.aggregation = aggregationFromString(json["aggregation"].toString());
+    column.measure = json["measure"].toString();
     return column;
 }
 

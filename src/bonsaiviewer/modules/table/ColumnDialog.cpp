@@ -12,6 +12,7 @@
 
 #include "ColumnDialog.h"
 
+#include "../measurement/IfcMeasurements.h"
 #include "../property_selection/PropertyField.h"
 #include "../../services/PopupService.h"
 
@@ -29,6 +30,7 @@ const TableColumn::Kind kKinds[] = {
     TableColumn::Kind::Property, TableColumn::Kind::Name, TableColumn::Kind::Class,
     TableColumn::Kind::GlobalId, TableColumn::Kind::Model,
     TableColumn::Kind::Count, TableColumn::Kind::Color,
+    TableColumn::Kind::Measure,  // BonsaiViewer50 — Mesure Plus function column
 };
 
 const TableColumn::Aggregation kAggregations[] = {
@@ -63,6 +65,15 @@ ColumnDialog::ColumnDialog(const TableColumn& column, services::PropertyCatalog&
     property_field_->setValue(column.pset, column.property);
     form->addRow("Property", property_field_);
 
+    // BonsaiViewer50 — the Mesure Plus function picker (Kind::Measure).
+    measure_combo_ = new QComboBox(body);
+    for (const auto& entry : measurement::measureIdList()) {
+        measure_combo_->addItem(entry.second, entry.first);
+    }
+    const int m_idx = measure_combo_->findData(column.measure);
+    measure_combo_->setCurrentIndex(m_idx >= 0 ? m_idx : 0);
+    form->addRow("Mesure", measure_combo_);
+
     title_edit_ = new QLineEdit(column.title, body);
     title_edit_->setPlaceholderText("Automatic (the property name)");
     form->addRow("Column name", title_edit_);
@@ -91,8 +102,10 @@ ColumnDialog::ColumnDialog(const TableColumn& column, services::PropertyCatalog&
 
 void ColumnDialog::updateKind() {
     const bool property = column().kind == TableColumn::Kind::Property;
+    const bool measure = column().kind == TableColumn::Kind::Measure;
     property_field_->setEnabled(property);
     auto_numeric_check_->setEnabled(property);
+    measure_combo_->setEnabled(measure);
     // Count and Color rows are one value each: nothing to combine.
     const TableColumn::Kind kind = column().kind;
     aggregation_combo_->setEnabled(kind != TableColumn::Kind::Count && kind != TableColumn::Kind::Color);
@@ -114,6 +127,9 @@ TableColumn ColumnDialog::column() const {
         column.pset = property_field_->propertySet();
         column.property = property_field_->propertyName();
         column.auto_numeric = auto_numeric_check_->isChecked();
+    }
+    if (column.kind == TableColumn::Kind::Measure) {
+        column.measure = measure_combo_->currentData().toString();
     }
     return column;
 }

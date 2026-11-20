@@ -238,6 +238,10 @@ void TablePanelView::showTemporaryTable(const QString& name, const std::vector<T
     updateSummary();
 }
 
+void TablePanelView::setMeasureProvider(TableModel::MeasureProvider provider) {
+    if (model_) model_->setMeasureProvider(std::move(provider));
+}
+
 void TablePanelView::modifyTable() {
     if (!table_) return;
     TableDefinition definition = *table_;

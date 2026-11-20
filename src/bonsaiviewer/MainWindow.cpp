@@ -49,6 +49,7 @@
 #include "modules/filters/View.h"
 #include "modules/filters/Panel.h"
 #include "modules/measurement/Panel.h"
+#include "modules/measurement/IfcMeasurements.h"
 #include "modules/table/Panel.h"
 #include "modules/table/TableStore.h"
 #include "modules/table/TablesPanel.h"
@@ -1364,6 +1365,16 @@ void MainWindow::setupLoader() {
     table_view_ = new modules::table::TablePanelView(
         table_panel_, *session_state_, *ids_bridge_, *data_access_, *property_catalog_,
         *selection_service_, *action_pipeline_, *table_store_, *appearance_service_, *entity_set_store_, this);
+    // BonsaiViewer50 — Mesure Plus columns in the tables: recompute each
+    // measure from the 3D geometry of the row's element.
+    table_view_->setMeasureProvider(
+        [viewport = viewport_widget_->viewport(), registry = session_state_->elementRegistry()]
+        (std::uint32_t object_id, const QString& measure_id, QString* unit) -> double {
+            if (!viewport || !registry) return 0.0;
+            auto r = modules::measurement::runMeasureById(*viewport, *registry, object_id, measure_id);
+            if (unit) *unit = r.unit;
+            return r.value;
+        });
     tables_view_ = new modules::table::TablesView(tables_panel_, *table_store_, this);
     // B06 Automatic Color: the values, counts and colours in a temporary table,
     // as "Colour by property" does in the Properties panel.

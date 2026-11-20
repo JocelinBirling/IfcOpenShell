@@ -35,6 +35,9 @@ struct TableColumn {
         // holds the relation key of RelationValues. Used by the temporary
         // table of an Automatic Color by relation.
         Relation,
+        // BonsaiViewer50 — a Mesure Plus function (M0-M27b) recomputed from
+        // the 3D geometry of the row's element: `measure` holds the id.
+        Measure,
     };
 
     // How the values of the elements of a group are combined (TI07 part C).
@@ -52,6 +55,8 @@ struct TableColumn {
     QString title; // empty = automatic (the property name, or the kind)
     QString pset;
     QString property;
+    // Kind::Measure: the Mesure Plus function id ("M0".."M27b").
+    QString measure;
     // Texts that read as numbers (with "." or "," as decimal separator)
     // become real numbers.
     bool auto_numeric = true;
@@ -84,6 +89,7 @@ inline QString TableColumn::kindLabel(Kind kind) {
     case Kind::Count: return "Count";
     case Kind::Color: return "Color";
     case Kind::Relation: return "Relation";
+    case Kind::Measure: return "Mesure";
     }
     return {};
 }
@@ -104,6 +110,7 @@ inline QString TableColumn::aggregationLabel(Aggregation aggregation) {
 inline QString TableColumn::displayTitle() const {
     if (!title.isEmpty()) return title;
     if (kind == Kind::Property) return property.isEmpty() ? QString("Property") : property;
+    if (kind == Kind::Measure) return measure.isEmpty() ? QString("Mesure") : measure;
     return kindLabel(kind);
 }
 

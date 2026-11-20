@@ -60,6 +60,12 @@ Paramètres persistés (QSettings) et repris comme valeurs par défaut dans le p
 - Mode de surface latérale (M8) : toutes / plus grande / deux plus grandes.
 - M12 : inclure abouts, inclure face supérieure (checkboxes).
 
+### Mesure dans les tables
+
+- Nouveau type de colonne **Mesure** dans la boîte de dialogue d'ajout/modification de colonne : une liste déroulante propose chaque fonction (M0-M27b, hors M20 qui nécessite deux éléments).
+- La colonne calcule la mesure **par ligne** (par élément) via `runMeasureById`, qui recompute depuis la géométrie 3D (jamais les Qto). Les agrégations (somme, moyenne, min, max…) s'appliquent normalement sur les groupes.
+- Le type est sérialisé dans le JSON des tables (`"kind": "measure"`, champ `"measure"`).
+
 ## Introduction
 
 **Mesure Plus** regroupe l'ensemble des fonctions de mesure avancées du viewer, au-delà du simple clic de distance (BonsaiViewer11) : comptage, longueurs, surfaces, volumes, mesures de locaux et de niveaux, masses, attributs et pentes.

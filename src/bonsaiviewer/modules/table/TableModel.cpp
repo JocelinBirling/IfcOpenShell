@@ -70,6 +70,11 @@ QString joinTexts(const std::vector<QVariant>& values) {
 TableModel::TableModel(services::IfcDataAccess& data_access, ModelNameProvider model_name, QObject* parent)
     : QAbstractTableModel(parent), data_access_(data_access), model_name_(std::move(model_name)) {}
 
+void TableModel::setMeasureProvider(MeasureProvider provider) {
+    measure_provider_ = std::move(provider);
+    cache_.assign(cache_.size(), {});  // force re-evaluation of Measure columns
+}
+
 void TableModel::setColumns(const std::vector<TableColumn>& columns) {
     beginResetModel();
     columns_ = columns;
@@ -177,6 +182,18 @@ std::vector<QVariant> TableModel::elementValues(std::uint32_t object_id) const {
             QVariant value = findProperty(psets, column);
             if (!value.isValid()) value = findProperty(qtos, column);
             values.push_back(value.isValid() ? value : QVariant(QString()));
+            break;
+        }
+        case TableColumn::Kind::Measure: {
+            // BonsaiViewer50 — Mesure Plus column: recompute the measure
+            // from the element's 3D geometry via the provider.
+            if (measure_provider_) {
+                QString unit;
+                const double v = measure_provider_(object_id, column.measure, &unit);
+                values.push_back(v);
+            } else {
+                values.emplace_back(QString());
+            }
             break;
         }
         }

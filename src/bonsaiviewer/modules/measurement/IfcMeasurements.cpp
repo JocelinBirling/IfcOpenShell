@@ -357,4 +357,88 @@ SousPlafondResult measureLocalSousPlafond(ViewportWindow& vp,
     return result;
 }
 
+std::vector<std::pair<QString, QString>> measureIdList() {
+    return {
+        {QStringLiteral("M0"),  QStringLiteral("M0 — Aire face sup")},
+        {QStringLiteral("M1"),  QStringLiteral("M1 — Compter")},
+        {QStringLiteral("M2"),  QStringLiteral("M2 — Longueur d'axe")},
+        {QStringLiteral("M3"),  QStringLiteral("M3 — Périmètre")},
+        {QStringLiteral("M4"),  QStringLiteral("M4 — Longueur d'arête")},
+        {QStringLiteral("M5"),  QStringLiteral("M5 — Main courante")},
+        {QStringLiteral("M6"),  QStringLiteral("M6 — Surface top")},
+        {QStringLiteral("M7"),  QStringLiteral("M7 — Surface bottom")},
+        {QStringLiteral("M8"),  QStringLiteral("M8 — Surface latérale")},
+        {QStringLiteral("M9"),  QStringLiteral("M9 — Surface vitrage")},
+        {QStringLiteral("M11"), QStringLiteral("M11 — Toiture développée")},
+        {QStringLiteral("M12"), QStringLiteral("M12 — Surface coffrage")},
+        {QStringLiteral("M13"), QStringLiteral("M13 — Section projetée")},
+        {QStringLiteral("M16"), QStringLiteral("M16 — Surface ouverture")},
+        {QStringLiteral("M17"), QStringLiteral("M17 — Volume élément")},
+        {QStringLiteral("M18"), QStringLiteral("M18 — Volume de couche")},
+        {QStringLiteral("M21"), QStringLiteral("M21 — Local surface sol")},
+        {QStringLiteral("M22"), QStringLiteral("M22 — Surface sous plafond")},
+        {QStringLiteral("M27"), QStringLiteral("M27 — Pente")},
+        {QStringLiteral("M27b"), QStringLiteral("M27b — Pente (ports)")},
+    };
+}
+
+MeasureDispatchResult runMeasureById(ViewportWindow& vp,
+                                     bonsaiviewer::ElementRegistry& registry,
+                                     std::uint32_t object_id,
+                                     const QString& measure_id) {
+    MeasureDispatchResult r;
+    const std::vector<std::uint32_t> one{object_id};
+    const auto entity = registry.findEntity(object_id);
+    if (measure_id == QLatin1String("M0")) {
+        const TopFace f = measureTopFace(vp, object_id);
+        r.value = f.area; r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M1")) {
+        r.value = 1.0; r.unit = QStringLiteral("U");
+    } else if (measure_id == QLatin1String("M2")) {
+        r.value = measureLongueurAxe(vp, one); r.unit = QStringLiteral("ml");
+    } else if (measure_id == QLatin1String("M3")) {
+        r.value = measurePerimetre(vp, one); r.unit = QStringLiteral("ml");
+    } else if (measure_id == QLatin1String("M4")) {
+        r.value = measureLongueurArete(vp, one); r.unit = QStringLiteral("ml");
+    } else if (measure_id == QLatin1String("M5")) {
+        r.value = measureLongueurMainCourante(vp, one); r.unit = QStringLiteral("ml");
+    } else if (measure_id == QLatin1String("M6")) {
+        r.value = measureSurfaceTop(vp, one); r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M7")) {
+        r.value = measureSurfaceBottom(vp, one); r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M8")) {
+        r.value = measureSurfaceLateral(vp, one, 0); r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M9")) {
+        if (entity) r.value = measureSurfaceVitrage(vp, *entity, object_id);
+        r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M11")) {
+        r.value = measureSurfaceToitureDeveloppee(vp, one); r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M12")) {
+        r.value = measureSurfaceCoffrage(vp, one, false, false); r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M13")) {
+        r.value = measureSurfaceSectionProjetee(vp, one); r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M16")) {
+        if (entity) r.value = measureSurfaceOuverture(vp, *entity, object_id).area_m2;
+        r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M17")) {
+        r.value = measureVolumeElement(vp, one); r.unit = QStringLiteral("m³");
+    } else if (measure_id == QLatin1String("M18")) {
+        r.value = measureVolumeCouche(vp, one, 0.10); r.unit = QStringLiteral("m³");
+    } else if (measure_id == QLatin1String("M21")) {
+        const LocalMetrics m = measureLocalMetrics(vp, object_id);
+        r.value = m.surface_m2; r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M22")) {
+        r.value = measureLocalSurfaceSousPlafond(vp, object_id, 1.80); r.unit = QStringLiteral("m²");
+    } else if (measure_id == QLatin1String("M27")) {
+        r.value = measurePente(vp, one, false); r.unit = QStringLiteral("%");
+    } else if (measure_id == QLatin1String("M27b")) {
+        if (entity) {
+            const auto s = measurePentePorts(*entity);
+            if (s.has_value()) r.value = *s;
+        }
+        r.unit = QStringLiteral("%");
+    }
+    return r;
+}
+
 } // namespace bonsaiviewer::modules::measurement
