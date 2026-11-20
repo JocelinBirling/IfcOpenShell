@@ -135,6 +135,8 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     m22_seuil_spin_->setValue(1.80);
     m22_seuil_spin_->setSuffix(QStringLiteral(" m"));
     m22_seuil_spin_->setToolTip(QStringLiteral("Hauteur minimale sous plafond (m) pour M22"));
+    m27b_button_ = new QPushButton(QStringLiteral("M27b — Pente (ports)"), functions_box);
+    m27b_button_->setToolTip(QStringLiteral("Pente (%) entre les 2 ports des équipements connectés (IfcRelConnectsPorts) : Δz / Δx × 100"));
 
     // Initialise the parameter widgets from the persisted Mesure settings.
     {
@@ -172,6 +174,7 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     functions_layout->addWidget(m21_button_);
     functions_layout->addWidget(m22_button_);
     functions_layout->addWidget(m22_seuil_spin_);
+    functions_layout->addWidget(m27b_button_);
 
     layout->addWidget(functions_box);
 
@@ -251,6 +254,7 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     connect(m27_button_, &QPushButton::clicked, this, &MeasurementPanel::runM27);
     connect(m21_button_, &QPushButton::clicked, this, &MeasurementPanel::runM21);
     connect(m22_button_, &QPushButton::clicked, this, &MeasurementPanel::runM22);
+    connect(m27b_button_, &QPushButton::clicked, this, &MeasurementPanel::runM27b);
     connect(reset_button_, &QPushButton::clicked, this, &MeasurementPanel::resetMeasurements);
     connect(settings_button_, &QPushButton::clicked, this, &MeasurementPanel::openSettingsRequested);
     // Persist the Mesure parameters as soon as the user edits them.
@@ -704,7 +708,9 @@ void MeasurementPanel::runM21() {
         return;
     }
     double surf = 0.0, perim = 0.0, haut = 0.0, vol = 0.0;
-    int spaces = 0;
+    double perim_deductions = 0.0;
+    double haut_plafond = 0.0, vol_plafond = 0.0;
+    int spaces = 0, plafonds = 0;
     for (const std::uint32_t id : ids) {
         const auto info = session_->elementRegistry()->findBasicElementInfo(id);
         if (!info || info->type != QStringLiteral("IfcSpace")) continue;
@@ -712,7 +718,10 @@ void MeasurementPanel::runM21() {
         if (m.surface_m2 <= 0.0 && m.hauteur_m <= 0.0) continue;
         ++spaces;
         surf += m.surface_m2;
-        perim += m.perimetre_ml;
+        // Périmètre net avec déduction des portes / fenêtres au sol.
+        const LocalPerimeterResult pr = measureLocalPerimetre(*viewport_, *session_->elementRegistry(), id);
+        perim += pr.net_ml;
+        perim_deductions += pr.deductions_ml;
         haut += m.hauteur_m;
         vol += m.volume_m3;
         // One highlighted floor per space + 4 leaf records.
@@ -727,16 +736,29 @@ void MeasurementPanel::runM21() {
             records_[rec].highlight_tris = m.floor_tris;
             for (int k = 0; k < 3; ++k) records_[rec].label_pos[k] = m.label_pos[k];
         }
-        addMeasureRecord(QStringLiteral("M21 — Local périmètre"), m.perimetre_ml, QStringLiteral("ml"), 1, {});
+        addMeasureRecord(QStringLiteral("M21 — Local périmètre"), pr.net_ml, QStringLiteral("ml"), 1, {});
         addMeasureRecord(QStringLiteral("M21 — Local hauteur"), m.hauteur_m, QStringLiteral("m"), 0, {});
         addMeasureRecord(QStringLiteral("M21 — Local volume"), m.volume_m3, QStringLiteral("m³"), 6, {});
+        // Hauteur / volume sous plafond when a ceiling element is found above.
+        const SousPlafondResult sp = measureLocalSousPlafond(*viewport_, *session_->elementRegistry(), id, m.surface_m2);
+        if (sp.found) {
+            ++plafonds;
+            haut_plafond += sp.hauteur_m;
+            vol_plafond += sp.volume_m3;
+            addMeasureRecord(QStringLiteral("M21 — Hauteur sous plafond"), sp.hauteur_m, QStringLiteral("m"), 0, {});
+            addMeasureRecord(QStringLiteral("M21 — Volume sous plafond"), sp.volume_m3, QStringLiteral("m³"), 6, {});
+        }
     }
     refreshGroupSums();
     refreshOverlays();
-    const QString text = QStringLiteral("M21 — Local : %1 m², %2 ml, %3 m, %4 m³ (%5 local(aux))")
-                             .arg(surf, 0, 'f', 3).arg(perim, 0, 'f', 3)
-                             .arg(spaces > 0 ? haut / spaces : 0.0, 0, 'f', 3)
-                             .arg(vol, 0, 'f', 3).arg(spaces);
+    QString text = QStringLiteral("M21 — Local : %1 m², %2 ml (net, -%3 ml portes/fenêtres), %4 m, %5 m³ (%6 local(aux))")
+                       .arg(surf, 0, 'f', 3).arg(perim, 0, 'f', 3).arg(perim_deductions, 0, 'f', 3)
+                       .arg(spaces > 0 ? haut / spaces : 0.0, 0, 'f', 3)
+                       .arg(vol, 0, 'f', 3).arg(spaces);
+    if (plafonds > 0) {
+        text += QStringLiteral(" | sous plafond : %1 m, %2 m³ (%3 plafond(s))")
+                    .arg(haut_plafond / plafonds, 0, 'f', 3).arg(vol_plafond, 0, 'f', 3).arg(plafonds);
+    }
     updateResultLabel(text);
     if (session_) session_->setStatusMessage(QStringLiteral("Mesure"), text);
     emit measurementPerformed(QStringLiteral("M21 Local"), surf, QStringLiteral("m²"));
@@ -775,6 +797,41 @@ void MeasurementPanel::runM22() {
     updateResultLabel(text);
     if (session_) session_->setStatusMessage(QStringLiteral("Mesure"), text);
     emit measurementPerformed(QStringLiteral("M22 Sous plafond"), total, QStringLiteral("m²"));
+}
+
+void MeasurementPanel::runM27b() {
+    if (!selection_ || !viewport_ || !session_ || !session_->elementRegistry()) return;
+    const auto ids = selection_->selectionIdsAsVector();
+    if (ids.empty()) {
+        updateResultLabel(QStringLiteral("M27b — Aucun élément sélectionné"));
+        return;
+    }
+    double total = 0.0;
+    int count = 0;
+    std::vector<MeasuredObject> objects;
+    for (const std::uint32_t id : ids) {
+        const auto entity = session_->elementRegistry()->findEntity(id);
+        if (!entity) continue;
+        const auto slope = measurePentePorts(*entity);
+        if (!slope.has_value()) continue;
+        total += *slope;
+        ++count;
+        Eigen::Vector3f emn, emx;
+        if (viewport_->computeObjectAabb(id, emn, emx)) {
+            MeasuredObject obj;
+            obj.id = id;
+            obj.mn[0] = emn.x(); obj.mn[1] = emn.y(); obj.mn[2] = emn.z();
+            obj.mx[0] = emx.x(); obj.mx[1] = emx.y(); obj.mx[2] = emx.z();
+            objects.push_back(obj);
+        }
+    }
+    const double mean = count > 0 ? total / count : 0.0;
+    const QString text = QStringLiteral("M27b — Pente (ports) : %1 % (%2 équipement(s))")
+                             .arg(mean, 0, 'f', 2).arg(count);
+    updateResultLabel(text);
+    addMeasureRecord(QStringLiteral("M27b — Pente (ports)"), mean, QStringLiteral("%"), 0, objects);
+    if (session_) session_->setStatusMessage(QStringLiteral("Mesure"), text);
+    emit measurementPerformed(QStringLiteral("M27b Pente ports"), mean, QStringLiteral("%"));
 }
 
 int MeasurementPanel::addMeasureRecord(const QString& label, double value, const QString& unit,

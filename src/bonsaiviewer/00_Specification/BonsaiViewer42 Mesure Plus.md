@@ -27,9 +27,10 @@ Panneau dock **Mesure** (visible par défaut à droite, également pilotable via
 | M17 | `volume_element` | m³ | Boîte AABB | Volume signé par théorème de la divergence (somme des tétraèdres sur le mesh). |
 | M18 | `volume_couche` | m³ | Face top surlignée | Surface top (M6) × épaisseur (spinbox, persisté). |
 | M20 | `volume_entre` | m³ | Boîte englobante | Aire top de l'objet bas × écart vertical jusqu'à la face basse de l'objet haut (paires consécutives de la sélection). |
-| M21 | `local_*` | m² / ml / m / m³ | Sol du local surligné | Par `IfcSpace` : surface sol (face bottom), périmètre base, hauteur (étendue Z), volume = surface × hauteur. |
+| M21 | `local_*` | m² / ml / m / m³ | Sol du local surligné | Par `IfcSpace` : surface sol (face bottom), périmètre **net** (base moins portes/fenêtres au sol, trouvées par scan AABB des `IfcDoor`/`IfcWindow` du modèle), hauteur (étendue Z), volume = surface × hauteur, plus hauteur/volume **sous plafond** quand un élément plafond (`IfcCovering` ou nom « plafond/ceiling ») est trouvé au-dessus du local. |
 | M22 | `local_surface_sous_plafond` | m² | Sol du local surligné | Surface sol des locaux dont la hauteur ≥ seuil (spinbox, défaut 1.80 m, persisté). |
 | M27 | `pente` | % | Plus longue arête AABB | Pente moyenne = tan(arccos(|nz|)) via la normale moyenne pondérée par l'aire. |
+| M27b | `pente_ports` | % | Plus longue arête AABB | Pente entre les 2 ports des équipements connectés (`IfcRelConnectsPorts`) : Δz / Δx × 100. |
 
 Chaque mesure s'applique à la **sélection courante** ; le résultat de plusieurs éléments est additionné.
 

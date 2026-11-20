@@ -30,6 +30,7 @@
 // Forward declarations to keep the IFC headers out of this header.
 namespace express { class base; }
 class ViewportWindow;
+namespace bonsaiviewer { class ElementRegistry; }
 
 namespace bonsaiviewer::modules::measurement {
 
@@ -68,6 +69,36 @@ OpeningResult measureSurfaceOuverture(ViewportWindow& vp,
 // equipment connected through IfcRelConnectsPorts (Δz / horizontal distance
 // × 100). Returns nullopt when no port connection is found.
 std::optional<double> measurePentePorts(const express::base& element);
+
+// M21 — local_périmètre: base perimeter (ml) of an IfcSpace minus the
+// widths of the doors and floor-touching windows whose footprint intersects
+// the space's base. Doors / windows are found by scanning the model's
+// elements (IfcDoor / IfcWindow) through the ElementRegistry and testing
+// their world AABB against the space's base rectangle at floor level.
+struct LocalPerimeterResult {
+    double perimetre_ml = 0.0;   // raw base perimeter of the space
+    double deductions_ml = 0.0;  // summed widths of doors / floor windows
+    double net_ml = 0.0;         // perimetre - deductions
+};
+LocalPerimeterResult measureLocalPerimetre(ViewportWindow& vp,
+                                            bonsaiviewer::ElementRegistry& registry,
+                                            std::uint32_t space_object_id);
+
+// M21 — local_hauteur_sous_plafond / local_volume_sous_plafond: find the
+// lowest ceiling-like element (IfcCovering, or name containing
+// "plafond"/"ceiling") whose footprint overlaps the space's base and whose
+// bottom is above the space's floor. hauteur = z_min(plafond) - z_min(space);
+// volume = surface_m2 (passed in, from measureLocalMetrics) × hauteur.
+struct SousPlafondResult {
+    double hauteur_m = 0.0;
+    double volume_m3 = 0.0;
+    std::uint32_t plafond_object_id = 0;
+    bool found = false;
+};
+SousPlafondResult measureLocalSousPlafond(ViewportWindow& vp,
+                                          bonsaiviewer::ElementRegistry& registry,
+                                          std::uint32_t space_object_id,
+                                          double surface_m2);
 
 } // namespace bonsaiviewer::modules::measurement
 

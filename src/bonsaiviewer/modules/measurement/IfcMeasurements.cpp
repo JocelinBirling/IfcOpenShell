@@ -22,11 +22,13 @@
 
 #include "../../../ifcviewer/ViewportWindow.h"
 #include "../../../ifcparse/express.h"
+#include "../../ElementRegistry.h"
 #include "../../ports/ifcopenshell_util/Attr.h"
 #include "../../ports/ifcopenshell_util/Element.h"
 
 #include <algorithm>
 #include <cctype>
+#include <cfloat>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -273,6 +275,86 @@ std::optional<double> measurePentePorts(const express::base& element) {
     const double dx = std::abs(ports[1].first - ports[0].first);
     if (dx < 1e-9) return std::nullopt;
     return dz / dx * 100.0;
+}
+
+LocalPerimeterResult measureLocalPerimetre(ViewportWindow& vp,
+                                            bonsaiviewer::ElementRegistry& registry,
+                                            std::uint32_t space_object_id) {
+    LocalPerimeterResult result;
+    Eigen::Vector3f smn, smx;
+    if (!vp.computeObjectAabb(space_object_id, smn, smx)) return result;
+    const float space_zmin = smn.z();
+    // Raw base perimeter of the space (AABB footprint, Z up).
+    const double dx = static_cast<double>(smx.x()) - smn.x();
+    const double dy = static_cast<double>(smx.y()) - smn.y();
+    result.perimetre_ml = 2.0 * (dx + dy);
+
+    // Scan the model's elements for IfcDoor / IfcWindow whose footprint
+    // intersects the space's base rectangle and whose bottom is at floor
+    // level (|z_min - space_zmin| <= 10 cm). Deduct the narrower horizontal
+    // dimension of the opening's AABB (the door/window width).
+    const auto info = registry.findBasicElementInfo(space_object_id);
+    if (!info) return result;
+    constexpr float kFloorTol = 0.10f;
+    for (const auto& el : registry.basicElementInfoForModel(info->session_model_id)) {
+        if (el.type != QStringLiteral("IfcDoor") && el.type != QStringLiteral("IfcWindow")) continue;
+        Eigen::Vector3f emn, emx;
+        if (!vp.computeObjectAabb(el.object_id, emn, emx)) continue;
+        // Floor-touching: the opening's bottom is near the space's floor.
+        if (std::abs(emn.z() - space_zmin) > kFloorTol) continue;
+        // Footprint intersects the space's base rectangle (XY overlap).
+        const bool overlap_x = emn.x() < smx.x() && emx.x() > smn.x();
+        const bool overlap_y = emn.y() < smx.y() && emx.y() > smn.y();
+        if (!overlap_x || !overlap_y) continue;
+        const double w = static_cast<double>(emx.x()) - emn.x();
+        const double h = static_cast<double>(emx.y()) - emn.y();
+        result.deductions_ml += std::min(w, h);
+    }
+    result.net_ml = std::max(0.0, result.perimetre_ml - result.deductions_ml);
+    return result;
+}
+
+SousPlafondResult measureLocalSousPlafond(ViewportWindow& vp,
+                                          bonsaiviewer::ElementRegistry& registry,
+                                          std::uint32_t space_object_id,
+                                          double surface_m2) {
+    SousPlafondResult result;
+    Eigen::Vector3f smn, smx;
+    if (!vp.computeObjectAabb(space_object_id, smn, smx)) return result;
+    const float space_zmin = smn.z();
+    const auto info = registry.findBasicElementInfo(space_object_id);
+    if (!info) return result;
+
+    // Find the lowest ceiling-like element above the space's floor whose
+    // footprint overlaps the space's base rectangle.
+    float best_zmin = FLT_MAX;
+    std::uint32_t best_id = 0;
+    for (const auto& el : registry.basicElementInfoForModel(info->session_model_id)) {
+        const bool is_covering = el.type == QStringLiteral("IfcCovering");
+        const std::string name_l = lower(el.name.toStdString());
+        const bool named_ceiling = name_l.find("plafond") != std::string::npos ||
+                                   name_l.find("ceiling") != std::string::npos;
+        if (!is_covering && !named_ceiling) continue;
+        Eigen::Vector3f emn, emx;
+        if (!vp.computeObjectAabb(el.object_id, emn, emx)) continue;
+        // The element must be above the space's floor.
+        if (emn.z() <= space_zmin + 0.05f) continue;
+        // Footprint overlap in XY.
+        const bool overlap_x = emn.x() < smx.x() && emx.x() > smn.x();
+        const bool overlap_y = emn.y() < smx.y() && emx.y() > smn.y();
+        if (!overlap_x || !overlap_y) continue;
+        if (emn.z() < best_zmin) {
+            best_zmin = emn.z();
+            best_id = el.object_id;
+        }
+    }
+    if (best_id != 0) {
+        result.found = true;
+        result.plafond_object_id = best_id;
+        result.hauteur_m = static_cast<double>(best_zmin) - space_zmin;
+        result.volume_m3 = surface_m2 * result.hauteur_m;
+    }
+    return result;
 }
 
 } // namespace bonsaiviewer::modules::measurement

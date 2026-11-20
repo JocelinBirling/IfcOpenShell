@@ -102,6 +102,7 @@ private:
     void runM27(); // pente (surface, normale moyenne)
     void runM21(); // local: surface / périmètre / hauteur / volume (IfcSpace)
     void runM22(); // local_surface_sous_plafond (IfcSpace, seuil 1.80 m)
+    void runM27b(); // pente via ports (IfcRelConnectsPorts)
 
     void updateResultLabel(const QString& text);
     void clearViewportOverlays();
@@ -164,6 +165,7 @@ private:
     QPushButton* m27_button_ = nullptr;
     QPushButton* m21_button_ = nullptr;
     QPushButton* m22_button_ = nullptr;
+    QPushButton* m27b_button_ = nullptr;
     QDoubleSpinBox* m22_seuil_spin_ = nullptr;
     QComboBox* m8_mode_combo_ = nullptr;
     QCheckBox* m12_abouts_check_ = nullptr;
