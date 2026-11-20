@@ -29,7 +29,9 @@
 
 class Federation;
 class SceneLoader;
+class QCheckBox;
 class QComboBox;
+class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
 class QShowEvent;
@@ -98,6 +100,14 @@ private:
     QTableWidget* model_table_ = nullptr;
     std::vector<ModelRowWidgets> model_rows_;
     SettingsView* settings_view_ = nullptr;
+
+    // BonsaiViewer50 — Mesure Plus tab widgets.
+    QDoubleSpinBox* mesure_seuil_ouverture_ = nullptr;
+    QDoubleSpinBox* mesure_epaisseur_couche_ = nullptr;
+    QDoubleSpinBox* mesure_hauteur_plafond_ = nullptr;
+    QComboBox* mesure_m8_mode_ = nullptr;
+    QCheckBox* mesure_m12_abouts_ = nullptr;
+    QCheckBox* mesure_m12_top_ = nullptr;
 };
 
 } // namespace bonsaiviewer::modules::models

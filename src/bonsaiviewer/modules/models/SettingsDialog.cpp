@@ -28,9 +28,12 @@
 #include "../../components/Style.h"
 #include "../../components/SvgIcon.h"
 #include "../../components/Tabs.h"
+#include "../../ViewerSettings.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -318,6 +321,69 @@ void SettingsDialog::setupUi() {
     addTab("Federation", federation_tab);
     addTab("Model", model_tab);
 
+    // BonsaiViewer50 — Mesure Plus tab.
+    auto* mesure_tab = new QWidget(this);
+    auto* mesure_layout = new QVBoxLayout(mesure_tab);
+    mesure_layout->setContentsMargins(0, 0, 0, 0);
+    mesure_layout->setSpacing(components::style::metrics::padding);
+    mesure_layout->setAlignment(Qt::AlignTop);
+    auto* mesure_section =
+        new components::Section("Mesure", components::SectionHeaderMode::Visible, mesure_tab);
+    auto* mesure_hint = new QLabel(
+        "Default parameters for the Mesure Plus functions (M6-M27). These values are used as defaults in the "
+        "Mesure panel and persisted across sessions.",
+        mesure_section);
+    mesure_hint->setProperty("textRole", "secondary");
+    mesure_hint->setWordWrap(true);
+    auto* mesure_body = new QWidget(mesure_section);
+    auto* mesure_form = new QFormLayout(mesure_body);
+    mesure_form->setContentsMargins(0, 0, 0, 0);
+    mesure_form->setHorizontalSpacing(16);
+    mesure_form->setVerticalSpacing(10);
+
+    auto& vs = bonsaiviewer::ViewerSettings::instance();
+    mesure_seuil_ouverture_ = new QDoubleSpinBox(mesure_body);
+    mesure_seuil_ouverture_->setRange(0.0, 100.0);
+    mesure_seuil_ouverture_->setSingleStep(0.1);
+    mesure_seuil_ouverture_->setSuffix(QStringLiteral(" m²"));
+    mesure_seuil_ouverture_->setValue(vs.mesureSeuilOuvertureM2());
+    mesure_form->addRow(QStringLiteral("Seuil de déduction des ouvertures (M6/M7)"), mesure_seuil_ouverture_);
+
+    mesure_epaisseur_couche_ = new QDoubleSpinBox(mesure_body);
+    mesure_epaisseur_couche_->setRange(0.001, 100.0);
+    mesure_epaisseur_couche_->setSingleStep(0.01);
+    mesure_epaisseur_couche_->setSuffix(QStringLiteral(" m"));
+    mesure_epaisseur_couche_->setValue(vs.mesureEpaisseurCoucheM());
+    mesure_form->addRow(QStringLiteral("Épaisseur de couche par défaut (M18)"), mesure_epaisseur_couche_);
+
+    mesure_hauteur_plafond_ = new QDoubleSpinBox(mesure_body);
+    mesure_hauteur_plafond_->setRange(0.0, 20.0);
+    mesure_hauteur_plafond_->setSingleStep(0.10);
+    mesure_hauteur_plafond_->setSuffix(QStringLiteral(" m"));
+    mesure_hauteur_plafond_->setValue(vs.mesureHauteurSousPlafondM());
+    mesure_form->addRow(QStringLiteral("Hauteur sous plafond minimale (M22)"), mesure_hauteur_plafond_);
+
+    mesure_m8_mode_ = new QComboBox(mesure_body);
+    mesure_m8_mode_->addItem(QStringLiteral("Toutes les faces latérales"), 0);
+    mesure_m8_mode_->addItem(QStringLiteral("Plus grande face coplanaire"), 1);
+    mesure_m8_mode_->addItem(QStringLiteral("Deux plus grandes faces"), 2);
+    const int m8 = vs.mesureM8Mode();
+    if (m8 >= 0 && m8 < mesure_m8_mode_->count()) mesure_m8_mode_->setCurrentIndex(m8);
+    mesure_form->addRow(QStringLiteral("Mode surface latérale (M8)"), mesure_m8_mode_);
+
+    mesure_m12_abouts_ = new QCheckBox(QStringLiteral("Inclure les abouts (M12)"), mesure_body);
+    mesure_m12_abouts_->setChecked(vs.mesureM12InclureAbouts());
+    mesure_form->addRow(mesure_m12_abouts_);
+
+    mesure_m12_top_ = new QCheckBox(QStringLiteral("Inclure la face supérieure (M12)"), mesure_body);
+    mesure_m12_top_->setChecked(vs.mesureM12InclureTop());
+    mesure_form->addRow(mesure_m12_top_);
+
+    mesure_section->addBodyWidget(mesure_hint);
+    mesure_section->addBodyWidget(mesure_body);
+    mesure_layout->addWidget(mesure_section);
+    addTab("Mesure", mesure_tab);
+
     connect(model_table_, &QTableWidget::currentCellChanged, this,
             [this](int /*current_row*/, int /*current_column*/, int /*previous_row*/, int /*previous_column*/) {
         updateSelectedModelGeoref();
@@ -479,6 +545,14 @@ void SettingsDialog::onAccepted() {
             session_state_->notifyFederationChanged();
         }
     }
+    // BonsaiViewer50 — persist the Mesure Plus parameters.
+    auto& vs = bonsaiviewer::ViewerSettings::instance();
+    vs.setMesureSeuilOuvertureM2(mesure_seuil_ouverture_->value());
+    vs.setMesureEpaisseurCoucheM(mesure_epaisseur_couche_->value());
+    vs.setMesureHauteurSousPlafondM(mesure_hauteur_plafond_->value());
+    vs.setMesureM8Mode(mesure_m8_mode_->currentData().toInt());
+    vs.setMesureM12InclureAbouts(mesure_m12_abouts_->isChecked());
+    vs.setMesureM12InclureTop(mesure_m12_top_->isChecked());
     accept();
 }
 

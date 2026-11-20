@@ -119,6 +119,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/measurement/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/measurement/Measurements.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/measurement/Measurements.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/measurement/IfcMeasurements.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/measurement/IfcMeasurements.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/filters/View.cpp

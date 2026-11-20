@@ -40,12 +40,26 @@ struct MeasuredObject {
     float mx[3] = {0, 0, 0};
 };
 
-// Result of the top-face detection on one object (world space, metres).
-struct TopFace {
-    double area = 0.0;                // m², summed over the top coplanar triangles
-    float centroid[3] = {0, 0, 0};    // area-weighted centroid, for the label
-    std::vector<float> triangles;     // 9 floats per triangle (world), for highlighting
+// A face of an object classified by its normal direction, in world space.
+// `triangles` holds 9 floats per triangle (world); `area` is the summed area
+// in m² and `centroid` the area-weighted centroid for the label.
+struct ClassifiedFace {
+    double area = 0.0;
+    float centroid[3] = {0, 0, 0};
+    std::vector<float> triangles;
 };
+
+// Result of the top/bottom-face detection on one object (world space, metres).
+using TopFace = ClassifiedFace;
+
+// World-space triangles of one object: 9 floats per triangle (3 vertices ×
+// xyz), plus the object's world z range. Returns false if the object does
+// not resolve to a live instance or has no mesh.
+struct WorldMesh {
+    std::vector<float> triangles;  // 9 floats per triangle, world space
+    float zmin = 0.0f, zmax = 0.0f;
+};
+WorldMesh worldTriangles(ViewportWindow& vp, std::uint32_t object_id);
 
 // M0 — aire_face_sup: detects the top face of `object_id` from its
 // triangulation — triangles whose normal points up (nz >= 0.9) and whose
@@ -83,6 +97,122 @@ double measureLongueurArete(ViewportWindow& vp,
 double measureLongueurMainCourante(ViewportWindow& vp,
                                    const std::vector<std::uint32_t>& object_ids,
                                    std::vector<MeasuredObject>* objects_out = nullptr);
+
+// M6 — surface_top: area (m²) of the top horizontal face of each object
+// (triangles whose normal points up, nz >= 0.9, at the top of the object).
+// `opening_threshold_m2` deducts openings smaller than the threshold are
+// still counted; openings >= threshold are subtracted (approximated from
+// the mesh: coplanar holes show up as missing triangles, so the deduction
+// is a no-op on pure mesh — kept for the IFC-relation path).
+// Returns the summed area; per-object top faces are appended to `faces_out`.
+double measureSurfaceTop(ViewportWindow& vp,
+                         const std::vector<std::uint32_t>& object_ids,
+                         std::vector<MeasuredObject>* objects_out = nullptr,
+                         std::vector<TopFace>* faces_out = nullptr);
+
+// M7 — surface_bottom: area (m²) of the bottom horizontal face of each
+// object (normal pointing down, nz <= -0.9, at the bottom of the object).
+double measureSurfaceBottom(ViewportWindow& vp,
+                            const std::vector<std::uint32_t>& object_ids,
+                            std::vector<MeasuredObject>* objects_out = nullptr,
+                            std::vector<TopFace>* faces_out = nullptr);
+
+// M8 — surface_lateral: lateral surface area (m²) of each object, i.e. the
+// total mesh area minus the top and bottom horizontal faces. `mode`:
+//   0 = all lateral faces (walls), 1 = largest coplanar lateral face only,
+//   2 = two largest coplanar lateral faces.
+// Returns the summed area; per-object lateral faces are appended to `faces_out`.
+double measureSurfaceLateral(ViewportWindow& vp,
+                             const std::vector<std::uint32_t>& object_ids,
+                             int mode,
+                             std::vector<MeasuredObject>* objects_out = nullptr,
+                             std::vector<ClassifiedFace>* faces_out = nullptr);
+
+// M11 — surface_toiture_developpee: real (slope) area in m² of inclined
+// roof surfaces — every triangle whose normal is neither up nor down
+// (|nz| < 0.9). Summed over all object_ids.
+double measureSurfaceToitureDeveloppee(ViewportWindow& vp,
+                                       const std::vector<std::uint32_t>& object_ids,
+                                       std::vector<MeasuredObject>* objects_out = nullptr,
+                                       std::vector<ClassifiedFace>* faces_out = nullptr);
+
+// M17 — volume_element: volume (m³) of each closed BREP, computed as the
+// signed sum of tetrahedron volumes (divergence theorem over the mesh
+// triangles, origin at world origin). Summed over all object_ids.
+double measureVolumeElement(ViewportWindow& vp,
+                            const std::vector<std::uint32_t>& object_ids,
+                            std::vector<MeasuredObject>* objects_out = nullptr);
+
+// M12 — surface_coffrage: formwork area (m²) of beams / columns / walls /
+// slabs / footings. Faces are classified by their normal: "abouts" are the
+// end faces perpendicular to the principal axis, the bottom face is the
+// downward horizontal face, the top face the upward one, and the "joues"
+// are the remaining lateral faces. By default only joues + bottom are
+// counted; `include_abouts` and `include_top` add the end faces and the top
+// face. Check formula for a beam: area = L × (2h + b).
+double measureSurfaceCoffrage(ViewportWindow& vp,
+                              const std::vector<std::uint32_t>& object_ids,
+                              bool include_abouts,
+                              bool include_top,
+                              std::vector<MeasuredObject>* objects_out = nullptr,
+                              std::vector<ClassifiedFace>* faces_out = nullptr);
+
+// M13 — surface_section_projeté: developed area (m²) = section perimeter ×
+// length, for rectangular duct segments. The principal axis is the longest
+// AABB dimension; the section is the rectangle of the two remaining dims.
+double measureSurfaceSectionProjetee(ViewportWindow& vp,
+                                     const std::vector<std::uint32_t>& object_ids,
+                                     std::vector<MeasuredObject>* objects_out = nullptr);
+
+// M18 — volume_couche: layer volume (m³) = surface × thickness. The surface
+// is the top horizontal face (M6) of each object; `thickness_m` is the
+// layer thickness in metres (user parameter).
+double measureVolumeCouche(ViewportWindow& vp,
+                           const std::vector<std::uint32_t>& object_ids,
+                           double thickness_m,
+                           std::vector<MeasuredObject>* objects_out = nullptr,
+                           std::vector<TopFace>* faces_out = nullptr);
+
+// M20 — volume_entre: volume (m³) between the two selected objects.
+// Approximation: for each pair (first half / second half of `object_ids`),
+// volume = top-face area of the lower object × vertical gap to the bottom
+// face of the upper object. Returns the summed volume over the pairs.
+double measureVolumeEntre(ViewportWindow& vp,
+                          const std::vector<std::uint32_t>& object_ids,
+                          std::vector<MeasuredObject>* objects_out = nullptr);
+
+// M27 — pente (surface): slope of each object's dominant face, in percent.
+// Fits a plane z = ax + by + c over all mesh triangles (least squares on
+// the area-weighted centroids); slope = sqrt(a² + b²) × 100, equivalent to
+// tan(arccos(|nz|)) × 100 via the mean normal. `on_3d_length` divides by the
+// 3D length instead of the horizontal one. Returns the mean slope (percent)
+// over all object_ids.
+double measurePente(ViewportWindow& vp,
+                    const std::vector<std::uint32_t>& object_ids,
+                    bool on_3d_length,
+                    std::vector<MeasuredObject>* objects_out = nullptr);
+
+// M21 — local metrics for one IfcSpace (geometry recomputed from its mesh):
+// surface = bottom-face area (m²), périmètre = base perimeter (ml),
+// hauteur = z extent (m), volume = surface × hauteur (m³, approximation).
+struct LocalMetrics {
+    double surface_m2 = 0.0;
+    double perimetre_ml = 0.0;
+    double hauteur_m = 0.0;
+    double volume_m3 = 0.0;
+    std::vector<float> floor_tris;  // bottom-face triangles, world
+    float label_pos[3] = {0, 0, 0};
+};
+LocalMetrics measureLocalMetrics(ViewportWindow& vp, std::uint32_t object_id);
+
+// M22 — local_surface_sous_plafond: floor area (m²) of an IfcSpace whose
+// clear height is at least `min_height_m` (default 1.80 m). Returns the
+// bottom-face area when hauteur >= min_height_m, else 0.
+double measureLocalSurfaceSousPlafond(ViewportWindow& vp,
+                                      std::uint32_t object_id,
+                                      double min_height_m,
+                                      std::vector<MeasuredObject>* objects_out = nullptr,
+                                      std::vector<TopFace>* faces_out = nullptr);
 
 } // namespace bonsaiviewer::modules::measurement
 

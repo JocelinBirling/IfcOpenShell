@@ -31,6 +31,9 @@
 
 #include <vector>
 
+class QCheckBox;
+class QComboBox;
+class QDoubleSpinBox;
 class QLabel;
 class QPoint;
 class QToolButton;
@@ -76,6 +79,7 @@ protected:
 
 signals:
     void measurementPerformed(const QString& label, double value, const QString& unit);
+    void openSettingsRequested();
 
 private:
     void runM0();  // aire face supérieure (triangulation)
@@ -84,6 +88,20 @@ private:
     void runM3();  // perimetre
     void runM4();  // longueur_arete
     void runM5();  // longueur_main_courante
+    void runM6();  // surface_top
+    void runM7();  // surface_bottom
+    void runM8();  // surface_lateral (mode via combo: 0 toutes, 1 grande face, 2 deux faces)
+    void runM11(); // surface_toiture_developpee
+    void runM12(); // surface_coffrage (options via checkboxes)
+    void runM13(); // surface_section_projetee
+    void runM17(); // volume_element
+    void runM18(); // volume_couche (épaisseur via spinbox)
+    void runM9();  // surface_vitrage (matériau transparent via IFC)
+    void runM16(); // surface_ouverture (IfcOpeningElement via IFC)
+    void runM20(); // volume_entre (2 sélections)
+    void runM27(); // pente (surface, normale moyenne)
+    void runM21(); // local: surface / périmètre / hauteur / volume (IfcSpace)
+    void runM22(); // local_surface_sous_plafond (IfcSpace, seuil 1.80 m)
 
     void updateResultLabel(const QString& text);
     void clearViewportOverlays();
@@ -94,11 +112,13 @@ private:
         double value = 0.0;
         QString unit;
         int mode = 0;  // 0 = longest AABB edge (M2/M4), 1 = base rectangle (M3),
-                       // 2 = longest horizontal top edge (M5), 3 = top-face
-                       // highlight (M0), -1 = count only (M1)
+                       // 2 = longest horizontal top edge (M5), 3 = face
+                       // highlight (M0/M6/M7), 4 = lateral face highlight
+                       // (M8), 5 = inclined faces highlight (M11),
+                       // 6 = volume (AABB box), -1 = count only (M1)
         std::vector<MeasuredObject> objects;
-        std::vector<float> highlight_tris;  // mode 3: 9 floats per triangle, world
-        float label_pos[3] = {0, 0, 0};     // mode 3: label anchor
+        std::vector<float> highlight_tris;  // modes 3/4/5: 9 floats per triangle, world
+        float label_pos[3] = {0, 0, 0};     // modes 3/4/5: label anchor
         QTreeWidgetItem* item = nullptr;
     };
 
@@ -130,7 +150,27 @@ private:
     QPushButton* m3_button_ = nullptr;
     QPushButton* m4_button_ = nullptr;
     QPushButton* m5_button_ = nullptr;
+    QPushButton* m6_button_ = nullptr;
+    QPushButton* m7_button_ = nullptr;
+    QPushButton* m8_button_ = nullptr;
+    QPushButton* m11_button_ = nullptr;
+    QPushButton* m12_button_ = nullptr;
+    QPushButton* m13_button_ = nullptr;
+    QPushButton* m17_button_ = nullptr;
+    QPushButton* m18_button_ = nullptr;
+    QPushButton* m9_button_ = nullptr;
+    QPushButton* m16_button_ = nullptr;
+    QPushButton* m20_button_ = nullptr;
+    QPushButton* m27_button_ = nullptr;
+    QPushButton* m21_button_ = nullptr;
+    QPushButton* m22_button_ = nullptr;
+    QDoubleSpinBox* m22_seuil_spin_ = nullptr;
+    QComboBox* m8_mode_combo_ = nullptr;
+    QCheckBox* m12_abouts_check_ = nullptr;
+    QCheckBox* m12_top_check_ = nullptr;
+    QDoubleSpinBox* m18_epaisseur_spin_ = nullptr;
     QPushButton* reset_button_ = nullptr;
+    QPushButton* settings_button_ = nullptr;
     QPushButton* new_group_button_ = nullptr;
     QToolButton* geometry_toggle_ = nullptr;
     QTreeWidget* measures_tree_ = nullptr;

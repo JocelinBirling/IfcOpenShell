@@ -1271,6 +1271,8 @@ void MainWindow::setupLoader() {
     selection_service_ = new bonsaiviewer::services::SelectionService(
         *session_state_, *viewport_widget_->viewport(), this);
     measurement_panel_->setSelectionService(selection_service_);
+    connect(measurement_panel_, &modules::measurement::MeasurementPanel::openSettingsRequested,
+            this, [this]() { modules::models::commands::openSettings(*session_state_, *this); });
     category_filter_ = new bonsaiviewer::services::CategoryOverrideFilter(
         *session_state_, *viewport_widget_->viewport(), this);
     active_view_ = new bonsaiviewer::services::ActiveView(

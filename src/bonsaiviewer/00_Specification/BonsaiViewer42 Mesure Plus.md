@@ -16,13 +16,28 @@ Panneau dock **Mesure** (visible par défaut à droite, également pilotable via
 | M3 | `perimetre` | ml | Rectangle de la base | 2 × (dx + dy) de l'AABB (base = plan XY, Z vertical). |
 | M4 | `longueur_arete` | ml | Plus longue arête de l'AABB | Approximation par la plus longue arête de l'AABB. |
 | M5 | `longueur_main_courante` | ml | Arête horizontale haute | Plus grande dimension horizontale (XY) de la face haute (z = max). |
+| M6 | `surface_top` | m² | Face supérieure surlignée | Somme des triangles horizontaux hauts (nz ≥ 0.9, z = max). |
+| M7 | `surface_bottom` | m² | Face inférieure surlignée | Somme des triangles horizontaux bas (nz ≤ -0.9, z = min). |
+| M8 | `surface_lateral` | m² | Faces latérales surlignées | Aire latérale (sans top/bottom). Mode au choix : toutes les faces, plus grande face coplanaire, ou deux plus grandes (combo). |
+| M9 | `surface_vitrage` | m² | Plus grande face de l'objet transparent | Détection via le matériau IFC (nom « verre/glass/vitrage » ou style avec Transparency > 0), puis aire de la plus grande face coplanaire du mesh. |
+| M11 | `surface_toiture_developpee` | m² | Faces inclinées surlignées | Somme des triangles non horizontaux (|nz| < 0.9) — aire réelle en rampant. |
+| M12 | `surface_coffrage` | m² | Faces de coffrage surlignées | Classification des faces par normale : joues + sous-face par défaut, abouts et top en option (checkboxes). |
+| M13 | `surface_section_projeté` | m² | Boîte AABB | Périmètre de section × longueur (axe principal = plus grande dimension AABB). |
+| M16 | `surface_ouverture` | m² / U | Boîte AABB de l'hôte | IfcOpeningElement liés via `IfcRelVoidsElement` (inverse `HasOpenings`) ; aire lue dans la représentation (polygone 2D) quand disponible. |
+| M17 | `volume_element` | m³ | Boîte AABB | Volume signé par théorème de la divergence (somme des tétraèdres sur le mesh). |
+| M18 | `volume_couche` | m³ | Face top surlignée | Surface top (M6) × épaisseur (spinbox, persisté). |
+| M20 | `volume_entre` | m³ | Boîte englobante | Aire top de l'objet bas × écart vertical jusqu'à la face basse de l'objet haut (paires consécutives de la sélection). |
+| M21 | `local_*` | m² / ml / m / m³ | Sol du local surligné | Par `IfcSpace` : surface sol (face bottom), périmètre base, hauteur (étendue Z), volume = surface × hauteur. |
+| M22 | `local_surface_sous_plafond` | m² | Sol du local surligné | Surface sol des locaux dont la hauteur ≥ seuil (spinbox, défaut 1.80 m, persisté). |
+| M27 | `pente` | % | Plus longue arête AABB | Pente moyenne = tan(arccos(|nz|)) via la normale moyenne pondérée par l'aire. |
 
 Chaque mesure s'applique à la **sélection courante** ; le résultat de plusieurs éléments est additionné.
 
 ### Restitution dans le viewer
 
 - Traits de mesure tracés en **lignes x-ray** (pas de depth test) : visibles à travers les objets transparents.
-- M0 : la face détectée est **surlignée en triangles translucides**, décalée de 2 cm selon sa normale pour éviter le clipping.
+- M0/M6/M7/M8/M9/M11/M12/M18/M21/M22 : la face détectée est **surlignée en triangles translucides**, décalée de 2 cm selon sa normale pour éviter le clipping.
+- M13/M16/M17/M20 : la **boîte AABB** de l'objet est tracée en arêtes.
 - **Label 3D** à chaque mesure (valeur + unité) et **HUD** avec le total des mesures visibles par unité.
 
 ### Arbre des mesures (section Affichage)
@@ -32,7 +47,17 @@ Chaque mesure s'applique à la **sélection courante** ; le résultat de plusieu
 - Chaque item a une **checkbox** : décocher masque le trait 3D (un groupe décoché masque tout son contenu).
 - Chaque groupe affiche la **somme de ses mesures par unité** (ex: `12.340 ml, 3 U`).
 - **Clic droit** : sur un groupe → Renommer / Supprimer le groupe (supprime aussi les mesures en dessous) ; sur une mesure → Zoomer dessus (fit caméra sur l'AABB) / Isoler (n'affiche que les objets mesurés) / Supprimer.
-- Boutons **Géométries** (masque/affiche tous les traits) et **Reset** (efface tout).
+- Boutons **Géométries** (masque/affiche tous les traits), **Réglages** (ouvre l'onglet Mesure des paramètres), **Nouveau groupe** et **Reset** (efface tout).
+
+### Réglages Mesure (onglet « Mesure » des paramètres)
+
+Paramètres persistés (QSettings) et repris comme valeurs par défaut dans le panneau :
+
+- Seuil de déduction des ouvertures (M6/M7), en m².
+- Épaisseur de couche par défaut (M18), en m.
+- Hauteur sous plafond minimale (M22), en m (défaut 1.80).
+- Mode de surface latérale (M8) : toutes / plus grande / deux plus grandes.
+- M12 : inclure abouts, inclure face supérieure (checkboxes).
 
 ## Introduction
 

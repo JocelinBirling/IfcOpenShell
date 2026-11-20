@@ -33,6 +33,14 @@ constexpr const char* kThemeColorPrefix = "interface/theme/colors/";
 constexpr const char* kZoomPresetKey = "interface/navigation/zoom_preset";
 constexpr const char* kOrbitPresetKey = "interface/navigation/orbit_preset";
 
+// BonsaiViewer50 — Mesure Plus persisted parameters.
+constexpr const char* kMesureSeuilOuvertureKey = "mesure/seuil_ouverture_m2";
+constexpr const char* kMesureEpaisseurCoucheKey = "mesure/epaisseur_couche_m";
+constexpr const char* kMesureHauteurSousPlafondKey = "mesure/hauteur_sous_plafond_m";
+constexpr const char* kMesureM8ModeKey = "mesure/m8_mode";
+constexpr const char* kMesureM12AboutsKey = "mesure/m12_inclure_abouts";
+constexpr const char* kMesureM12TopKey = "mesure/m12_inclure_top";
+
 using Spec = bonsaiviewer::ViewerSettings::ThemeColorSpec;
 
 const std::vector<Spec> kThemeColorSpecs = {
@@ -207,6 +215,13 @@ void ViewerSettings::load() {
     const int raw_orbit = settings.value(kOrbitPresetKey, 0).toInt();
     orbit_preset_ = (raw_orbit >= 0 && raw_orbit <= 1) ? static_cast<OrbitPreset>(raw_orbit) : OrbitPreset::CenterView;
 
+    mesure_seuil_ouverture_m2_ = settings.value(kMesureSeuilOuvertureKey, 0.0).toDouble();
+    mesure_epaisseur_couche_m_ = settings.value(kMesureEpaisseurCoucheKey, 0.10).toDouble();
+    mesure_hauteur_sous_plafond_m_ = settings.value(kMesureHauteurSousPlafondKey, 1.80).toDouble();
+    mesure_m8_mode_ = settings.value(kMesureM8ModeKey, 0).toInt();
+    mesure_m12_inclure_abouts_ = settings.value(kMesureM12AboutsKey, false).toBool();
+    mesure_m12_inclure_top_ = settings.value(kMesureM12TopKey, false).toBool();
+
     for (size_t i = 0; i < kThemeColorSpecs.size(); ++i) {
         const auto& spec = kThemeColorSpecs[i];
         const QString stored = settings.value(QString::fromUtf8(kThemeColorPrefix) + QString::fromUtf8(spec.key),
@@ -221,10 +236,66 @@ void ViewerSettings::persist() const {
     settings.setValue(kThemeModeKey, static_cast<int>(theme_mode_));
     settings.setValue(kZoomPresetKey, static_cast<int>(zoom_preset_));
     settings.setValue(kOrbitPresetKey, static_cast<int>(orbit_preset_));
+    settings.setValue(kMesureSeuilOuvertureKey, mesure_seuil_ouverture_m2_);
+    settings.setValue(kMesureEpaisseurCoucheKey, mesure_epaisseur_couche_m_);
+    settings.setValue(kMesureHauteurSousPlafondKey, mesure_hauteur_sous_plafond_m_);
+    settings.setValue(kMesureM8ModeKey, mesure_m8_mode_);
+    settings.setValue(kMesureM12AboutsKey, mesure_m12_inclure_abouts_);
+    settings.setValue(kMesureM12TopKey, mesure_m12_inclure_top_);
     for (size_t i = 0; i < kThemeColorSpecs.size(); ++i) {
         settings.setValue(QString::fromUtf8(kThemeColorPrefix) + QString::fromUtf8(kThemeColorSpecs[i].key),
                           custom_colors_[i]);
     }
+}
+
+// --- Mesure Plus parameters ---
+
+double ViewerSettings::mesureSeuilOuvertureM2() const { return mesure_seuil_ouverture_m2_; }
+void ViewerSettings::setMesureSeuilOuvertureM2(double v) {
+    if (mesure_seuil_ouverture_m2_ == v) return;
+    mesure_seuil_ouverture_m2_ = v;
+    persist();
+    emit mesureSettingsChanged();
+}
+
+double ViewerSettings::mesureEpaisseurCoucheM() const { return mesure_epaisseur_couche_m_; }
+void ViewerSettings::setMesureEpaisseurCoucheM(double v) {
+    if (mesure_epaisseur_couche_m_ == v) return;
+    mesure_epaisseur_couche_m_ = v;
+    persist();
+    emit mesureSettingsChanged();
+}
+
+double ViewerSettings::mesureHauteurSousPlafondM() const { return mesure_hauteur_sous_plafond_m_; }
+void ViewerSettings::setMesureHauteurSousPlafondM(double v) {
+    if (mesure_hauteur_sous_plafond_m_ == v) return;
+    mesure_hauteur_sous_plafond_m_ = v;
+    persist();
+    emit mesureSettingsChanged();
+}
+
+int ViewerSettings::mesureM8Mode() const { return mesure_m8_mode_; }
+void ViewerSettings::setMesureM8Mode(int v) {
+    if (mesure_m8_mode_ == v) return;
+    mesure_m8_mode_ = v;
+    persist();
+    emit mesureSettingsChanged();
+}
+
+bool ViewerSettings::mesureM12InclureAbouts() const { return mesure_m12_inclure_abouts_; }
+void ViewerSettings::setMesureM12InclureAbouts(bool v) {
+    if (mesure_m12_inclure_abouts_ == v) return;
+    mesure_m12_inclure_abouts_ = v;
+    persist();
+    emit mesureSettingsChanged();
+}
+
+bool ViewerSettings::mesureM12InclureTop() const { return mesure_m12_inclure_top_; }
+void ViewerSettings::setMesureM12InclureTop(bool v) {
+    if (mesure_m12_inclure_top_ == v) return;
+    mesure_m12_inclure_top_ = v;
+    persist();
+    emit mesureSettingsChanged();
 }
 
 } // namespace bonsaiviewer

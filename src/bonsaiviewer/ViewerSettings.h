@@ -70,10 +70,25 @@ public:
     OrbitPreset orbitPreset() const;
     void setOrbitPreset(OrbitPreset preset);
 
+    // BonsaiViewer50 — Mesure Plus parameters (persisted).
+    double mesureSeuilOuvertureM2() const;
+    void setMesureSeuilOuvertureM2(double v);
+    double mesureEpaisseurCoucheM() const;
+    void setMesureEpaisseurCoucheM(double v);
+    double mesureHauteurSousPlafondM() const;
+    void setMesureHauteurSousPlafondM(double v);
+    int mesureM8Mode() const;
+    void setMesureM8Mode(int v);
+    bool mesureM12InclureAbouts() const;
+    void setMesureM12InclureAbouts(bool v);
+    bool mesureM12InclureTop() const;
+    void setMesureM12InclureTop(bool v);
+
 signals:
     void themeModeChanged(ThemeMode mode);
     void themeChanged();
     void navigationPresetsChanged();
+    void mesureSettingsChanged();
 
 private:
     ViewerSettings();
@@ -84,6 +99,13 @@ private:
     std::vector<QString> custom_colors_;
     ZoomPreset zoom_preset_ = ZoomPreset::CenterView;
     OrbitPreset orbit_preset_ = OrbitPreset::CenterView;
+    // Mesure Plus parameters.
+    double mesure_seuil_ouverture_m2_ = 0.0;
+    double mesure_epaisseur_couche_m_ = 0.10;
+    double mesure_hauteur_sous_plafond_m_ = 1.80;
+    int mesure_m8_mode_ = 0;
+    bool mesure_m12_inclure_abouts_ = false;
+    bool mesure_m12_inclure_top_ = false;
 };
 
 } // namespace bonsaiviewer
