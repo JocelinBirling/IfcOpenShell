@@ -107,6 +107,9 @@
 #include "modules/viewport/Panel.h"
 #include "modules/viewport/View.h"
 #include "modules/easy_load/View.h"
+#include "modules/external_documents/Panel.h"
+#include "modules/external_documents/GridPanel.h"
+#include "modules/external_documents/View.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -1097,6 +1100,9 @@ void MainWindow::setupPanels() {
     ids_panel_ = new components::Panel("IDS", nullptr, this);
     diff_panel_ = new components::Panel("IfcDiff", nullptr, this, false, true);
     tables_panel_ = new modules::table::TablesPanel(this);
+    // BonsaiViewer35/36: the External Documents tree and the External Table grid.
+    ext_docs_panel_ = new modules::external_documents::ExternalDocumentsPanel(this);
+    ext_grid_panel_ = new modules::external_documents::ExternalGridPanel(this);
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     // BonsaiViewer09: the clash workspaces; their content comes in setupLoader.
     rule_dock_ = new components::Panel("Rule", nullptr, this);
@@ -1152,6 +1158,14 @@ void MainWindow::setupPanels() {
     // Tables: on the left, tabbed with Models, and shown at start-up.
     addDockWidget(Qt::LeftDockWidgetArea, tables_panel_);
     tabifyDockWidget(models_panel_, tables_panel_);
+    // BonsaiViewer35/36: the External Documents tree, next to the Tables
+    // panel (bottom left of the Table tab); the External Table grid docks at
+    // the bottom, tabbed with the Table panel, hidden until a Visualize.
+    addDockWidget(Qt::LeftDockWidgetArea, ext_docs_panel_);
+    tabifyDockWidget(tables_panel_, ext_docs_panel_);
+    addDockWidget(Qt::BottomDockWidgetArea, ext_grid_panel_);
+    tabifyDockWidget(table_panel_, ext_grid_panel_);
+    ext_grid_panel_->hide();
 
     tabifyDockWidget(properties_panel_, layers_panel_);
     tabifyDockWidget(layers_panel_, stored_views_panel_);
@@ -1354,6 +1368,11 @@ void MainWindow::setupLoader() {
         table_panel_, *session_state_, *ids_bridge_, *data_access_, *property_catalog_,
         *selection_service_, *action_pipeline_, *table_store_, *appearance_service_, *entity_set_store_, this);
     tables_view_ = new modules::table::TablesView(tables_panel_, *table_store_, this);
+    // BonsaiViewer35/36: the External Documents tree (tables joined to the
+    // models, 2D plans as 3D-view backgrounds), persisted with the project.
+    ext_docs_view_ = new modules::external_documents::ExternalDocumentsView(
+        *session_state_, *viewport_widget_->viewport(), *data_access_, *selection_service_,
+        *active_view_, *undo_stack_, *property_catalog_, ext_docs_panel_, ext_grid_panel_, this);
     // B06 Automatic Color: the values, counts and colours in a temporary table,
     // as "Colour by property" does in the Properties panel.
     connect(filter_runner_, &bonsaiviewer::services::FilterRunner::autoColoured, this,

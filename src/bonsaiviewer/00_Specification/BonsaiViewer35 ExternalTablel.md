@@ -78,6 +78,23 @@ The toolbar shows the counts; a **Show Report** button opens a small window list
 - **v1 is read-only**: the external values do not feed the filter rules (BonsaiViewer06) and cannot colour the objects; the external grid has no calculated columns (BonsaiViewer23) and no Color column (BonsaiViewer07).
 - The external grid is independent from the Tables panel: a saved table (BonsaiViewer07) does not read the external columns.
 
+## Implementation notes (status)
+
+Implemented in `modules/external_documents/` (branch `bonsaiviewer35-36-external-documents`):
+
+- External Documents panel (`Panel.cpp`): toolbar (Folder, Import) above the tree; default position bottom left of the Table tab, tabbed with the Tables panel. Folders: add / rename / delete, move by drag and drop (synced into the store). Import accepts `.csv`, `.xlsx`, `.pdf` and the phase-2 extensions, several files at once, into the selected folder or the root.
+- Document kinds and states (`Types.cpp`): detected from the extension; each document shows `loaded`, `file not found` or `key column missing` in the tree.
+- CSV (`TableFile.cpp`): UTF-8, separator `;` when the system decimal separator is `,`, else `,` (the BonsaiViewer07 rule), quoted fields supported. `.xlsx`: read as a ZIP of XML through the BCF zip port (`ports/bcf/Zip`) + `QXmlStreamReader` (workbook sheets, shared strings, cells) — no external spreadsheet library. Large files: at most 10,000 rows loaded, `total_rows` reports the real count and the grid shows "N of M row(s)".
+- Join (`JoinEngine.cpp`): model key GlobalId / Name / Class / Property (property via `IfcDataAccess`), table key column by name (default first column), sheet for `.xlsx`. Duplicate keys: only the first matching row is kept, the others are listed in the report. Match report (`ReportDialog`): matched / unmatched / duplicate rows and unmatched objects (Model, Class, Name, GlobalId, key), with click-to-select on the object rows.
+- Get Lucky (`guessJoins`): first 10 rows compared with GlobalIds, Names, Classes of the loaded models and the property catalog's sample values (BonsaiViewer26); a candidate needs >= 8/10 matches; proposals best first, applied to the window.
+- Join window (`Dialogs.cpp` `JoinDialog`): model key with the standard `PropertyField`, key column dropdown, sheet dropdown (`.xlsx`), Get Lucky proposals, preview of the first 10 rows with the key column highlighted.
+- External Table grid (`GridPanel.cpp`), docked at the bottom tabbed with the Table panel, shown on Visualize: model columns Model / Class / Name / GlobalId at the left, then all the file's columns; unmatched rows greyed. Sort (A→Z, Z→A, back to file order, numbers as numbers) and funnel filter (distinct values, checkboxes, search, All / None, Apply) on each column header, columns movable by left drag. Toolbar: Refresh, Edit Join, Export CSV, Show Report, document name and counts. Click on a row selects the joined object(s) (Ctrl/Shift multi-row); double-click and right-click Isolate isolate them (only the clicked row when it is not selected).
+- CSV export writes all the loaded rows in file order, same format rule as BonsaiViewer07.
+- Persistence: the tree and every document configuration are saved with the project in the `.ifcfed` extension `bonsaiviewer_external_documents` (`View.cpp::saveToFederation` / `restoreFromFederation`); on project open each document loads from its stored path, else shows `file not found` with Locate File…. Save / Load Documents (JSON) on the root or a folder writes / reads one `.json` with all the configurations, source paths relative to the JSON file when possible. Refresh re-reads the file; the key column is matched by name and the document goes to `key column missing` when it disappeared.
+- Read-only v1: external values do not feed filters, colours or calculated columns; selection / isolation only, through `SelectionService` / `ActiveView`.
+
+Not implemented yet: none blocking for v1. (The CSV export writes the loaded rows — the 10,000-row cap — in file order even when the grid is sorted.)
+
 ## Open Subject
 
 None for v1 — every point is decided above. Candidates for a later version: calculated columns (BonsaiViewer23) and a Color column (BonsaiViewer07) in the external grid; external values as filter criteria (BonsaiViewer06) or colour rules.

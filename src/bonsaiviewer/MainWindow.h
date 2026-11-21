@@ -57,6 +57,9 @@ namespace bonsaiviewer::modules::text_digger { class TextDiggerView; }
 namespace bonsaiviewer::modules::viewport { class ViewportView; }
 namespace bonsaiviewer::modules::viewport { class ViewportPanel; }
 namespace bonsaiviewer::modules::easy_load { class EasyLoadView; }
+namespace bonsaiviewer::modules::external_documents { class ExternalDocumentsPanel; }
+namespace bonsaiviewer::modules::external_documents { class ExternalDocumentsView; }
+namespace bonsaiviewer::modules::external_documents { class ExternalGridPanel; }
 namespace bonsaiviewer::services { class ActiveView; }
 namespace bonsaiviewer::services { class ActionPipeline; }
 namespace bonsaiviewer::services { class AppearanceService; }
@@ -210,6 +213,11 @@ private:
     bonsaiviewer::modules::filters::FiltersPanel* filters_panel_ = nullptr;
     bonsaiviewer::modules::table::TablePanel* table_panel_ = nullptr;
     bonsaiviewer::modules::table::TablesPanel* tables_panel_ = nullptr;
+    // BonsaiViewer35/36: the External Documents tree (left, tabbed with the
+    // Tables panel) and the External Table grid (bottom, with the Table).
+    bonsaiviewer::modules::external_documents::ExternalDocumentsPanel* ext_docs_panel_ = nullptr;
+    bonsaiviewer::modules::external_documents::ExternalGridPanel* ext_grid_panel_ = nullptr;
+    bonsaiviewer::modules::external_documents::ExternalDocumentsView* ext_docs_view_ = nullptr;
     // TI12: the Ifc Class Tree, tabbed with the Spatial Hierarchy.
     bonsaiviewer::components::Panel* class_tree_panel_ = nullptr;
     QTreeWidget* class_tree_widget_ = nullptr;

@@ -70,6 +70,24 @@ Not in the first version:
 - **Point registration** — the user clicks one point on the plan, then one point on the model; the plan is translated so that the two points coincide.
 - **Curve registration** — the user draws a segment on the plan, then selects a segment in the model; the plan is translated, rotated and scaled so that the two segments overlap.
 
+## Implementation notes (status)
+
+Implemented in `modules/external_documents/` (branch `bonsaiviewer35-36-external-documents`):
+
+- Importing a `.pdf` (or a phase-2 image/CAD extension) creates a 2D Plan document in the External Documents tree (BonsaiViewer35), named after its file, with a plan icon; state shown / hidden / file not found.
+- Left-click on a plan opens its menu (Modify Plan, Show / Hide, Delete). Right-click opens Show / Hide, Edit Plan, Refresh, Locate File…, Export Config (JSON), Import Config (JSON), Delete. Right-click on the root or a folder offers Save / Load Documents (JSON) for all the documents of the tree (plans and tables).
+- Display in the 3D view (`View.cpp::updatePlanOverlays` + `PlanOverlay.cpp`): a shown plan is drawn as a flat quad at its height Z — filled through the translucent-triangle overlay channel (`ViewportWindow::setHighlightTriangles`, alpha from the plan's opacity) plus a per-plan outline (`setOverlayLines`) and a name label (`setOverlayLabels`). Several plans can be shown at once. The plan's native size comes from the PDF page MediaBox (points → meters), multiplied by the manual scale; 1 pt = 25.4/72000 m. No z-fighting offset: the user adjusts Z in the Plan Configuration window.
+- Plan Configuration window (`Dialogs.cpp` `PlanDialog`): source with Change Source… (transform kept), Height Z, Rotation X/Y/Z, Scale, Translation X/Y/Z with a relative-to-plan-axes option, Page (PDF only), Opacity slider 0–100 %. Apply validates and closes; Cancel discards.
+- Show / Hide and every transform change store an undo state (`UndoStack::record` before the change, depth 10 like the other display actions).
+- Persistence: the plan configuration (source, height, rotations, scale, translation, page, opacity, visibility) is saved with the project in the `.ifcfed` extension `bonsaiviewer_external_documents`. Export / Import Config (JSON) on a plan writes / reads one plan's configuration (source path relative to the JSON file when possible); Save / Load Documents (JSON) on the root or a folder handles all the documents (BonsaiViewer35). On project open, each plan loads from its stored path if the file exists, else shows file not found; Refresh re-reads the source and keeps the transform.
+- 3D view only: the dedicated 2D view (BonsaiViewer40) does not show the background plans.
+
+Phase 1 limits (open, see Open Subject):
+
+- No PDF rasterization yet: the quad is drawn as a translucent fill + outline + label; the page content itself needs the PDF library below.
+- The filled quad shares the highlight-triangle channel with the area measurement tool; the outline and label stay on their own channels, and the fill is re-asserted on the next plan update.
+- Plans are not selectable in the 3D view yet (no gizmo); the Plan Configuration window is the way to move / rotate them numerically. Clicking in the view selects model elements as usual.
+
 ## Open Subject
 
 - PDF rendering library for phase 1: Poppler, MuPDF, or Qt's own PDF module — and at which resolution are the pages rasterized for the 3D background?

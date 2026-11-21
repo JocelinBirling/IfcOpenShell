@@ -69,6 +69,26 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/components/FileDialogPaths.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/easy_load/View.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/easy_load/View.h
+    # BonsaiViewer35/36: External Documents (external tables joined to the
+    # models, 2D plans as backgrounds of the 3D view).
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Types.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/TableFile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/TableFile.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/JoinEngine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/JoinEngine.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/DocumentStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/DocumentStore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PlanOverlay.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PlanOverlay.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Panel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/GridPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/GridPanel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Dialogs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Dialogs.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/View.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/View.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/connectors/Discovery.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/connectors/Discovery.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/connectors/PickerDialog.cpp

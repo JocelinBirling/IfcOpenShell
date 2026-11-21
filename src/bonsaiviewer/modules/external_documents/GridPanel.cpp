@@ -1,0 +1,495 @@
+// This file was generated with the assistance of an AI coding tool.
+/********************************************************************************
+ *                                                                              *
+ * This file is part of Bonsai.                                                 *
+ *                                                                              *
+ * Bonsai is free software: you can redistribute it and/or modify               *
+ * it under the terms of the GNU General Public License as published by         *
+ * the Free Software Foundation, either version 3.0 of the License, or          *
+ * (at your option) any later version.                                          *
+ *                                                                              *
+ * Bonsai is distributed in the hope that it will be useful,                    *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of               *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the                 *
+ * GNU General Public License for more details.                                 *
+ *                                                                              *
+ * You should have received a copy of the GNU General Public License            *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.         *
+ *                                                                              *
+ ********************************************************************************/
+
+#include "GridPanel.h"
+
+#include "../../components/Section.h"
+#include "../../components/SvgIcon.h"
+
+#include <QAbstractTableModel>
+#include <QApplication>
+#include <QBrush>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QSortFilterProxyModel>
+#include <QTableView>
+#include <QToolButton>
+#include <QWidgetAction>
+
+#include <algorithm>
+#include <map>
+
+namespace bonsaiviewer::modules::external_documents {
+
+namespace {
+
+// The four model columns prepended to the file's columns.
+constexpr int kModelColumnCount = 4; // Model, Class, Name, GlobalId
+
+bool isNumber(const QString& text, double& out) {
+    if (text.isEmpty()) return false;
+    bool ok = false;
+    out = text.toDouble(&ok);
+    return ok;
+}
+
+} // namespace
+
+// --- model -------------------------------------------------------------------
+
+class ExternalGridModel : public QAbstractTableModel {
+    Q_OBJECT
+public:
+    ExternalGridModel(const TableData& data, const JoinResult& join, const ExternalGridPanel::RowInfo& row_info,
+                      QObject* parent = nullptr)
+        : QAbstractTableModel(parent), data_(data), join_(join), row_info_(row_info)
+    {
+        columns_ << QStringLiteral("Model") << QStringLiteral("Class")
+                 << QStringLiteral("Name") << QStringLiteral("GlobalId");
+        columns_ << data.columns;
+    }
+
+    int rowCount(const QModelIndex& parent = {}) const override {
+        return parent.isValid() ? 0 : data_.rows.size();
+    }
+    int columnCount(const QModelIndex& parent = {}) const override {
+        return parent.isValid() ? 0 : columns_.size();
+    }
+    QVariant headerData(int section, Qt::Orientation orientation, int role) const override {
+        if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section < columns_.size())
+            return columns_.at(section);
+        return {};
+    }
+    QVariant data(const QModelIndex& index, int role) const override {
+        if (!index.isValid()) return {};
+        const int row = index.row();
+        const int column = index.column();
+        const std::uint32_t object_id = row_info_.object_of_row ? row_info_.object_of_row(row) : 0;
+        const bool matched = object_id != 0;
+        if (role == Qt::ForegroundRole && !matched)
+            return QBrush(QApplication::palette().color(QPalette::Disabled, QPalette::WindowText));
+        if (role != Qt::DisplayRole) return {};
+        if (column < kModelColumnCount) {
+            if (!matched) return {};
+            switch (column) {
+            case 0: return row_info_.model_name_of ? row_info_.model_name_of(object_id) : QString();
+            default: {
+                const QStringList info = row_info_.basic_info_of ? row_info_.basic_info_of(object_id) : QStringList();
+                return info.size() >= 3 ? info.at(column - 1) : QString();
+            }
+            }
+        }
+        const QStringList& values = data_.rows.at(row);
+        const int file_column = column - kModelColumnCount;
+        return file_column < values.size() ? values.at(file_column) : QString();
+    }
+
+    QString cellText(int row, int column) const {
+        return data(index(row, column), Qt::DisplayRole).toString();
+    }
+
+private:
+    TableData data_;
+    JoinResult join_;
+    ExternalGridPanel::RowInfo row_info_;
+    QStringList columns_;
+};
+
+// --- proxy -------------------------------------------------------------------
+
+class ExternalGridProxy : public QSortFilterProxyModel {
+    Q_OBJECT
+public:
+    explicit ExternalGridProxy(ExternalGridModel* model, QObject* parent = nullptr)
+        : QSortFilterProxyModel(parent), model_(model) { setSortCaseSensitivity(Qt::CaseInsensitive); }
+
+    QString cellText(int source_row, int column) const { return model_->cellText(source_row, column); }
+    QStringList columnValues(int column) const {
+        QSet<QString> values;
+        for (int row = 0; row < model_->rowCount(); ++row) values.insert(cellText(row, column));
+        QStringList out = values.values();
+        std::sort(out.begin(), out.end(), [](const QString& a, const QString& b) {
+            double da, db;
+            const bool na = isNumber(a, da), nb = isNumber(b, db);
+            if (na && nb) return da < db;
+            if (na != nb) return na; // numbers first
+            return a.compare(b, Qt::CaseInsensitive) < 0;
+        });
+        return out;
+    }
+    void setColumnFilter(int column, const QSet<QString>& kept) {
+        if (kept.isEmpty()) filters_.erase(column);
+        else filters_[column] = kept;
+        invalidateFilter();
+    }
+    void clearColumnFilter(int column) { filters_.erase(column); invalidateFilter(); }
+    bool isFiltered(int column) const { return filters_.count(column) > 0; }
+    QSet<QString> columnFilter(int column) const {
+        const auto it = filters_.find(column);
+        return it != filters_.end() ? it->second : QSet<QString>();
+    }
+    int sourceRow(int displayed_row) const {
+        const QModelIndex index = mapToSource(this->index(displayed_row, 0));
+        return index.isValid() ? index.row() : -1;
+    }
+
+protected:
+    bool lessThan(const QModelIndex& left, const QModelIndex& right) const override {
+        const QString a = left.data(Qt::DisplayRole).toString();
+        const QString b = right.data(Qt::DisplayRole).toString();
+        double da, db;
+        const bool na = isNumber(a, da), nb = isNumber(b, db);
+        if (na && nb) return da < db;
+        if (na != nb) return na; // numbers before texts
+        return a.compare(b, Qt::CaseInsensitive) < 0;
+    }
+    bool filterAcceptsRow(int source_row, const QModelIndex&) const override {
+        for (const auto& [column, kept] : filters_) {
+            if (!kept.contains(model_->cellText(source_row, column))) return false;
+        }
+        return true;
+    }
+
+private:
+    ExternalGridModel* model_;
+    std::map<int, QSet<QString>> filters_;
+};
+
+// --- header (sort arrow + funnel) --------------------------------------------
+
+class ExternalGridHeader : public QHeaderView {
+    Q_OBJECT
+public:
+    explicit ExternalGridHeader(Qt::Orientation orientation, QWidget* parent = nullptr)
+        : QHeaderView(orientation, parent) {
+        setSectionsMovable(true); // columns can be moved by left drag on the header
+        setStretchLastSection(true);
+    }
+
+    // order: 0 = A→Z, 1 = Z→A, 2 = back to the file order.
+    void setSortState(int section, int order) {
+        sort_section_ = section;
+        sort_order_ = order;
+        viewport()->update();
+    }
+    void setFiltered(int section, bool filtered) {
+        if (filtered) filtered_.insert(section);
+        else filtered_.remove(section);
+        viewport()->update();
+    }
+    int sortSection() const { return sort_section_; }
+    int sortOrder() const { return sort_order_; }
+
+signals:
+    void sortCycleRequested(int section); // the header cycles A→Z, Z→A, file order itself
+    void filterRequested(int section, const QPoint& global_pos);
+
+protected:
+    void paintSection(QPainter* painter, const QRect& rect, int logical_index) const override {
+        QHeaderView::paintSection(painter, rect, logical_index);
+        painter->save();
+        const QColor text = QApplication::palette().color(QPalette::Text);
+        painter->setPen(QPen(text, 1));
+        constexpr int kArrowW = 12;
+        constexpr int kFunnelW = 14;
+        const QRect arrow_rect(rect.right() - kFunnelW - kArrowW - 2, rect.top(), kArrowW, rect.height());
+        const QRect funnel_rect(rect.right() - kFunnelW, rect.top(), kFunnelW, rect.height());
+        if (logical_index == sort_section_) {
+            painter->drawText(arrow_rect, Qt::AlignCenter,
+                              sort_order_ == 0 ? QStringLiteral("▲") : sort_order_ == 1 ? QStringLiteral("▼") : QString());
+        }
+        QPolygonF funnel;
+        funnel << QPointF(funnel_rect.left() + 2, funnel_rect.top() + 4)
+               << QPointF(funnel_rect.right() - 2, funnel_rect.top() + 4)
+               << QPointF(funnel_rect.center().x() + 2, funnel_rect.bottom() - 4)
+               << QPointF(funnel_rect.center().x() - 2, funnel_rect.bottom() - 4);
+        painter->setBrush(filtered_.contains(logical_index) ? QApplication::palette().color(QPalette::Highlight) : text);
+        painter->drawPolygon(funnel);
+        painter->restore();
+    }
+
+    void mousePressEvent(QMouseEvent* event) override {
+        press_pos_ = event->pos();
+        press_section_ = logicalIndexAt(event->pos());
+        const int section = press_section_;
+        if (section >= 0 && event->button() == Qt::LeftButton &&
+            event->pos().x() >= sectionRectOf(section).right() - 14) {
+            emit filterRequested(section, event->globalPosition().toPoint());
+            return;
+        }
+        QHeaderView::mousePressEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        // A click (not a drag) on the label — not on the funnel — cycles the sort.
+        const int section = logicalIndexAt(event->pos());
+        const bool click = event->button() == Qt::LeftButton && section >= 0 && section == press_section_ &&
+                           (event->pos() - press_pos_).manhattanLength() < 5;
+        QHeaderView::mouseReleaseEvent(event);
+        if (click && event->pos().x() < sectionRectOf(section).right() - 14) {
+            emit sortCycleRequested(section);
+        }
+    }
+
+private:
+    QRect sectionRectOf(int logical_index) const {
+        return QRect(sectionViewportPosition(logical_index), 0, sectionSize(logical_index), height());
+    }
+
+    QPoint press_pos_;
+    int press_section_ = -1;
+    int sort_section_ = -1;
+    int sort_order_ = 0;
+    QSet<int> filtered_;
+};
+
+// --- panel -------------------------------------------------------------------
+
+ExternalGridPanel::ExternalGridPanel(QWidget* parent)
+    : components::Panel("External Table", nullptr, parent)
+{
+    auto* section = new components::Section("", components::SectionHeaderMode::Hidden, this);
+    section->setBodyExpanding(true);
+
+    auto* toolbar = new QWidget(section);
+    auto* toolbar_layout = new QHBoxLayout(toolbar);
+    toolbar_layout->setContentsMargins(0, 0, 0, 0);
+    toolbar_layout->setSpacing(2);
+    title_label_ = new QLabel(toolbar);
+    title_label_->setStyleSheet(QStringLiteral("font-weight: 600;"));
+    refresh_button_ = new QToolButton(toolbar);
+    refresh_button_->setIcon(components::icons::makeAccentSvgIcon(":/icons/refresh-double.svg"));
+    refresh_button_->setToolTip("Re-read the file from disk and re-apply the join");
+    refresh_button_->setAutoRaise(true);
+    edit_join_button_ = new QToolButton(toolbar);
+    edit_join_button_->setIcon(components::icons::makeAccentSvgIcon(":/icons/filter.svg"));
+    edit_join_button_->setToolTip("Edit the join configuration (model key, key column, sheet)");
+    edit_join_button_->setAutoRaise(true);
+    export_button_ = new QToolButton(toolbar);
+    export_button_->setIcon(components::icons::makeAccentSvgIcon(":/icons/floppy-disk.svg"));
+    export_button_->setToolTip("Export all the rows of the file to CSV");
+    export_button_->setAutoRaise(true);
+    report_button_ = new QToolButton(toolbar);
+    report_button_->setIcon(components::icons::makeAccentSvgIcon(":/icons/search.svg"));
+    report_button_->setToolTip("Match report: unmatched rows, duplicate rows, unmatched objects");
+    report_button_->setAutoRaise(true);
+    counts_label_ = new QLabel(toolbar);
+    toolbar_layout->addWidget(title_label_);
+    toolbar_layout->addWidget(refresh_button_);
+    toolbar_layout->addWidget(edit_join_button_);
+    toolbar_layout->addWidget(export_button_);
+    toolbar_layout->addWidget(report_button_);
+    toolbar_layout->addWidget(counts_label_);
+    toolbar_layout->addStretch(1);
+    section->addBodyWidget(toolbar);
+
+    view_ = new QTableView(section);
+    view_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    view_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    view_->setSortingEnabled(false);
+    view_->verticalHeader()->setVisible(false);
+    section->addBodyWidget(view_);
+    addBodyWidget(section);
+
+    connect(refresh_button_, &QToolButton::clicked, this, &ExternalGridPanel::refreshRequested);
+    connect(edit_join_button_, &QToolButton::clicked, this, &ExternalGridPanel::editJoinRequested);
+    connect(export_button_, &QToolButton::clicked, this, &ExternalGridPanel::exportCsvRequested);
+    connect(report_button_, &QToolButton::clicked, this, &ExternalGridPanel::showReportRequested);
+
+    // Click on a row: select the joined object(s) of the selected rows
+    // (several rows with Ctrl / Shift).
+    connect(view_, &QTableView::clicked, this, [this](const QModelIndex& index) {
+        if (!index.isValid() || proxy_ == nullptr) return;
+        const bool add = (QApplication::keyboardModifiers() & Qt::ControlModifier) != 0;
+        emit rowsSelected(selectedRowObjectIds(), add);
+    });
+    // Double-click: isolate the joined object(s); when the clicked row is not
+    // part of the selection, only that row is isolated.
+    connect(view_, &QTableView::doubleClicked, this, [this](const QModelIndex& index) {
+        if (!index.isValid() || proxy_ == nullptr) return;
+        auto* proxy = static_cast<ExternalGridProxy*>(proxy_);
+        QList<std::uint32_t> ids;
+        if (view_->selectionModel()->isSelected(index)) {
+            ids = selectedRowObjectIds();
+        } else {
+            const int row = proxy->sourceRow(index.row());
+            const std::uint32_t object_id = row_info_.object_of_row ? row_info_.object_of_row(row) : 0;
+            if (object_id != 0) ids.append(object_id);
+        }
+        if (!ids.isEmpty()) emit rowsIsolateRequested(ids);
+    });
+    // Right-click on a row: Isolate, same rule as the double-click.
+    view_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(view_, &QTableView::customContextMenuRequested, this, [this](const QPoint& pos) {
+        const QModelIndex index = view_->indexAt(pos);
+        if (!index.isValid() || proxy_ == nullptr) return;
+        QMenu menu(view_);
+        menu.addAction(QStringLiteral("Isolate"), this, [this, index]() {
+            auto* proxy = static_cast<ExternalGridProxy*>(proxy_);
+            QList<std::uint32_t> ids;
+            if (view_->selectionModel()->isSelected(index)) {
+                ids = selectedRowObjectIds();
+            } else {
+                const int row = proxy->sourceRow(index.row());
+                const std::uint32_t object_id = row_info_.object_of_row ? row_info_.object_of_row(row) : 0;
+                if (object_id != 0) ids.append(object_id);
+            }
+            if (!ids.isEmpty()) emit rowsIsolateRequested(ids);
+        });
+        menu.exec(view_->viewport()->mapToGlobal(pos));
+    });
+}
+
+void ExternalGridPanel::showTable(const ExternalDocument& document, const TableData& data,
+                                  const JoinResult& join, const RowInfo& row_info) {
+    document_id_ = document.id;
+    data_ = data;
+    join_ = join;
+    row_info_ = row_info;
+
+    delete model_;
+    model_ = new ExternalGridModel(data, join, row_info, this);
+    delete proxy_;
+    proxy_ = new ExternalGridProxy(static_cast<ExternalGridModel*>(model_), this);
+    proxy_->setSourceModel(model_);
+    // setHorizontalHeader: the view deletes the previous header itself.
+    auto* header = new ExternalGridHeader(Qt::Horizontal, view_);
+    header_ = header;
+    view_->setHorizontalHeader(header_);
+    view_->setModel(proxy_);
+
+    // Sort cycle on the header label: A→Z, Z→A, then back to the file order.
+    connect(header, &ExternalGridHeader::sortCycleRequested, this, [this, header](int section) {
+        auto* proxy = static_cast<ExternalGridProxy*>(proxy_);
+        int order = 0;
+        if (header->sortSection() == section) {
+            order = header->sortOrder() == 0 ? 1 : 2;
+        }
+        if (order == 2) {
+            proxy->sort(-1);
+            header->setSortState(-1, 0);
+        } else {
+            proxy->sort(section, order == 0 ? Qt::AscendingOrder : Qt::DescendingOrder);
+            header->setSortState(section, order);
+        }
+    });
+    connect(header, &ExternalGridHeader::filterRequested, this, [this](int section, const QPoint& global_pos) {
+        buildFilterMenu(section, global_pos);
+    });
+
+    title_label_->setText(document.name);
+    setCounts(QStringLiteral("%1 of %2 row(s), %3 matched")
+                  .arg(data.rows.size()).arg(data.total_rows).arg(join.report.matched_rows));
+    show();
+    raise();
+}
+
+void ExternalGridPanel::clearTable() {
+    document_id_.clear();
+    delete model_; model_ = nullptr;
+    delete proxy_; proxy_ = nullptr;
+    view_->setModel(nullptr);
+    view_->setHorizontalHeader(new QHeaderView(Qt::Horizontal, view_));
+    header_ = view_->horizontalHeader();
+    title_label_->clear();
+    counts_label_->clear();
+}
+
+void ExternalGridPanel::setCounts(const QString& text) {
+    counts_label_->setText(text);
+}
+
+void ExternalGridPanel::buildFilterMenu(int column, const QPoint& global_pos) {
+    if (proxy_ == nullptr) return;
+    auto* proxy = static_cast<ExternalGridProxy*>(proxy_);
+    auto* header = static_cast<ExternalGridHeader*>(header_);
+    const QStringList values = proxy->columnValues(column);
+    QSet<QString> kept = proxy->columnFilter(column);
+    if (!proxy->isFiltered(column)) {
+        for (const QString& value : values) kept.insert(value);
+    }
+
+    QMenu menu(this);
+    auto* search = new QLineEdit(&menu);
+    search->setPlaceholderText(QStringLiteral("Search"));
+    auto* search_action = new QWidgetAction(&menu);
+    search_action->setDefaultWidget(search);
+    menu.addAction(search_action);
+    menu.addSeparator();
+    auto* all_action = menu.addAction(QStringLiteral("All"));
+    auto* none_action = menu.addAction(QStringLiteral("None"));
+    menu.addSeparator();
+    QList<QAction*> check_actions;
+    for (const QString& value : values) {
+        auto* action = menu.addAction(value.isEmpty() ? QStringLiteral("(empty)") : value);
+        action->setCheckable(true);
+        action->setChecked(kept.contains(value));
+        check_actions.append(action);
+    }
+    auto* apply_action = menu.addAction(QStringLiteral("Apply"));
+    connect(search, &QLineEdit::textChanged, this, [&check_actions](const QString& text) {
+        for (QAction* action : check_actions) {
+            action->setVisible(text.isEmpty() || action->text().contains(text, Qt::CaseInsensitive));
+        }
+    });
+    connect(all_action, &QAction::triggered, this, [&check_actions]() {
+        for (QAction* action : check_actions) action->setChecked(true);
+    });
+    connect(none_action, &QAction::triggered, this, [&check_actions]() {
+        for (QAction* action : check_actions) action->setChecked(false);
+    });
+    menu.exec(global_pos);
+    if (menu.activeAction() != apply_action) return;
+    QSet<QString> new_kept;
+    for (QAction* action : check_actions) {
+        if (!action->isChecked()) continue;
+        new_kept.insert(action->text() == QStringLiteral("(empty)") ? QString() : action->text());
+    }
+    if (new_kept.size() == values.size()) {
+        proxy->clearColumnFilter(column);
+        header->setFiltered(column, false);
+    } else {
+        proxy->setColumnFilter(column, new_kept);
+        header->setFiltered(column, true);
+    }
+    setCounts(QStringLiteral("%1 of %2 row(s)").arg(proxy->rowCount()).arg(data_.total_rows));
+}
+
+QList<std::uint32_t> ExternalGridPanel::selectedRowObjectIds() const {
+    QList<std::uint32_t> ids;
+    if (proxy_ == nullptr || view_->selectionModel() == nullptr || !row_info_.object_of_row) return ids;
+    const QModelIndexList rows = view_->selectionModel()->selectedRows();
+    for (const QModelIndex& proxy_index : rows) {
+        const int source_row = static_cast<ExternalGridProxy*>(proxy_)->sourceRow(proxy_index.row());
+        if (source_row < 0) continue;
+        const std::uint32_t object_id = row_info_.object_of_row(source_row);
+        if (object_id != 0) ids.append(object_id);
+    }
+    return ids;
+}
+
+} // namespace bonsaiviewer::modules::external_documents
+
+#include "GridPanel.moc"
