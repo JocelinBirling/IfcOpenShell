@@ -151,3 +151,27 @@ on CI to catch formatting issues.
 The library supports IFC2x3 TC1, IFC4 Add2 TC1, IFC4x1, IFC4x2, and
 IFC4x3 Add2. Schema-specific code is compiled conditionally. Be aware of
 which schema versions your change affects.
+
+## Building BonsaiViewer
+
+Always build BonsaiViewer in the dedicated build directory, never in the
+in-tree `build/` folder of the repo:
+
+```
+BUILD_DIR = /home/jocelin/Documents/05 - Programmation/BUILD
+```
+
+Build command (Unix Makefiles generator, Release):
+
+```bash
+cmake --build "/home/jocelin/Documents/05 - Programmation/BUILD" --target BonsaiViewer -j6
+```
+
+- Never use more than `-j6` when building; higher parallelism is not allowed.
+- The build directory is pre-configured with `BUILD_BONSAIVIEWER=ON`,
+  `BUILD_BONSAIVIEWER_TESTS=ON`, `CMAKE_BUILD_TYPE=Release`, and
+  `QT_DIR=/home/jocelin/Qt/6.12.0/gcc_64`. Do not reconfigure it from
+  scratch; just run `cmake --build` there.
+- Unit-test targets (e.g. `bonsaiviewer_obb_tests`,
+  `bonsaiviewer_clash_rule_tests`) live in the same build directory and are
+  built the same way with `--target <name> -j6`.
