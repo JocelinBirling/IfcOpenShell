@@ -143,7 +143,9 @@ void AddModelDialog::setupUi() {
     components::buttons::addButtonGroups(row, {
         build_group("LOCAL", local_choices),
         build_group("CLOUD", cloud_choices),
-        build_group("TOOLS", tool_choices),
+        // BonsaiViewer22: the conversion tools are the easy-load path for big
+        // models or small computers — the group says so.
+        build_group("Easy load for big models or small computer", tool_choices),
     });
     choices_section->addBodyWidget(choices);
 
