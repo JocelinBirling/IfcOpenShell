@@ -1013,8 +1013,13 @@ void MainWindow::applyWorkspaceDefaults(int index) {
         visible = QStringList{QStringLiteral("filters"), QStringLiteral("properties")};
     } else if (index == 2) {
         splitDockWidget(models_panel_, tables_panel_, Qt::Vertical);
+        // BonsaiViewer35/36: the External Documents tree next to the Tables
+        // panel (bottom left of the Table tab); the External Table grid docks
+        // with the Table panel and is shown on Visualize.
+        tabifyDockWidget(tables_panel_, ext_docs_panel_);
+        tabifyDockWidget(table_panel_, ext_grid_panel_);
         visible = QStringList{QStringLiteral("trees"), QStringLiteral("unifiedtree"), QStringLiteral("tables"),
-                              QStringLiteral("sheets"), QStringLiteral("properties")};
+                              QStringLiteral("ext_docs"), QStringLiteral("sheets"), QStringLiteral("properties")};
     } else if (index == 3) {
         visible << QStringLiteral("ids");
     } else if (index == 4) {
@@ -1103,6 +1108,12 @@ void MainWindow::setupPanels() {
     // BonsaiViewer35/36: the External Documents tree and the External Table grid.
     ext_docs_panel_ = new modules::external_documents::ExternalDocumentsPanel(this);
     ext_grid_panel_ = new modules::external_documents::ExternalGridPanel(this);
+    // Stable object names: the saved layouts (QMainWindow::saveState /
+    // restoreState) find the docks again by name, otherwise a restored
+    // layout hides them (that is why the panel was missing on machines
+    // with saved layouts, e.g. Windows).
+    ext_docs_panel_->setObjectName(QStringLiteral("dock-ext_docs"));
+    ext_grid_panel_->setObjectName(QStringLiteral("dock-ext_grid"));
     audit_panel_ = new components::Panel("Audit", new modules::todo::TodoPanel("Audit", this), this);
     // BonsaiViewer09: the clash workspaces; their content comes in setupLoader.
     rule_dock_ = new components::Panel("Rule", nullptr, this);
@@ -1165,6 +1176,7 @@ void MainWindow::setupPanels() {
     tabifyDockWidget(tables_panel_, ext_docs_panel_);
     addDockWidget(Qt::BottomDockWidgetArea, ext_grid_panel_);
     tabifyDockWidget(table_panel_, ext_grid_panel_);
+    ext_docs_panel_->hide();
     ext_grid_panel_->hide();
 
     tabifyDockWidget(properties_panel_, layers_panel_);
@@ -1667,6 +1679,14 @@ void MainWindow::setupMenuBar() {
                                QStringLiteral("IfcDiff"), diff_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("tables"),
                                QStringLiteral("Tables"), tables_panel_, QStringLiteral("Analyze"));
+    // BonsaiViewer35/36: registered like the other docks, so they appear in
+    // the Window menu and the workspace defaults show / hide them (an
+    // unregistered dock is left out of applyWorkspaceDefaults and hidden by
+    // any restored layout).
+    panel_manager_->adoptPanel(QStringLiteral("ext_docs"),
+                               QStringLiteral("External Documents"), ext_docs_panel_, QStringLiteral("Analyze"));
+    panel_manager_->adoptPanel(QStringLiteral("ext_grid"),
+                               QStringLiteral("External Table"), ext_grid_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("audit"),
                                QStringLiteral("Audit"), audit_panel_, QStringLiteral("Analyze"));
     panel_manager_->adoptPanel(QStringLiteral("rules"),
