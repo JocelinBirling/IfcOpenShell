@@ -2313,6 +2313,8 @@ double computeMeshLocalVolumeQuantised(
 
     std::vector<float> positions;
     positions.resize(std::size_t(mesh.vertex_count) * 3);
+    std::vector<std::uint8_t> alpha;
+    alpha.resize(mesh.vertex_count);
     for (std::uint32_t v = 0; v < mesh.vertex_count; ++v) {
         const std::uint8_t* p = vbase
             + std::size_t(v) * INSTANCED_VERTEX_STRIDE_BYTES;
@@ -2323,6 +2325,7 @@ double computeMeshLocalVolumeQuantised(
         positions[3 * v + 0] = ax + float(qx) * inv_q * ex;
         positions[3 * v + 1] = ay + float(qy) * inv_q * ey;
         positions[3 * v + 2] = az + float(qz) * inv_q * ez;
+        alpha[v] = p[11];  // color u8x4 sits at offset 8; alpha is its last byte
     }
 
     double sum = 0.0;
@@ -2344,6 +2347,7 @@ double computeMeshLocalVolumeQuantised(
     if (out_tris) {
         out_tris->positions = std::move(positions);
         out_tris->indices.assign(ibase, ibase + n_indices);
+        out_tris->alpha = std::move(alpha);
     }
     return std::abs(sum) / 6.0;
 }
@@ -2508,7 +2512,8 @@ bool ViewportCore::applyStreamedChunk(
             if (need_tris) {
                 const auto& tris = m.mesh_triangles_cache[mi];
                 m.cpu_shadow_bytes += tris.positions.size() * sizeof(float)
-                                    + tris.indices.size() * sizeof(std::uint32_t);
+                                    + tris.indices.size() * sizeof(std::uint32_t)
+                                    + tris.alpha.size() * sizeof(std::uint8_t);
             }
             if (need_volume) {
                 m.mesh_local_volumes[mi] = volume;
@@ -2616,7 +2621,8 @@ void ViewportCore::unloadChunk(ModelGpuData& m, std::size_t chunk_idx) {
                 && mi < m.mesh_triangles_cache.size()) {
                 auto& tris = m.mesh_triangles_cache[mi];
                 const std::uint64_t bytes = tris.positions.size() * sizeof(float)
-                                          + tris.indices.size() * sizeof(std::uint32_t);
+                                          + tris.indices.size() * sizeof(std::uint32_t)
+                                          + tris.alpha.size() * sizeof(std::uint8_t);
                 m.cpu_shadow_bytes = m.cpu_shadow_bytes > bytes
                                    ? m.cpu_shadow_bytes - bytes : 0;
                 tris = {};

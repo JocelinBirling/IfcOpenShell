@@ -113,13 +113,15 @@ private:
         double value = 0.0;
         QString unit;
         int mode = 0;  // 0 = longest AABB edge (M2/M4), 1 = base rectangle (M3),
-                       // 2 = longest horizontal top edge (M5), 3 = face
+                       // 2 = top-surface 3D outline (M5, `contour`), 3 = face
                        // highlight (M0/M6/M7), 4 = lateral face highlight
                        // (M8), 5 = inclined faces highlight (M11),
                        // 6 = volume (AABB box), -1 = count only (M1)
         std::vector<MeasuredObject> objects;
         std::vector<float> highlight_tris;  // modes 3/4/5: 9 floats per triangle, world
-        float label_pos[3] = {0, 0, 0};     // modes 3/4/5: label anchor
+        std::vector<float> contour;         // mode 2 (M5): 6 floats per outline edge, world
+        std::vector<float> rejected_tris;   // mode 2 (M5) dev: 9 floats per up-triangle outside the crest
+        float label_pos[3] = {0, 0, 0};     // modes 2/3/4/5: label anchor
         QTreeWidgetItem* item = nullptr;
     };
 
@@ -136,6 +138,8 @@ private:
     bool isItemVisible(const QTreeWidgetItem* item) const;
     void collectSums(QTreeWidgetItem* item, QMap<QString, double>& sums) const;
     void drawRecord(OverlayRenderer::LineGroup& group,
+                    OverlayRenderer::LineGroup* top_group,
+                    OverlayRenderer::LineGroup* debug_group,
                     std::vector<OverlayRenderer::Label>& labels,
                     std::vector<float>& highlights,
                     const MeasureRecord& rec);

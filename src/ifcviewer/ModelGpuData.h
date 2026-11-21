@@ -451,6 +451,7 @@ struct ModelGpuData {
     struct MeshTriangles {
         std::vector<float>    positions;  // 3 * vertex_count, mesh-local
         std::vector<uint32_t> indices;    // 3 * triangle_count, LOD0
+        std::vector<uint8_t>  alpha;      // per-vertex alpha byte (255 = opaque), empty when unknown
     };
     std::vector<MeshTriangles> mesh_triangles_cache;
     // How many RESIDENT chunks currently contain each mesh (the spatial

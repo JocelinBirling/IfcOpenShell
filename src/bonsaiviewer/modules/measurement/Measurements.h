@@ -43,10 +43,13 @@ struct MeasuredObject {
 // A face of an object classified by its normal direction, in world space.
 // `triangles` holds 9 floats per triangle (world); `area` is the summed area
 // in m² and `centroid` the area-weighted centroid for the label.
+// `contour` (M5) holds the 3D outline of the top surface: 6 floats per edge.
 struct ClassifiedFace {
     double area = 0.0;
     float centroid[3] = {0, 0, 0};
     std::vector<float> triangles;
+    std::vector<float> contour;    // 6 floats per edge (a, b), world
+    std::vector<float> rejected;   // M5 dev: up-facing triangles outside the crest component (9 floats per tri)
 };
 
 // Result of the top/bottom-face detection on one object (world space, metres).
@@ -58,6 +61,12 @@ using TopFace = ClassifiedFace;
 struct WorldMesh {
     std::vector<float> triangles;  // 9 floats per triangle, world space
     float zmin = 0.0f, zmax = 0.0f;
+    // Mesh-local index list (3 per triangle, same order as `triangles`) and
+    // per-vertex alpha byte (255 = opaque) — lets callers tell the glazed
+    // (transparent) triangles of a window apart from its frame. Empty when
+    // the CPU shadow carries no alpha.
+    std::vector<uint32_t> indices;
+    std::vector<uint8_t>  alpha;
 };
 WorldMesh worldTriangles(ViewportWindow& vp, std::uint32_t object_id);
 
@@ -90,13 +99,23 @@ double measureLongueurArete(ViewportWindow& vp,
                             const std::vector<std::uint32_t>& object_ids,
                             std::vector<MeasuredObject>* objects_out = nullptr);
 
-// M5 — longueur_main_courante: developed length of the top coplanar face
-// of a railing / handrail element, in meters. Uses the longest horizontal
-// AABB dimension of the top face.
+// M5 — longueur_main_courante: developed ("déplié") length of the top
+// surface of a railing / handrail element, in meters. The top surface is
+// the connected component of upward-facing triangles (nz >= 0.5) that
+// contains the highest triangle (the crest — e.g. the handrail on top of a
+// guard rail, including inclined stair runs). The developed length is the
+// mid-line of that strip: L = P/2 - 2A/P, with P the 3D perimeter of the
+// surface outline and A its area (exact for a rectangular strip, e.g.
+// 3.80 m landing + 4.73 m stair run). Falls back to the longest horizontal
+// AABB dimension when no top surface is found.
+// `surfaces_out` receives the detected top surface per object (triangles +
+// 3D outline for display); `values_out` the per-object length.
 // Summed over all object_ids.
 double measureLongueurMainCourante(ViewportWindow& vp,
                                    const std::vector<std::uint32_t>& object_ids,
-                                   std::vector<MeasuredObject>* objects_out = nullptr);
+                                   std::vector<MeasuredObject>* objects_out = nullptr,
+                                   std::vector<ClassifiedFace>* surfaces_out = nullptr,
+                                   std::vector<double>* values_out = nullptr);
 
 // M6 — surface_top: area (m²) of the top horizontal face of each object
 // (triangles whose normal points up, nz >= 0.9, at the top of the object).

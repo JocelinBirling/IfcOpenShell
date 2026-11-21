@@ -15,11 +15,11 @@ Panneau dock **Mesure** (visible par défaut à droite, également pilotable via
 | M2 | `longueur_axe` | ml | Plus longue arête de l'AABB | Longueur suivant l'axe principal (approximation AABB). |
 | M3 | `perimetre` | ml | Rectangle de la base | 2 × (dx + dy) de l'AABB (base = plan XY, Z vertical). |
 | M4 | `longueur_arete` | ml | Plus longue arête de l'AABB | Approximation par la plus longue arête de l'AABB. |
-| M5 | `longueur_main_courante` | ml | Arête horizontale haute | Plus grande dimension horizontale (XY) de la face haute (z = max). |
+| M5 | `longueur_main_courante` | ml | Surface supérieure surlignée + contour 3D | Longueur dépliée du dessus : composante connexe des triangles de normale vers le haut (nz ≥ 0,5) contenant le triangle le plus haut (la crête, ex. main courante au sommet d'un garde-corps, rampants d'escalier inclus), puis ligne médiane du ruban L = P/2 − 2A/P (P = périmètre 3D du contour du dessus, A = aire du dessus) — ex. palier 3,80 m + volée 4,73 m. Repli : plus grande dimension horizontale de l'AABB. |
 | M6 | `surface_top` | m² | Face supérieure surlignée | Somme des triangles horizontaux hauts (nz ≥ 0.9, z = max). |
 | M7 | `surface_bottom` | m² | Face inférieure surlignée | Somme des triangles horizontaux bas (nz ≤ -0.9, z = min). |
 | M8 | `surface_lateral` | m² | Faces latérales surlignées | Aire latérale (sans top/bottom). Mode au choix : toutes les faces, plus grande face coplanaire, ou deux plus grandes (combo). |
-| M9 | `surface_vitrage` | m² | Plus grande face de l'objet transparent | Détection via le matériau IFC (nom « verre/glass/vitrage » ou style avec Transparency > 0), puis aire de la plus grande face coplanaire du mesh. |
+| M9 | `surface_vitrage` | m² | Plus grande face transparente de l'objet | Détection via la **transparence restituée** (alpha des sommets du mesh < 255, tel que baké dans le .ifcview et routé vers le pass transparent) ou, à défaut, via le matériau IFC (nom « verre/glass/vitrage » ou style avec Transparency > 0). Aire = plus grande face coplanaire composée de **triangles transparents** (le châssis opaque est exclu). |
 | M11 | `surface_toiture_developpee` | m² | Faces inclinées surlignées | Somme des triangles non horizontaux (|nz| < 0.9) — aire réelle en rampant. |
 | M12 | `surface_coffrage` | m² | Faces de coffrage surlignées | Classification des faces par normale : joues + sous-face par défaut, abouts et top en option (checkboxes). |
 | M13 | `surface_section_projeté` | m² | Boîte AABB | Périmètre de section × longueur (axe principal = plus grande dimension AABB). |
@@ -37,7 +37,8 @@ Chaque mesure s'applique à la **sélection courante** ; le résultat de plusieu
 ### Restitution dans le viewer
 
 - Traits de mesure tracés en **lignes x-ray** (pas de depth test) : visibles à travers les objets transparents.
-- M0/M6/M7/M8/M9/M11/M12/M18/M21/M22 : la face détectée est **surlignée en triangles translucides**, décalée de 2 cm selon sa normale pour éviter le clipping.
+- M0/M6/M7/M8/M9/M11/M12/M18/M21/M22 : la face détectée est **surlignée en triangles translucides**, décalée de 5 mm selon sa normale pour éviter le clipping.
+- M5 : le dessus (crête) est **surligné en triangles translucides**, son **contour 3D est tracé en arêtes vertes**, avec la longueur dépliée en label. En dev, les triangles « up » (nz ≥ 0,5) rejetés par la composante crête sont tracés en arêtes **rouges**.
 - M13/M16/M17/M20 : la **boîte AABB** de l'objet est tracée en arêtes.
 - **Label 3D** à chaque mesure (valeur + unité) et **HUD** avec le total des mesures visibles par unité.
 

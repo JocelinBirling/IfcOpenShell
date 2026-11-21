@@ -25,8 +25,12 @@
 #include <Eigen/Core>
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
+#include <cstdint>
+#include <map>
+#include <tuple>
 
 namespace bonsaiviewer::modules::measurement {
 
@@ -117,25 +121,6 @@ double measureLongueurArete(ViewportWindow& vp,
     return total;
 }
 
-double measureLongueurMainCourante(ViewportWindow& vp,
-                                   const std::vector<std::uint32_t>& object_ids,
-                                   std::vector<MeasuredObject>* objects_out) {
-    double total = 0.0;
-    float mn[3], mx[3];
-    for (std::uint32_t id : object_ids) {
-        if (objectAabb(vp, id, mn, mx)) {
-            // For a handrail, the developed length of the top face is
-            // approximated by the longest horizontal AABB dimension
-            // (horizontal = XY plane, Z is up).
-            const double dx = static_cast<double>(mx[0]) - mn[0];
-            const double dy = static_cast<double>(mx[1]) - mn[1];
-            total += std::max(dx, dy);
-            recordObject(objects_out, id, mn, mx);
-        }
-    }
-    return total;
-}
-
 WorldMesh worldTriangles(ViewportWindow& vp, std::uint32_t object_id) {
     WorldMesh result;
     ViewportWindow::InstanceLookup lookup;
@@ -143,6 +128,8 @@ WorldMesh worldTriangles(ViewportWindow& vp, std::uint32_t object_id) {
     ViewportWindow::MeshTriangles mesh;
     if (!vp.readbackMeshTriangles(lookup.session_model_id, lookup.mesh_id, mesh)) return result;
     if (mesh.indices.empty() || mesh.positions.empty()) return result;
+    result.indices = mesh.indices;
+    result.alpha = mesh.alpha;
 
     // Full world transform: modelToWorld (federation/model ops) * placement,
     // both column-major.
@@ -279,7 +266,216 @@ std::vector<ClassifiedFace> lateralFaceGroups(const WorldMesh& wm) {
     return result;
 }
 
+// Quantized vertex key (0.1 mm merge) for outline extraction.
+struct VKey {
+    std::int64_t x = 0, y = 0, z = 0;
+    bool operator<(const VKey& o) const { return std::tie(x, y, z) < std::tie(o.x, o.y, o.z); }
+};
+
+// Top surface ("dessus") of an object: the connected component of
+// upward-facing triangles (nz >= min_nz) that contains the highest
+// triangle — the crest of the object (e.g. the handrail on top of a guard
+// rail, including inclined stair runs). `length` is the developed mid-line
+// length of that strip: L = P/2 - 2A/P (P = 3D outline perimeter, A = area),
+// exact for a rectangular L x w strip (e.g. 3.80 m landing + 4.73 m run).
+struct TopSurface {
+    double area = 0.0;
+    double length = 0.0;
+    float centroid[3] = {0, 0, 0};
+    std::vector<float> triangles;  // 9 floats per triangle, world
+    std::vector<float> contour;    // 6 floats per outline edge, world
+    std::vector<float> rejected;   // up-facing triangles outside the crest component (dev display)
+};
+
+TopSurface extractTopSurface(const WorldMesh& wm, float min_nz = 0.5f) {
+    TopSurface out;
+    if (wm.triangles.empty()) return out;
+    constexpr double kQuant = 10000.0;  // 0.1 mm vertex merge
+    auto keyOf = [](const float* p) {
+        return VKey{static_cast<std::int64_t>(std::llround(p[0] * kQuant)),
+                    static_cast<std::int64_t>(std::llround(p[1] * kQuant)),
+                    static_cast<std::int64_t>(std::llround(p[2] * kQuant))};
+    };
+    // XY footprint + heightmap (z max per XY cell) over ALL vertices, so
+    // that up-facing triangles actually underneath the object (inverted
+    // normals on a bottom face) are discarded before the crest growing.
+    float xmin = FLT_MAX, xmax = -FLT_MAX, ymin = FLT_MAX, ymax = -FLT_MAX;
+    for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
+        for (int c = 0; c < 3; ++c) {
+            const float* p = &wm.triangles[t + 3 * c];
+            xmin = std::min(xmin, p[0]); xmax = std::max(xmax, p[0]);
+            ymin = std::min(ymin, p[1]); ymax = std::max(ymax, p[1]);
+        }
+    }
+    constexpr int kGrid = 64;
+    std::vector<float> hmap(kGrid * kGrid, -FLT_MAX);
+    const float sx = (xmax - xmin) > 1e-6f ? (xmax - xmin) : 1.0f;
+    const float sy = (ymax - ymin) > 1e-6f ? (ymax - ymin) : 1.0f;
+    auto cellIndex = [&](float x, float y) {
+        const int ix = std::clamp(static_cast<int>((x - xmin) / sx * kGrid), 0, kGrid - 1);
+        const int iy = std::clamp(static_cast<int>((y - ymin) / sy * kGrid), 0, kGrid - 1);
+        return iy * kGrid + ix;
+    };
+    for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
+        for (int c = 0; c < 3; ++c) {
+            const float* p = &wm.triangles[t + 3 * c];
+            float& h = hmap[cellIndex(p[0], p[1])];
+            h = std::max(h, p[2]);
+        }
+    }
+    // Tolerance covering the z variation inside one grid cell (sloped runs).
+    const float ztol = std::max(0.05f, (wm.zmax - wm.zmin) * 0.05f);
+    // Collect upward-facing triangles that sit on the local top (heightmap).
+    std::vector<std::array<const float*, 3>> top;
+    std::vector<std::array<VKey, 3>> top_keys;
+    std::map<std::pair<VKey, VKey>, std::vector<int>> edge2tris;
+    for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
+        const float* v[3] = {&wm.triangles[t], &wm.triangles[t + 3], &wm.triangles[t + 6]};
+        const float ux = v[1][0] - v[0][0], uy = v[1][1] - v[0][1], uz = v[1][2] - v[0][2];
+        const float vx = v[2][0] - v[0][0], vy = v[2][1] - v[0][1], vz = v[2][2] - v[0][2];
+        const float nx = uy * vz - uz * vy;
+        const float ny = uz * vx - ux * vz;
+        const float nz = ux * vy - uy * vx;
+        const float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+        if (len < 1e-9f) continue;
+        if (nz / len < min_nz) continue;  // top = normal pointing upward
+        const float ccx = (v[0][0] + v[1][0] + v[2][0]) / 3.0f;
+        const float ccy = (v[0][1] + v[1][1] + v[2][1]) / 3.0f;
+        const float ccz = (v[0][2] + v[1][2] + v[2][2]) / 3.0f;
+        // Discard up-facing triangles underneath the object (inverted bottom
+        // faces): their centroid is well below the local heightmap.
+        if (ccz < hmap[cellIndex(ccx, ccy)] - ztol) continue;
+        const int ti = static_cast<int>(top.size());
+        top.push_back({v[0], v[1], v[2]});
+        top_keys.push_back({keyOf(v[0]), keyOf(v[1]), keyOf(v[2])});
+        for (int e = 0; e < 3; ++e) {
+            const auto ek = std::minmax(top_keys.back()[e], top_keys.back()[(e + 1) % 3]);
+            edge2tris[ek].push_back(ti);
+        }
+    }
+    if (top.empty()) return out;
+    // Region growing from the highest top triangle (the crest component).
+    std::size_t best = 0;
+    double best_cz = -FLT_MAX;
+    for (std::size_t i = 0; i < top.size(); ++i) {
+        const double mzc = (top[i][0][2] + top[i][1][2] + top[i][2][2]) / 3.0;
+        if (mzc > best_cz) { best_cz = mzc; best = i; }
+    }
+    std::vector<char> keep(top.size(), 0);
+    std::vector<int> stack{static_cast<int>(best)};
+    keep[best] = 1;
+    while (!stack.empty()) {
+        const int ti = stack.back();
+        stack.pop_back();
+        for (int e = 0; e < 3; ++e) {
+            const auto ek = std::minmax(top_keys[ti][e], top_keys[ti][(e + 1) % 3]);
+            for (int tj : edge2tris[ek]) {
+                if (!keep[tj]) { keep[tj] = 1; stack.push_back(tj); }
+            }
+        }
+    }
+    // Outline (edges used once) + area + centroid over the kept component.
+    std::map<VKey, int> vid;
+    std::vector<std::array<float, 3>> vcoord;
+    std::map<std::pair<int, int>, int> edge_count;
+    std::map<std::pair<int, int>, std::array<float, 6>> edge_geom;
+    double kept_area = 0.0, kcx = 0.0, kcy = 0.0, kcz = 0.0;
+    for (std::size_t i = 0; i < top.size(); ++i) {
+        if (!keep[i]) {
+            // Dev display: up-facing but outside the crest component.
+            out.rejected.insert(out.rejected.end(), top[i][0], top[i][0] + 9);
+            continue;
+        }
+        const float* v[3] = {top[i][0], top[i][1], top[i][2]};
+        const float ux = v[1][0] - v[0][0], uy = v[1][1] - v[0][1], uz = v[1][2] - v[0][2];
+        const float vx = v[2][0] - v[0][0], vy = v[2][1] - v[0][1], vz = v[2][2] - v[0][2];
+        const float nx = uy * vz - uz * vy;
+        const float ny = uz * vx - ux * vz;
+        const float nz = ux * vy - uy * vx;
+        const float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+        if (len < 1e-9f) continue;
+        const double a = 0.5 * static_cast<double>(len);
+        kept_area += a;
+        kcx += a * (v[0][0] + v[1][0] + v[2][0]) / 3.0;
+        kcy += a * (v[0][1] + v[1][1] + v[2][1]) / 3.0;
+        kcz += a * (v[0][2] + v[1][2] + v[2][2]) / 3.0;
+        out.triangles.insert(out.triangles.end(), v[0], v[0] + 9);
+        int idx[3];
+        for (int k = 0; k < 3; ++k) {
+            const VKey key = keyOf(v[k]);
+            const auto it = vid.find(key);
+            if (it == vid.end()) {
+                idx[k] = static_cast<int>(vcoord.size());
+                vid.emplace(key, idx[k]);
+                vcoord.push_back({v[k][0], v[k][1], v[k][2]});
+            } else {
+                idx[k] = it->second;
+            }
+        }
+        for (int e = 0; e < 3; ++e) {
+            const auto pa = std::minmax(idx[e], idx[(e + 1) % 3]);
+            ++edge_count[pa];
+            edge_geom[pa] = {vcoord[pa.first][0], vcoord[pa.first][1], vcoord[pa.first][2],
+                             vcoord[pa.second][0], vcoord[pa.second][1], vcoord[pa.second][2]};
+        }
+    }
+    double perimeter = 0.0;
+    for (const auto& kv : edge_count) {
+        if (kv.second != 1) continue;
+        const auto& g = edge_geom[kv.first];
+        const double dx = g[3] - g[0], dy = g[4] - g[1], dz = g[5] - g[2];
+        perimeter += std::sqrt(dx * dx + dy * dy + dz * dz);
+        out.contour.insert(out.contour.end(), g.begin(), g.end());
+    }
+    out.area = kept_area;
+    if (kept_area > 0.0) {
+        out.centroid[0] = static_cast<float>(kcx / kept_area);
+        out.centroid[1] = static_cast<float>(kcy / kept_area);
+        out.centroid[2] = static_cast<float>(kcz / kept_area);
+    }
+    if (perimeter > 1e-9) {
+        double L = perimeter / 2.0 - 2.0 * kept_area / perimeter;
+        if (L < 0.0) L = perimeter / 2.0;
+        out.length = L;
+    }
+    return out;
+}
+
 } // namespace
+
+double measureLongueurMainCourante(ViewportWindow& vp,
+                                   const std::vector<std::uint32_t>& object_ids,
+                                   std::vector<MeasuredObject>* objects_out,
+                                   std::vector<ClassifiedFace>* surfaces_out,
+                                   std::vector<double>* values_out) {
+    double total = 0.0;
+    float mn[3], mx[3];
+    for (std::uint32_t id : object_ids) {
+        if (!objectAabb(vp, id, mn, mx)) continue;
+        recordObject(objects_out, id, mn, mx);
+        // Developed length of the object's top surface (see extractTopSurface).
+        TopSurface top = extractTopSurface(worldTriangles(vp, id), 0.5f);
+        double length = top.length;
+        if (length <= 0.0) {
+            // Fallback: longest horizontal AABB dimension (Z is up).
+            const double dx = static_cast<double>(mx[0]) - mn[0];
+            const double dy = static_cast<double>(mx[1]) - mn[1];
+            length = std::max(dx, dy);
+        }
+        total += length;
+        if (values_out) values_out->push_back(length);
+        if (surfaces_out) {
+            ClassifiedFace f;
+            f.area = top.area;
+            for (int i = 0; i < 3; ++i) f.centroid[i] = top.centroid[i];
+            f.triangles = std::move(top.triangles);
+            f.contour = std::move(top.contour);
+            f.rejected = std::move(top.rejected);
+            surfaces_out->push_back(std::move(f));
+        }
+    }
+    return total;
+}
 
 TopFace measureTopFace(ViewportWindow& vp, std::uint32_t object_id) {
     return extractHorizontalFace(worldTriangles(vp, object_id), /*up=*/true);

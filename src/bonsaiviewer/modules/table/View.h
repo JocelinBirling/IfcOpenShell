@@ -14,6 +14,7 @@
 #define IFCINTERFACE_MODULES_TABLE_VIEW_H
 
 #include "Table.h"
+#include "TableModel.h"
 
 #include <QObject>
 #include <QStringList>
@@ -37,7 +38,6 @@ class SelectionService;
 
 namespace bonsaiviewer::modules::table {
 
-class TableModel;
 class TablePanel;
 class TableProxy;
 class TableStore;

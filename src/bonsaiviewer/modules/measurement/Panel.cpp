@@ -87,7 +87,7 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     m4_button_ = new QPushButton(QStringLiteral("M4 — Longueur d'arête"), functions_box);
     m4_button_->setToolTip(QStringLiteral("Longueur d'une arête extraite automatiquement (ml)"));
     m5_button_ = new QPushButton(QStringLiteral("M5 — Longueur main courante"), functions_box);
-    m5_button_->setToolTip(QStringLiteral("Longueur développée de la surface haute coplanaire la plus longue (ml)"));
+    m5_button_->setToolTip(QStringLiteral("Longueur dépliée du dessus de l'objet (surface supérieure détectée, contour 3D) — ex. main courante de rambarde d'escalier"));
     m6_button_ = new QPushButton(QStringLiteral("M6 — Surface top"), functions_box);
     m6_button_->setToolTip(QStringLiteral("Aire (m²) de la face horizontale supérieure de l'élément"));
     m7_button_ = new QPushButton(QStringLiteral("M7 — Surface bottom"), functions_box);
@@ -411,10 +411,27 @@ void MeasurementPanel::runM5() {
         return;
     }
     std::vector<MeasuredObject> objects;
-    const double total = measureLongueurMainCourante(*viewport_, ids, &objects);
-    const QString text = QStringLiteral("M5 — Longueur main courante : %1 ml").arg(total, 0, 'f', 3);
+    std::vector<ClassifiedFace> surfaces;
+    std::vector<double> values;
+    const double total = measureLongueurMainCourante(*viewport_, ids, &objects, &surfaces, &values);
+    const QString text = QStringLiteral("M5 — Longueur main courante (dépliée) : %1 ml").arg(total, 0, 'f', 3);
     updateResultLabel(text);
-    addMeasureRecord(QStringLiteral("M5 — Longueur main courante"), total, QStringLiteral("ml"), 2, objects);
+    // One record per object so each detected top surface gets its own
+    // highlight, 3D outline and label.
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        std::vector<MeasuredObject> objs;
+        if (i < objects.size()) objs.push_back(objects[i]);
+        const int rec = addMeasureRecord(QStringLiteral("M5 — Longueur main courante"),
+                                         values[i], QStringLiteral("ml"), 2, objs);
+        if (i < surfaces.size()) {
+            records_[rec].highlight_tris = surfaces[i].triangles;
+            records_[rec].contour = surfaces[i].contour;
+            records_[rec].rejected_tris = surfaces[i].rejected;
+            for (int k = 0; k < 3; ++k) records_[rec].label_pos[k] = surfaces[i].centroid[k];
+        }
+    }
+    refreshGroupSums();
+    refreshOverlays();
     if (session_) session_->setStatusMessage(QStringLiteral("Mesure"), text);
     emit measurementPerformed(QStringLiteral("M5 Main courante"), total, QStringLiteral("ml"));
 }
@@ -1002,15 +1019,17 @@ void MeasurementPanel::refreshGroupSums() {
 }
 
 void MeasurementPanel::drawRecord(OverlayRenderer::LineGroup& group,
+                                  OverlayRenderer::LineGroup* top_group,
+                                  OverlayRenderer::LineGroup* debug_group,
                                   std::vector<OverlayRenderer::Label>& labels,
                                   std::vector<float>& highlights,
                                   const MeasureRecord& rec) {
     if (rec.mode < 0) return;  // M1: counting only, no trait
     if (rec.mode >= 3 && rec.mode <= 5) {
         // M0/M6/M7: horizontal face highlight, M8: lateral faces, M11:
-        // inclined roof faces. Triangles are pushed 2 cm out along their
+        // inclined roof faces. Triangles are pushed 5 mm out along their
         // normal so the highlight does not z-fight / clip into the geometry.
-        constexpr float kHighlightOffset = 0.02f;
+        constexpr float kHighlightOffset = 0.005f;
         for (std::size_t t = 0; t + 8 < rec.highlight_tris.size(); t += 9) {
             const float* a = &rec.highlight_tris[t];
             const float* b = &rec.highlight_tris[t + 3];
@@ -1067,6 +1086,35 @@ void MeasurementPanel::drawRecord(OverlayRenderer::LineGroup& group,
             lb.text = QStringLiteral("%1 %2").arg(rec.value, 0, 'f', 3).arg(rec.unit);
             labels.push_back(lb);
         }
+        return;
+    }
+    if (rec.mode == 2 && !rec.contour.empty()) {
+        // M5: developed length of the top surface — draw its 3D outline in
+        // the dedicated (green) group; the up-facing triangles rejected by
+        // the crest region-growing are drawn as red edges for dev inspection.
+        OverlayRenderer::LineGroup& outline = top_group ? *top_group : group;
+        for (std::size_t s = 0; s + 5 < rec.contour.size(); s += 6) {
+            outline.world_xyz.insert(outline.world_xyz.end(),
+                                      rec.contour.begin() + s, rec.contour.begin() + s + 6);
+        }
+        if (debug_group) {
+            for (std::size_t t = 0; t + 8 < rec.rejected_tris.size(); t += 9) {
+                const float* v[3] = {&rec.rejected_tris[t], &rec.rejected_tris[t + 3],
+                                     &rec.rejected_tris[t + 6]};
+                for (int e = 0; e < 3; ++e) {
+                    const float* a = v[e];
+                    const float* b = v[(e + 1) % 3];
+                    const float seg[6] = {a[0], a[1], a[2], b[0], b[1], b[2]};
+                    debug_group->world_xyz.insert(debug_group->world_xyz.end(), seg, seg + 6);
+                }
+            }
+        }
+        OverlayRenderer::Label lb;
+        lb.world_pos[0] = rec.label_pos[0];
+        lb.world_pos[1] = rec.label_pos[1];
+        lb.world_pos[2] = rec.label_pos[2];
+        lb.text = QStringLiteral("%1 %2").arg(rec.value, 0, 'f', 3).arg(rec.unit);
+        labels.push_back(lb);
         return;
     }
     for (const auto& obj : rec.objects) {
@@ -1136,6 +1184,23 @@ void MeasurementPanel::refreshOverlays() {
     group.stroke_extra = 1.0f;
     group.xray = true;  // measure traits stay visible through transparent objects
 
+    // M5 dev display: green = 3D outline of the detected top surface (crest),
+    // red = up-facing triangles rejected by the crest region-growing.
+    OverlayRenderer::LineGroup top_group;
+    top_group.color[0] = 0.1f; top_group.color[1] = 1.0f; top_group.color[2] = 0.2f; top_group.color[3] = 1.0f;
+    top_group.stroke_color[0] = 0.0f; top_group.stroke_color[1] = 0.0f;
+    top_group.stroke_color[2] = 0.0f; top_group.stroke_color[3] = 1.0f;
+    top_group.line_width = 3.0f;
+    top_group.stroke_extra = 1.0f;
+    top_group.xray = true;
+    OverlayRenderer::LineGroup debug_group;
+    debug_group.color[0] = 1.0f; debug_group.color[1] = 0.1f; debug_group.color[2] = 0.1f; debug_group.color[3] = 1.0f;
+    debug_group.stroke_color[0] = 0.0f; debug_group.stroke_color[1] = 0.0f;
+    debug_group.stroke_color[2] = 0.0f; debug_group.stroke_color[3] = 1.0f;
+    debug_group.line_width = 2.0f;
+    debug_group.stroke_extra = 0.5f;
+    debug_group.xray = true;
+
     std::vector<OverlayRenderer::Label> labels;
     std::vector<float> highlights;
     QMap<QString, double> visible_sums;
@@ -1147,7 +1212,7 @@ void MeasurementPanel::refreshOverlays() {
                 const int id = child->data(0, kRoleRecordId).toInt();
                 if (id >= 0 && id < static_cast<int>(records_.size())) {
                     if (isItemVisible(child)) {
-                        drawRecord(group, labels, highlights, records_[id]);
+                        drawRecord(group, &top_group, &debug_group, labels, highlights, records_[id]);
                         visible_sums[records_[id].unit] += records_[id].value;
                     }
                 } else {
@@ -1158,11 +1223,11 @@ void MeasurementPanel::refreshOverlays() {
         walk(measures_tree_->invisibleRootItem());
     }
 
-    if (group.world_xyz.empty()) {
-        viewport_->setOverlayLines({});
-    } else {
-        viewport_->setOverlayLines({group});
-    }
+    std::vector<OverlayRenderer::LineGroup> line_groups;
+    if (!group.world_xyz.empty()) line_groups.push_back(group);
+    if (!top_group.world_xyz.empty()) line_groups.push_back(top_group);
+    if (!debug_group.world_xyz.empty()) line_groups.push_back(debug_group);
+    viewport_->setOverlayLines(line_groups);
     viewport_->setOverlayLabels(labels);
     viewport_->setHighlightTriangles(highlights, 1.0f, 0.85f, 0.1f, 0.55f);
 

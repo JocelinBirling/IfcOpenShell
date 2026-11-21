@@ -100,21 +100,50 @@ double measureSurfaceVitrage(ViewportWindow& vp,
                              std::uint32_t object_id,
                              std::vector<MeasuredObject>* objects_out,
                              std::vector<ClassifiedFace>* faces_out) {
-    if (!elementIsGlazed(element)) return 0.0;
+    // Reuse the lateral grouping from Measurements.cpp via the world mesh.
+    const WorldMesh wm = worldTriangles(vp, object_id);
+    if (wm.triangles.empty()) return 0.0;
 
-    // Sum the largest coplanar lateral face group of the mesh (the glazed
-    // pane is usually the biggest lateral face of a window / curtain wall).
+    // Glazing test. Two paths: the IFC material (name / rendering
+    // transparency), or — the one that works for projects whose windows
+    // carry no IfcMaterial at all, like the Duplex — the transparency baked
+    // into the mesh vertex colors (alpha < 255), i.e. exactly what the
+    // renderer routes to the transparent pass and what the .ifcview stores.
+    bool mesh_has_alpha = false;
+    for (const std::uint8_t a : wm.alpha) {
+        if (a < 255u) { mesh_has_alpha = true; break; }
+    }
+    if (!mesh_has_alpha && !elementIsGlazed(element)) return 0.0;
+
+    // A triangle counts as glazed when all three of its vertices are
+    // transparent; when the mesh has transparent vertices, only those
+    // triangles are grouped (the frame stays out of the measurement).
+    std::vector<char> tri_glazed;
+    bool any_glazed_tri = false;
+    if (mesh_has_alpha && !wm.indices.empty()
+        && wm.indices.size() == wm.triangles.size() / 3) {
+        tri_glazed.resize(wm.indices.size() / 3);
+        for (std::size_t t = 0; t + 2 < wm.indices.size(); t += 3) {
+            const auto transparent = [&](std::uint32_t vi) {
+                return vi < wm.alpha.size() && wm.alpha[vi] < 255u;
+            };
+            const char g = (transparent(wm.indices[t]) && transparent(wm.indices[t + 1])
+                            && transparent(wm.indices[t + 2])) ? 1 : 0;
+            tri_glazed[t / 3] = g;
+            if (g) any_glazed_tri = true;
+        }
+    }
+    const bool only_glazed = mesh_has_alpha && any_glazed_tri;
+
+    // Sum the largest coplanar face group of the mesh (the glazed pane is
+    // usually the biggest face of a window / curtain wall; it can be the
+    // top face of a skylight too).
     Eigen::Vector3f emn, emx;
     if (!vp.computeObjectAabb(object_id, emn, emx)) return 0.0;
     float mn[3] = {emn.x(), emn.y(), emn.z()};
     float mx[3] = {emx.x(), emx.y(), emx.z()};
 
-    // Reuse the lateral grouping from Measurements.cpp via the world mesh.
-    const WorldMesh wm = worldTriangles(vp, object_id);
-    if (wm.triangles.empty()) return 0.0;
-
-    // Largest coplanar face group among ALL faces (glazing can be the top
-    // face of a skylight too): group by (normal, offset) and keep the largest.
+    // Largest coplanar face group: group by (normal, offset) and keep the largest.
     struct Group {
         float nx = 0, ny = 0, nz = 0, d = 0;
         double area = 0.0, cx = 0.0, cy = 0.0, cz = 0.0;
@@ -124,6 +153,7 @@ double measureSurfaceVitrage(ViewportWindow& vp,
     constexpr float kNormalTol = 0.05f;
     constexpr float kPlaneTol = 0.02f;
     for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
+        if (only_glazed && !tri_glazed[t / 9]) continue;
         const float* a = &wm.triangles[t];
         const float* b = &wm.triangles[t + 3];
         const float* c = &wm.triangles[t + 6];
