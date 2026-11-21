@@ -7,7 +7,14 @@ The idea is to ease the opening of file:
 	- Easier File Explorer
 	- Save the last 3 default path
 
+This spec also carries the "Easier model loading" theme of the BonsaiViewer99 ideas backlog (default folder, favorite places, better explorer, Open Recent restricted to `.ifcfed`, and a clear UI message that big models should be converted before opening).
+
 ## Specification
+
+### Clear guidance for big models
+Even with the additions below, adding a model is still not easy enough for everyone. The UI must make it clear that, for big models or a slow computer, the file should be converted before being opened:
+	- The Add IFC Files / Open dialogs show a hint (label or tooltip) that large IFC files open faster once converted to `.ifcview` (single model) or `.ifcfed` (federation), and that the viewer writes/reads the `.ifcview` cache automatically next to the IFC when the folder is writable.
+	- The conversion path (Mass Conversion / Save Project As `.ifcfed`) is reachable from the same dialogs or the File menu, one click away.
 
 ### Drag And Drop
 We can select several file in the explorer and drop them in the 3D View.
@@ -39,6 +46,18 @@ In the software parameters, you can add 3 files path that will be displayed in t
 By default, this path will be completed by the 3 most common root of the file you use.
 A "root" is the parent folder of a loaded file. The viewer counts the most frequent parent folders of recently loaded files and fills the default paths with the top 3. This history is persisted in the settings.
 
+### Default folder (from BonsaiViewer99)
+When the file-add dialog opens, it opens by default in a folder the user can choose. This folder is changed in the settings (software parameters), separately from the 3 default paths above: the chosen folder is the starting directory of every file dialog (Add IFC Files, Open Project, Save Project As, Import Document), while the 3 default paths stay as quick links in the explorer.
+
+### Favorite places (from BonsaiViewer99)
+The user can save favorite places; they are stored in the side (a Favorites section of the file explorer / a side panel next to the dialog), so they are always visible in the explorer window and reachable in one click, without typing a path.
+
+### Better explorer window (from BonsaiViewer99)
+The file explorer must be better than the plain system dialog: a "Look in" top bar that accepts a pasted path (already required above), favorite places and default paths visible in the side, and a clear display of the `.ifcview` / `.ifcfed` conversion state of each listed file (converted cache available or not).
+
+### Open Recent — .ifcfed only (from BonsaiViewer99)
+Open Recent only saves `.ifcfed` files. Opening or saving any other file (single `.ifc`, cloud item without a local `.ifcfed`) does not add an entry to the Open Recent list.
+
 ## Open Subject
 
 ## Implementation notes (to validate)
@@ -47,6 +66,10 @@ A "root" is the parent folder of a loaded file. The viewer counts the most frequ
 - Drag and drop onto the 3D view: implemented in `modules/easy_load/View.cpp` (`EasyLoadView::handleDrop`), including the folder tree option (`createFolderTree`). Not yet wired into `MainWindow` (see below).
 - "Look in" with a pasted path: implemented in `components/FileDialogPaths.cpp` (`acceptPastedPaths`), called for Add IFC Files, Open Project and Save Project As. The "Look in" combo is made editable; Enter on an existing folder or file path navigates there. Only the non-native Qt dialog has this bar (the Windows native dialog does not).
 - Default paths (3 most frequent roots, persisted): not implemented.
+- Default folder (BonsaiViewer99): not implemented — the dialogs still open in the last used folder. Settings entry to choose the default folder: not implemented.
+- Favorite places stored in the side: not implemented.
+- Clear guidance for big models (convert to `.ifcview` / `.ifcfed` first): partially covered — the loader already reads/writes the `.ifcview` cache automatically (see "Conversion to .ifcview" below), but no UI hint tells the user to convert big files before opening.
+- Open Recent `.ifcfed` only (BonsaiViewer99): not implemented — `modules/project/RecentProjects.cpp` (`RecentProjects::add`, fed by `MainWindow` on `projectOpened` / `projectSaved`) currently records every opened/saved path; it must filter to `.ifcfed` files only.
 
 ### Decisions taken
 - Only `.ifc` files are loaded (case-insensitive). Other dropped files are ignored silently.
