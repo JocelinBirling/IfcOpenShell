@@ -67,6 +67,8 @@ private:
     QWidget* buildLayoutsTab();
     // BonsaiViewer10: the author of the BCF topics and comments.
     QWidget* buildBcfTab();
+    // BonsaiViewer22: the default folder and the default paths of the file dialogs.
+    QWidget* buildPathsTab();
     void refreshShortcutRows();
     void applyShortcutFilter(const QString& text);
     void onShortcutEdited(const QString& id, const QKeySequence& sequence);
@@ -104,6 +106,9 @@ private:
     QLabel* shortcut_warning_ = nullptr;
     QLineEdit* bcf_author_edit_ = nullptr;
     QPlainTextEdit* bcf_priorities_edit_ = nullptr;
+    // BonsaiViewer22: the Paths tab — default folder + up to 3 default paths.
+    QLineEdit* default_folder_edit_ = nullptr;
+    std::vector<QLineEdit*> default_path_edits_;
 };
 
 } // namespace bonsaiviewer::modules::settings

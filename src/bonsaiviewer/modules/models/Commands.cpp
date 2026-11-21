@@ -388,6 +388,7 @@ void addModel(SessionState& session, QWidget& host) {
         file_dialog.setNameFilter("IFC Files (*.ifc);;All Files (*)");
         file_dialog.setOption(QFileDialog::DontUseNativeDialog, true);
         bonsaiviewer::components::acceptPastedPaths(file_dialog);
+        bonsaiviewer::components::applyDefaultPaths(file_dialog);
         if (file_dialog.exec() == QDialog::Accepted) {
             paths = file_dialog.selectedFiles();
         }
@@ -796,6 +797,7 @@ void runMassConversion(SessionState& session, QWidget& host, const QString& titl
     dialog.setNameFilter(name_filter);
     dialog.setOption(QFileDialog::DontUseNativeDialog, true);
     bonsaiviewer::components::acceptPastedPaths(dialog);
+    bonsaiviewer::components::applyDefaultPaths(dialog);
     if (dialog.exec() != QDialog::Accepted) return;
     QStringList inputs = dialog.selectedFiles();
     if (inputs.isEmpty()) return;

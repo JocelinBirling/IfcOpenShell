@@ -29,6 +29,13 @@ namespace bonsaiviewer::components {
 // happens there.
 void acceptPastedPaths(QFileDialog& dialog);
 
+// BonsaiViewer22 (Easy Load File): applies the configured default folder and
+// default paths (ViewerSettings, settings "Paths" tab) to a file dialog: the
+// dialog opens in the default folder when one is set, and the default paths
+// appear in the sidebar of the non-native dialog. No-op on a native dialog
+// (it has no sidebar) or when nothing is configured.
+void applyDefaultPaths(QFileDialog& dialog);
+
 } // namespace bonsaiviewer::components
 
 #endif // IFCINTERFACE_COMPONENTS_FILEDIALOGPATHS_H

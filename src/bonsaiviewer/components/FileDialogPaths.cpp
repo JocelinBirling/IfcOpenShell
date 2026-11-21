@@ -17,12 +17,15 @@
 
 #include "FileDialogPaths.h"
 
+#include "../ViewerSettings.h"
+
 #include <QComboBox>
 #include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QUrl>
 
 namespace bonsaiviewer::components {
 
@@ -73,6 +76,24 @@ void acceptPastedPaths(QFileDialog& dialog) {
     if (QLineEdit* edit = look_in->lineEdit()) {
         edit->installEventFilter(new PastedPathFilter(&dialog, edit));
     }
+}
+
+void applyDefaultPaths(QFileDialog& dialog) {
+    const auto& settings = bonsaiviewer::ViewerSettings::instance();
+
+    // The default folder is the starting directory of the dialog.
+    const QString folder = settings.defaultFolder();
+    if (!folder.isEmpty() && QFileInfo::exists(folder)) {
+        dialog.setDirectory(folder);
+    }
+
+    // The default paths go to the sidebar (the "side" of the explorer) of the
+    // non-native dialog; setSidebarUrls is a no-op on a native dialog.
+    QList<QUrl> sidebar;
+    for (const QString& path : settings.defaultPaths()) {
+        if (QFileInfo::exists(path)) sidebar.append(QUrl::fromLocalFile(path));
+    }
+    if (!sidebar.isEmpty()) dialog.setSidebarUrls(sidebar);
 }
 
 } // namespace bonsaiviewer::components

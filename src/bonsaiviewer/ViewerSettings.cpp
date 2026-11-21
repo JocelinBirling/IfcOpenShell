@@ -32,6 +32,10 @@ constexpr const char* kThemeModeKey = "interface/theme/mode";
 constexpr const char* kThemeColorPrefix = "interface/theme/colors/";
 constexpr const char* kZoomPresetKey = "interface/navigation/zoom_preset";
 constexpr const char* kOrbitPresetKey = "interface/navigation/orbit_preset";
+// BonsaiViewer22: default folder + default paths of the file dialogs.
+constexpr const char* kDefaultFolderKey = "paths/default_folder";
+constexpr const char* kDefaultPathsKey = "paths/default_paths";
+constexpr int kMaxDefaultPaths = 3;
 
 using Spec = bonsaiviewer::ViewerSettings::ThemeColorSpec;
 
@@ -194,6 +198,27 @@ void ViewerSettings::setOrbitPreset(OrbitPreset preset) {
     emit navigationPresetsChanged();
 }
 
+void ViewerSettings::setDefaultFolder(const QString& path) {
+    const QString cleaned = path.trimmed();
+    if (default_folder_ == cleaned) return;
+    default_folder_ = cleaned;
+    persist();
+    emit pathsChanged();
+}
+
+void ViewerSettings::setDefaultPaths(const QStringList& paths) {
+    QStringList cleaned;
+    for (const QString& path : paths) {
+        const QString trimmed = path.trimmed();
+        if (!trimmed.isEmpty() && !cleaned.contains(trimmed)) cleaned.append(trimmed);
+        if (cleaned.size() >= kMaxDefaultPaths) break;
+    }
+    if (default_paths_ == cleaned) return;
+    default_paths_ = cleaned;
+    persist();
+    emit pathsChanged();
+}
+
 void ViewerSettings::load() {
     QSettings settings;
     int raw_mode = settings.value(kThemeModeKey, static_cast<int>(ThemeMode::Light)).toInt();
@@ -214,6 +239,10 @@ void ViewerSettings::load() {
                                    .toString();
         custom_colors_[i] = normalizedColor(stored, QString::fromUtf8(spec.dark_default));
     }
+
+    default_folder_ = settings.value(QString::fromUtf8(kDefaultFolderKey)).toString();
+    default_paths_ = settings.value(QString::fromUtf8(kDefaultPathsKey)).toStringList();
+    while (default_paths_.size() > kMaxDefaultPaths) default_paths_.removeLast();
 }
 
 void ViewerSettings::persist() const {
@@ -225,6 +254,8 @@ void ViewerSettings::persist() const {
         settings.setValue(QString::fromUtf8(kThemeColorPrefix) + QString::fromUtf8(kThemeColorSpecs[i].key),
                           custom_colors_[i]);
     }
+    settings.setValue(QString::fromUtf8(kDefaultFolderKey), default_folder_);
+    settings.setValue(QString::fromUtf8(kDefaultPathsKey), default_paths_);
 }
 
 } // namespace bonsaiviewer

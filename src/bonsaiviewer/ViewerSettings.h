@@ -23,6 +23,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <vector>
 
 namespace bonsaiviewer {
@@ -70,10 +71,18 @@ public:
     OrbitPreset orbitPreset() const;
     void setOrbitPreset(OrbitPreset preset);
 
+    // BonsaiViewer22: the default folder the file dialogs open in, and the
+    // default paths (up to 3) shown in the dialogs' sidebar. Persisted.
+    QString defaultFolder() const { return default_folder_; }
+    void setDefaultFolder(const QString& path);
+    QStringList defaultPaths() const { return default_paths_; }
+    void setDefaultPaths(const QStringList& paths);
+
 signals:
     void themeModeChanged(ThemeMode mode);
     void themeChanged();
     void navigationPresetsChanged();
+    void pathsChanged();
 
 private:
     ViewerSettings();
@@ -84,6 +93,8 @@ private:
     std::vector<QString> custom_colors_;
     ZoomPreset zoom_preset_ = ZoomPreset::CenterView;
     OrbitPreset orbit_preset_ = OrbitPreset::CenterView;
+    QString default_folder_;
+    QStringList default_paths_;
 };
 
 } // namespace bonsaiviewer

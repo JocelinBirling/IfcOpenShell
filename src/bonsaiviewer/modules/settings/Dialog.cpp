@@ -359,6 +359,7 @@ void SettingsDialog::setupUi() {
     addTab("Interface", interface_tab);
     addTab("Keybindings", buildKeybindingsTab());
     addTab("Layouts", buildLayoutsTab());
+    addTab("Paths", buildPathsTab());
     addTab("BCF", buildBcfTab());
     addTab("Graphics", graphics_tab);
     addTab("Connectors", buildConnectorsTab());
@@ -399,6 +400,12 @@ void SettingsDialog::syncFromSettings() {
         orbit_preset_combo_->findData(static_cast<int>(viewer_settings.orbitPreset())));
     syncThemeSettings();
     refreshShortcutRows();
+    // BonsaiViewer22: the Paths tab.
+    default_folder_edit_->setText(viewer_settings.defaultFolder());
+    const QStringList paths = viewer_settings.defaultPaths();
+    for (size_t i = 0; i < default_path_edits_.size(); ++i) {
+        default_path_edits_[i]->setText(i < paths.size() ? paths.at(int(i)) : QString());
+    }
 }
 
 QWidget* SettingsDialog::buildBcfTab() {
@@ -462,6 +469,59 @@ QWidget* SettingsDialog::buildLayoutsTab() {
             && QMetaObject::invokeMethod(parentWidget(), "forgetSavedLayouts", Qt::DirectConnection);
         status->setText(ok ? "The defaults will be used at the next start." : "Not available.");
     });
+    section->addBodyWidget(body);
+    layout->addWidget(section);
+    layout->addStretch(1);
+    return tab;
+}
+
+// BonsaiViewer22 (Easy Load File): the Paths tab — the default folder the file
+// dialogs open in, and the default paths (up to 3) shown in the sidebar of the
+// non-native dialogs. Persisted in ViewerSettings.
+QWidget* SettingsDialog::buildPathsTab() {
+    auto* tab = new QWidget(this);
+    auto* layout = new QVBoxLayout(tab);
+    auto* section = new components::Section("File dialogs", components::SectionHeaderMode::Visible, tab);
+    auto* body = new QWidget(section);
+    auto* form = new QFormLayout(body);
+
+    auto makeBrowse = [this, body](QLineEdit* edit) {
+        auto* button = new QPushButton("Browse…", body);
+        connect(button, &QPushButton::clicked, this, [this, edit]() {
+            const QString path = QFileDialog::getExistingDirectory(
+                this, QStringLiteral("Choose a folder"), edit->text());
+            if (!path.isEmpty()) edit->setText(path);
+        });
+        return button;
+    };
+
+    auto* folder_row = new QHBoxLayout();
+    default_folder_edit_ = new QLineEdit(body);
+    default_folder_edit_->setPlaceholderText(QStringLiteral("(last used folder)"));
+    folder_row->addWidget(default_folder_edit_, 1);
+    folder_row->addWidget(makeBrowse(default_folder_edit_));
+    form->addRow(QStringLiteral("Default folder"), folder_row);
+
+    default_path_edits_.clear();
+    for (int i = 0; i < 3; ++i) {
+        auto* edit = new QLineEdit(body);
+        edit->setPlaceholderText(QStringLiteral("Path %1").arg(i + 1));
+        auto* row = new QHBoxLayout();
+        row->addWidget(edit, 1);
+        row->addWidget(makeBrowse(edit));
+        form->addRow(QStringLiteral("Default path %1").arg(i + 1), row);
+        default_path_edits_.push_back(edit);
+    }
+
+    auto* hint = new QLabel(
+        QStringLiteral("The default folder is the starting directory of Add IFC Files, Open Project and "
+                       "Save Project As. The default paths appear in the sidebar of the file dialogs, so they "
+                       "are always one click away. The \"Look in\" bar also accepts a pasted path."),
+        body);
+    hint->setWordWrap(true);
+    hint->setProperty("textRole", "secondary");
+    form->addRow(hint);
+
     section->addBodyWidget(body);
     layout->addWidget(section);
     layout->addStretch(1);
@@ -693,6 +753,11 @@ void SettingsDialog::onAccepted() {
     }
     bcf::setAuthor(bcf_author_edit_->text());
     bcf::setCriticityPrioritiesText(bcf_priorities_edit_->toPlainText());
+    // BonsaiViewer22: the Paths tab.
+    interface_settings.setDefaultFolder(default_folder_edit_->text());
+    QStringList paths;
+    for (QLineEdit* edit : default_path_edits_) paths.append(edit->text());
+    interface_settings.setDefaultPaths(paths);
     accept();
 }
 

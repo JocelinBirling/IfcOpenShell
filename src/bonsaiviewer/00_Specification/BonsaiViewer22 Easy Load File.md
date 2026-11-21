@@ -65,9 +65,9 @@ Open Recent only saves `.ifcfed` files. Opening or saving any other file (single
 ### Status
 - Drag and drop onto the 3D view: implemented in `modules/easy_load/View.cpp` (`EasyLoadView::handleDrop`), including the folder tree option (`createFolderTree`). Not yet wired into `MainWindow` (see below).
 - "Look in" with a pasted path: implemented in `components/FileDialogPaths.cpp` (`acceptPastedPaths`), called for Add IFC Files, Open Project and Save Project As. The "Look in" combo is made editable; Enter on an existing folder or file path navigates there. Only the non-native Qt dialog has this bar (the Windows native dialog does not).
-- Default paths (3 most frequent roots, persisted): not implemented.
-- Default folder (BonsaiViewer99): not implemented — the dialogs still open in the last used folder. Settings entry to choose the default folder: not implemented.
-- Favorite places stored in the side: not implemented.
+- Default paths (up to 3, persisted): implemented — editable in Settings > Paths ("Default path 1..3" with Browse…), stored in `ViewerSettings` (`paths/default_paths`) and added to the sidebar of the non-native file dialogs (`components::applyDefaultPaths`). The automatic fill from the 3 most frequent roots of recently loaded files is still not implemented.
+- Default folder (BonsaiViewer99): implemented — Settings > Paths > "Default folder" (`ViewerSettings::defaultFolder`, key `paths/default_folder`); `components::applyDefaultPaths` sets it as the starting directory of Add IFC Files, Open Project, Save Project As, the BCF and the conversion dialogs (all the dialogs that already call `acceptPastedPaths`).
+- Favorite places stored in the side: partially implemented — the default paths appear in the sidebar ("side") of the non-native dialogs; a separate Favorites section of the explorer is still open.
 - Clear guidance for big models (convert to `.ifcview` / `.ifcfed` first): partially covered — the loader already reads/writes the `.ifcview` cache automatically (see "Conversion to .ifcview" below), but no UI hint tells the user to convert big files before opening.
 - Open Recent `.ifcfed` only (BonsaiViewer99): not implemented — `modules/project/RecentProjects.cpp` (`RecentProjects::add`, fed by `MainWindow` on `projectOpened` / `projectSaved`) currently records every opened/saved path; it must filter to `.ifcfed` files only.
 

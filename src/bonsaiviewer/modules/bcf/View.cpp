@@ -141,6 +141,7 @@ void BcfView::load() {
     dialog.setNameFilters({"BCF files (*.bcf *.bcfzip)", "All files (*)"});
     dialog.setFileMode(QFileDialog::ExistingFile);
     components::acceptPastedPaths(dialog);
+    components::applyDefaultPaths(dialog);
     if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) return;
     const QString path = dialog.selectedFiles().front();
     QString error;
@@ -172,6 +173,7 @@ void BcfView::save() {
     dialog.setDefaultSuffix("bcf");
     if (!path_.isEmpty()) dialog.selectFile(path_);
     components::acceptPastedPaths(dialog);
+    components::applyDefaultPaths(dialog);
     if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) return;
     const QString path = dialog.selectedFiles().front();
     const QString version = dialog.selectedNameFilter() == v2 ? QStringLiteral("2.1") : QStringLiteral("3.0");
