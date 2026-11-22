@@ -41,14 +41,15 @@
 #include <QWidgetAction>
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 
 namespace bonsaiviewer::modules::external_documents {
 
 namespace {
 
-// The four model columns prepended to the file's columns.
-constexpr int kModelColumnCount = 4; // Model, Class, Name, GlobalId
+// The model columns prepended to the file's columns.
+constexpr int kModelColumnCount = 3; // Class, Name, GlobalId
 
 // Header icons, same geometry as the Table panel header (TableHeader.cpp).
 constexpr int kIconSize = 12;
@@ -56,11 +57,24 @@ constexpr int kIconGap = 4;
 // Room taken on the right of each section by the arrow and the funnel.
 constexpr int kIconsWidth = 2 * kIconSize + 3 * kIconGap;
 
+// Alphabetical, locale-aware, case-insensitive; ties broken case-sensitively.
+bool textLess(const QString& a, const QString& b) {
+    const int order = QString::localeAwareCompare(a.toLower(), b.toLower());
+    return order != 0 ? order < 0 : a < b;
+}
+
+// Same number rule as the Table panel (TableModel::autoNumeric): a comma is
+// the decimal separator ("3,14"), unless a dot is there too.
 bool isNumber(const QString& text, double& out) {
-    if (text.isEmpty()) return false;
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty() || (trimmed.contains('.') && trimmed.contains(','))) return false;
     bool ok = false;
-    out = text.toDouble(&ok);
-    return ok;
+    const double value = QString(trimmed).replace(',', '.').toDouble(&ok);
+    // "nan" / "inf" parse as numbers; a NaN would break the strict weak
+    // ordering the sort relies on.
+    if (!ok || !std::isfinite(value)) return false;
+    out = value;
+    return true;
 }
 
 } // namespace
@@ -74,8 +88,7 @@ public:
                       QObject* parent = nullptr)
         : QAbstractTableModel(parent), data_(data), join_(join), row_info_(row_info)
     {
-        columns_ << QStringLiteral("Model") << QStringLiteral("Class")
-                 << QStringLiteral("Name") << QStringLiteral("GlobalId");
+        columns_ << QStringLiteral("Class") << QStringLiteral("Name") << QStringLiteral("GlobalId");
         columns_ << data.columns;
     }
 
@@ -101,13 +114,8 @@ public:
         if (role != Qt::DisplayRole) return {};
         if (column < kModelColumnCount) {
             if (!matched) return {};
-            switch (column) {
-            case 0: return row_info_.model_name_of ? row_info_.model_name_of(object_id) : QString();
-            default: {
-                const QStringList info = row_info_.basic_info_of ? row_info_.basic_info_of(object_id) : QStringList();
-                return info.size() >= 3 ? info.at(column - 1) : QString();
-            }
-            }
+            const QStringList info = row_info_.basic_info_of ? row_info_.basic_info_of(object_id) : QStringList();
+            return info.size() >= 3 ? info.at(column) : QString();
         }
         const QStringList& values = data_.rows.at(row);
         const int file_column = column - kModelColumnCount;
@@ -137,15 +145,12 @@ public:
     QStringList columnValues(int column) const {
         QSet<QString> values;
         for (int row = 0; row < model_->rowCount(); ++row) values.insert(cellText(row, column));
-        QStringList out = values.values();
-        std::sort(out.begin(), out.end(), [](const QString& a, const QString& b) {
-            double da, db;
-            const bool na = isNumber(a, da), nb = isNumber(b, db);
-            if (na && nb) return da < db;
-            if (na != nb) return na; // numbers first
-            return a.compare(b, Qt::CaseInsensitive) < 0;
+        QStringList sorted(values.begin(), values.end());
+        std::sort(sorted.begin(), sorted.end(), [](const QString& a, const QString& b) {
+            if (a.isEmpty() != b.isEmpty()) return b.isEmpty(); // empty last
+            return textLess(a, b);
         });
-        return out;
+        return sorted;
     }
     void setColumnFilter(int column, const QSet<QString>& kept) {
         if (kept.isEmpty()) filters_.erase(column);
@@ -164,14 +169,19 @@ public:
     }
 
 protected:
+    // Same order as the Table panel (TableProxy::lessThan).
     bool lessThan(const QModelIndex& left, const QModelIndex& right) const override {
         const QString a = left.data(Qt::DisplayRole).toString();
         const QString b = right.data(Qt::DisplayRole).toString();
+        // Empty cells stay at the end, whatever the order.
+        const bool descending = sortOrder() == Qt::DescendingOrder;
+        if (a.isEmpty() != b.isEmpty()) return descending ? a.isEmpty() : b.isEmpty();
+        // Numbers before texts; numbers by value, texts alphabetically.
         double da, db;
         const bool na = isNumber(a, da), nb = isNumber(b, db);
-        if (na && nb) return da < db;
-        if (na != nb) return na; // numbers before texts
-        return a.compare(b, Qt::CaseInsensitive) < 0;
+        if (na != nb) return na;
+        if (na) return da < db;
+        return textLess(a, b);
     }
     bool filterAcceptsRow(int source_row, const QModelIndex&) const override {
         for (const auto& [column, kept] : filters_) {
@@ -277,26 +287,24 @@ protected:
     }
 
     void mousePressEvent(QMouseEvent* event) override {
-        press_pos_ = event->pos();
-        press_section_ = logicalIndexAt(event->pos());
-        const int section = press_section_;
-        if (section >= 0 && event->button() == Qt::LeftButton &&
-            filterRect(sectionRectOf(section)).adjusted(-2, -4, 2, 4).contains(event->pos())) {
-            emit filterRequested(section, event->globalPosition().toPoint());
-            return;
+        // Same as the Table panel header: the arrow cycles the sort, the
+        // funnel opens the filter; neither starts a column drag.
+        const int section = logicalIndexAt(event->pos());
+        if (section >= 0 && event->button() == Qt::LeftButton) {
+            const QRect rect = sectionRectOf(section);
+            // Slightly larger hit areas than the icons.
+            if (sortRect(rect).adjusted(-2, -4, 2, 4).contains(event->pos())) {
+                emit sortCycleRequested(section);
+                event->accept();
+                return;
+            }
+            if (filterRect(rect).adjusted(-2, -4, 2, 4).contains(event->pos())) {
+                emit filterRequested(section, event->globalPosition().toPoint());
+                event->accept();
+                return;
+            }
         }
         QHeaderView::mousePressEvent(event);
-    }
-
-    void mouseReleaseEvent(QMouseEvent* event) override {
-        // A click (not a drag) on the label — not on the icons — cycles the sort.
-        const int section = logicalIndexAt(event->pos());
-        const bool click = event->button() == Qt::LeftButton && section >= 0 && section == press_section_ &&
-                           (event->pos() - press_pos_).manhattanLength() < 5;
-        QHeaderView::mouseReleaseEvent(event);
-        if (click && event->pos().x() < sectionRectOf(section).right() - kIconsWidth) {
-            emit sortCycleRequested(section);
-        }
     }
 
 private:
@@ -310,8 +318,6 @@ private:
         return QRect(sectionViewportPosition(logical_index), 0, sectionSize(logical_index), height());
     }
 
-    QPoint press_pos_;
-    int press_section_ = -1;
     int sort_section_ = -1;
     int sort_order_ = 0;
     QSet<int> filtered_;
@@ -445,7 +451,7 @@ void ExternalGridPanel::showTable(const ExternalDocument& document, const TableD
     // (Visualize → Edit Join → Visualize) hides the column titles.
     header_->setVisible(true);
 
-    // Sort cycle on the header label: A→Z, Z→A, then back to the file order.
+    // Sort cycle on the header arrow: A→Z, Z→A, then back to the file order.
     connect(header, &ExternalGridHeader::sortCycleRequested, this, [this, header](int section) {
         auto* proxy = static_cast<ExternalGridProxy*>(proxy_);
         int order = 0;

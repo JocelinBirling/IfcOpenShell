@@ -80,6 +80,10 @@ struct JoinResult {
 QString keyOfObject(std::uint32_t object_id, const JoinConfig& join,
                     SessionState& session, services::IfcDataAccess& data_access);
 
+// The model's display name (its file name by default) for a session model —
+// modelIdForSessionModelId returns the internal GUID id, not a label.
+QString modelDisplayName(const SessionState& session, std::uint32_t session_model_id);
+
 // Joins `data` on `join.table_key_column`. The key column is matched by
 // name; when it disappeared from the file the result is empty and
 // `key_column_missing` is true.

@@ -58,7 +58,7 @@ public:
     // Class / Name / GlobalId for the model columns.
     struct RowInfo {
         std::function<std::uint32_t(int)> object_of_row;      // row -> object id (0 when unmatched)
-        std::function<QString(std::uint32_t)> model_name_of;  // object id -> model id
+        std::function<QString(std::uint32_t)> model_name_of;  // object id -> model display name
         std::function<QStringList(std::uint32_t)> basic_info_of; // object id -> {Class, Name, GlobalId}
     };
 

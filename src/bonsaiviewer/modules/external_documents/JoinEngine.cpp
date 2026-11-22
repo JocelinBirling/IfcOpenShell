@@ -24,6 +24,7 @@
 #include "../../ElementRegistry.h"
 #include "../../services/IfcDataAccess.h"
 #include "../../services/PropertyCatalog.h"
+#include "../../../ifcviewer/Federation.h"
 
 #include <QSet>
 
@@ -65,6 +66,14 @@ std::vector<BasicElementInfo> allElements(SessionState& session) {
 }
 
 } // namespace
+
+QString modelDisplayName(const SessionState& session, std::uint32_t session_model_id) {
+    auto* federation = session.federation();
+    if (federation == nullptr) return {};
+    if (const auto* model = federation->findById(session.modelIdForSessionModelId(session_model_id)))
+        return model->display_name;
+    return {};
+}
 
 QString keyOfObject(std::uint32_t object_id, const JoinConfig& join,
                     SessionState& session, services::IfcDataAccess& data_access) {
@@ -154,7 +163,7 @@ JoinResult joinTable(const TableData& data, const JoinConfig& join,
             info.ifc_class = basic->type;
             info.name = basic->name;
             info.global_id = basic->guid;
-            info.model = session.modelIdForSessionModelId(basic->session_model_id);
+            info.model = modelDisplayName(session, basic->session_model_id);
         }
         result.report.unmatched_object_values.append(info);
     }

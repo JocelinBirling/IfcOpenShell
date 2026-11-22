@@ -417,7 +417,9 @@ void ExternalDocumentsView::visualize(ExternalDocument& document) {
     row_info.object_of_row = [join = table.join](int row) { return join.row_to_object.value(row, 0); };
     row_info.model_name_of = [this](std::uint32_t object_id) {
         if (const auto info = session_.elementRegistry()->findBasicElementInfo(object_id)) {
-            return session_.modelIdForSessionModelId(info->session_model_id);
+            // The model's display name (file name by default) —
+            // modelIdForSessionModelId would return the internal GUID id.
+            return modelDisplayName(session_, info->session_model_id);
         }
         return QString();
     };
