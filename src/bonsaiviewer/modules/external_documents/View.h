@@ -26,6 +26,7 @@
 #include "TableFile.h"
 
 #include <QHash>
+#include <QImage>
 #include <QObject>
 
 class QTreeWidget;
@@ -100,6 +101,12 @@ private:
     void exportPlanConfig(ExternalDocument& document);
     void importPlanConfig(ExternalDocument& document);
     void updatePlanOverlays();
+    // The rasterised PDF page of a plan (phase 1), cached by
+    // path + page + file size + mtime; null when no rasterizer is available.
+    QString pdfPageCacheKey(const ExternalDocument& document) const;
+    QImage planPageImage(const ExternalDocument& document);
+    // The plan's native size in meters (pdfinfo for PDFs, MediaBox scan else).
+    void planNativeSizeMeters(const ExternalDocument& document, double& w_m, double& h_m);
 
     // JSON save / load of the whole tree (root or folder context menu).
     void saveDocumentsJson();
@@ -127,6 +134,7 @@ private:
 
     DocumentStore store_;
     QHash<QString, CachedTable> cache_;
+    QHash<QString, QImage> pdf_page_cache_;
 };
 
 } // namespace bonsaiviewer::modules::external_documents

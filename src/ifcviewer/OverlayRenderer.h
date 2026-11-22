@@ -21,6 +21,7 @@
 #define WGPUOVERLAYRENDERER_H
 
 #include <QHash>
+#include <QImage>
 #include <QString>
 
 #include <Eigen/Dense>
@@ -136,6 +137,26 @@ public:
     // string hides it. Each newline starts a new line in the same rect.
     void setHudText(const QString& text);
 
+    // ---- Textured world-space quads (BonsaiViewer36 plan backgrounds) ----
+    // One image quad: four world-space corners with their texture coords,
+    // the source image (uploaded as an RGBA8 texture cached by
+    // `texture_key`), and an opacity alpha. Drawn inside the main MSAA
+    // pass like the highlight triangles, so the quad is depth-tested
+    // against the model; alpha < 1 lets the model show through the plan.
+    struct ImageQuad {
+        float corners[4][3] = {{0.f, 0.f, 0.f}}; // plan order (-,-) (+,-) (+,+) (-,+)
+        float uvs[4][2]     = {{0.f, 1.f}, {1.f, 1.f}, {1.f, 0.f}, {0.f, 0.f}};
+        QImage image;          // source pixels, converted to RGBA8888 on upload
+        QString texture_key;   // cache key of the uploaded texture
+        float alpha = 1.0f;
+    };
+    // Replace the image-quad set. Empty `quads` clears the set.
+    void setOverlayImages(const std::vector<ImageQuad>& quads);
+    // Encode the most-recently set quads: one draw per quad with its own
+    // texture bind group and a dynamic uniform offset (view_proj + alpha).
+    void encodeOverlayImages(WGPURenderPassEncoder pass,
+                             const OverlayFrame& f);
+
     // Encode all currently-set labels + the HUD. Per-string textures are
     // rasterised via QPainter into a small QImage on first sight and
     // cached by content; per-frame work is just projection, vertex
@@ -170,6 +191,7 @@ private:
     bool buildOverlayPoints();
     bool buildHighlightTriangles();
     bool buildLabels();
+    bool buildOverlayImages();
 
     // Rasterise a single string at `font_pt` with dark-grey padded
     // background + white text, upload as an RGBA8 texture, build the
@@ -274,6 +296,40 @@ private:
     QHash<QString, LabelTexture> label_tex_cache_;
     std::vector<Label>  labels_;
     QString             hud_text_;
+
+    // ---- Image quads (textured world-space quads, e.g. 2D plan pages) ----
+    // Vertex buffer holds 6 verts × 5 floats (pos.xyz + uv) per quad.
+    // Uniform buffer holds one 256-byte slot per quad (view_proj + alpha),
+    // bound per-quad through a dynamic offset; each quad owns a bind group
+    // pointing at its own cached texture.
+    WGPUShaderModule    image_quad_shader_module_   = nullptr;
+    WGPUBindGroupLayout image_quad_bgl_             = nullptr;
+    WGPUPipelineLayout  image_quad_pipeline_layout_ = nullptr;
+    WGPURenderPipeline  image_quad_pipeline_        = nullptr;
+    WGPUSampler         image_quad_sampler_         = nullptr;
+    WGPUBuffer          image_quad_vertex_buffer_   = nullptr;
+    uint64_t            image_quad_vertex_capacity_ = 0;
+    WGPUBuffer          image_quad_uniform_buffer_  = nullptr;
+    uint32_t            image_quad_uniform_slots_   = 0;
+    static constexpr uint32_t kImageQuadUniformSlotSize = 256;
+
+    struct ImageTexture {
+        WGPUTexture     texture = nullptr;
+        WGPUTextureView view    = nullptr;
+    };
+    ImageTexture* getOrCreateImageTexture(const QString& cache_key,
+                                          const QImage& image);
+    void releaseImageTextures();
+    QHash<QString, ImageTexture> image_tex_cache_;
+
+    // Per-quad draw record. setOverlayImages() populates one per ImageQuad;
+    // encodeOverlayImages() iterates and issues one draw each.
+    struct ImageQuadDraw {
+        uint32_t    first_vertex = 0;
+        uint32_t    vertex_count = 0;
+        WGPUBindGroup bind_group = nullptr;
+    };
+    std::vector<ImageQuadDraw> image_quad_draws_;
 };
 
 #endif  // WGPUOVERLAYRENDERER_H

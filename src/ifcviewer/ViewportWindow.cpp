@@ -425,6 +425,7 @@ void ViewportWindow::encodeOverlaysInMainPass(WGPURenderPassEncoder pass,
     // NB: section-plane gizmos and the pivot indicator now draw from
     // ViewportCore::render via their shared renderers (desktop + web), so
     // they are NOT drawn here.
+    overlays_.encodeOverlayImages(pass, frame);
     overlays_.encodeHighlightTriangles(pass, frame);
     overlays_.encodeOverlayLines(pass, frame);
     overlays_.encodeOverlayPoints(pass, frame);
@@ -1008,6 +1009,12 @@ void ViewportWindow::setHudText(const std::string& text) {
     // rasterizes the HUD text). Conversion at the boundary keeps the
     // public API Qt-free; OverlayRenderer's de-Qt comes later.
     overlays_.setHudText(QString::fromStdString(text));
+    if (isExposed()) requestUpdate();
+}
+
+void ViewportWindow::setOverlayImages(
+        const std::vector<OverlayRenderer::ImageQuad>& quads) {
+    overlays_.setOverlayImages(quads);
     if (isExposed()) requestUpdate();
 }
 

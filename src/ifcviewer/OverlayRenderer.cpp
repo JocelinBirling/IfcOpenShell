@@ -298,6 +298,42 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 }
 )WGSL";
 
+// Image-quad shader: textured world-space quads (BonsaiViewer36 plan
+// backgrounds). Each quad contributes 6 vertices (world pos + uv); the
+// page image occupies the bound texture. view_proj projects to clip;
+// the fragment modulates the sampled texel by the per-quad alpha so the
+// model shows through a semi-transparent plan. Depth-tested like the
+// highlight triangles; depth-write off.
+static const char* IMAGE_QUADS_WGSL = R"WGSL(
+struct ImgUniforms {
+    view_proj: mat4x4<f32>,
+    tint:      vec4<f32>, // rgb unused (white), a = opacity
+};
+@group(0) @binding(0) var<uniform> u: ImgUniforms;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var tex:  texture_2d<f32>;
+
+struct VsOut {
+    @builtin(position) clip_pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_main(@location(0) pos: vec3<f32>,
+           @location(1) uv:  vec2<f32>) -> VsOut {
+    var out: VsOut;
+    out.clip_pos = u.view_proj * vec4<f32>(pos, 1.0);
+    out.uv       = uv;
+    return out;
+}
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let c = textureSample(tex, samp, in.uv);
+    return vec4<f32>(c.rgb * u.tint.rgb, c.a * u.tint.a);
+}
+)WGSL";
+
 // -----------------------------------------------------------------------------
 // Construction / destruction
 // -----------------------------------------------------------------------------
@@ -320,6 +356,7 @@ bool OverlayRenderer::init(WGPUInstance instance, WGPUDevice device,
     if (!buildOverlayPoints())     return false;
     if (!buildHighlightTriangles()) return false;
     if (!buildLabels())            return false;
+    if (!buildOverlayImages())     return false;
     return true;
 }
 
@@ -383,6 +420,22 @@ void OverlayRenderer::destroy() {
     label_vertex_capacity_ = 0;
     labels_.clear();
     hud_text_.clear();
+
+    // Image quads
+    releaseImageTextures();
+    for (auto& d : image_quad_draws_) {
+        if (d.bind_group) { wgpuBindGroupRelease(d.bind_group); d.bind_group = nullptr; }
+    }
+    image_quad_draws_.clear();
+    if (image_quad_sampler_)          { wgpuSamplerRelease(image_quad_sampler_);               image_quad_sampler_ = nullptr; }
+    if (image_quad_pipeline_)         { wgpuRenderPipelineRelease(image_quad_pipeline_);       image_quad_pipeline_ = nullptr; }
+    if (image_quad_shader_module_)    { wgpuShaderModuleRelease(image_quad_shader_module_);    image_quad_shader_module_ = nullptr; }
+    if (image_quad_pipeline_layout_)  { wgpuPipelineLayoutRelease(image_quad_pipeline_layout_); image_quad_pipeline_layout_ = nullptr; }
+    if (image_quad_bgl_)              { wgpuBindGroupLayoutRelease(image_quad_bgl_);           image_quad_bgl_ = nullptr; }
+    if (image_quad_uniform_buffer_)   { wgpuBufferRelease(image_quad_uniform_buffer_);         image_quad_uniform_buffer_ = nullptr; }
+    if (image_quad_vertex_buffer_)    { wgpuBufferRelease(image_quad_vertex_buffer_);          image_quad_vertex_buffer_ = nullptr; }
+    image_quad_vertex_capacity_ = 0;
+    image_quad_uniform_slots_   = 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -1263,6 +1316,320 @@ void OverlayRenderer::encodeHighlightTriangles(WGPURenderPassEncoder pass,
     wgpuRenderPassEncoderSetVertexBuffer(pass, 0, highlight_vertex_buffer_,
                                          0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDraw(pass, highlight_vertex_count_, 1, 0, 0);
+}
+
+// -----------------------------------------------------------------------------
+// Image quads (textured world-space quads, e.g. 2D plan backgrounds)
+// -----------------------------------------------------------------------------
+
+bool OverlayRenderer::buildOverlayImages() {
+    {
+        WGPUBufferDescriptor bdesc = {};
+        bdesc.usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
+        bdesc.size  = 256;  // grows in setOverlayImages
+        bdesc.label = svFromCStr("ifcviewer-wgpu.image_quad_vbo");
+        image_quad_vertex_buffer_   = wgpuDeviceCreateBuffer(device_, &bdesc);
+        image_quad_vertex_capacity_ = 256;
+    }
+    {
+        // One 256-byte uniform slot per quad (view_proj 64 B + tint 16 B,
+        // dynamic-offset stride 256 like the overlay lines).
+        WGPUBufferDescriptor bdesc = {};
+        bdesc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+        bdesc.size  = kImageQuadUniformSlotSize;
+        bdesc.label = svFromCStr("ifcviewer-wgpu.image_quad_uniforms");
+        image_quad_uniform_buffer_ = wgpuDeviceCreateBuffer(device_, &bdesc);
+        image_quad_uniform_slots_  = 1;
+    }
+    {
+        WGPUSamplerDescriptor sd = {};
+        sd.addressModeU = WGPUAddressMode_ClampToEdge;
+        sd.addressModeV = WGPUAddressMode_ClampToEdge;
+        sd.addressModeW = WGPUAddressMode_ClampToEdge;
+        sd.magFilter     = WGPUFilterMode_Linear;
+        sd.minFilter     = WGPUFilterMode_Linear;
+        sd.mipmapFilter  = WGPUMipmapFilterMode_Nearest;
+        sd.maxAnisotropy = 1;
+        sd.label         = svFromCStr("ifcviewer-wgpu.image_quad_sampler");
+        image_quad_sampler_ = wgpuDeviceCreateSampler(device_, &sd);
+    }
+    {
+        WGPUBindGroupLayoutEntry entries[3] = {};
+        entries[0].binding    = 0;
+        entries[0].visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
+        entries[0].buffer.type             = WGPUBufferBindingType_Uniform;
+        entries[0].buffer.hasDynamicOffset = 1;
+        entries[0].buffer.minBindingSize   = 80;  // mat4 + vec4
+        entries[1].binding    = 1;
+        entries[1].visibility = WGPUShaderStage_Fragment;
+        entries[1].sampler.type = WGPUSamplerBindingType_Filtering;
+        entries[2].binding    = 2;
+        entries[2].visibility = WGPUShaderStage_Fragment;
+        entries[2].texture.sampleType     = WGPUTextureSampleType_Float;
+        entries[2].texture.viewDimension  = WGPUTextureViewDimension_2D;
+        WGPUBindGroupLayoutDescriptor bgl_desc = {};
+        bgl_desc.entryCount = 3;
+        bgl_desc.entries    = entries;
+        bgl_desc.label      = svFromCStr("ifcviewer-wgpu.image_quad_bgl");
+        image_quad_bgl_ = wgpuDeviceCreateBindGroupLayout(device_, &bgl_desc);
+    }
+    {
+        WGPUPipelineLayoutDescriptor pl_desc = {};
+        pl_desc.bindGroupLayoutCount = 1;
+        pl_desc.bindGroupLayouts     = &image_quad_bgl_;
+        pl_desc.label                = svFromCStr("ifcviewer-wgpu.image_quad_pipeline_layout");
+        image_quad_pipeline_layout_ = wgpuDeviceCreatePipelineLayout(device_, &pl_desc);
+    }
+    {
+        WGPUShaderSourceWGSL wgsl_src = {};
+        wgsl_src.chain.sType = WGPUSType_ShaderSourceWGSL;
+        wgsl_src.code        = svFromCStr(IMAGE_QUADS_WGSL);
+        WGPUShaderModuleDescriptor sm_desc = {};
+        sm_desc.nextInChain = &wgsl_src.chain;
+        sm_desc.label       = svFromCStr("ifcviewer-wgpu.image_quad_wgsl");
+        image_quad_shader_module_ = wgpuDeviceCreateShaderModule(device_, &sm_desc);
+    }
+
+    // Per-vertex layout: (pos.xyz, uv) = 5 floats = 20 bytes.
+    WGPUVertexAttribute attribs[2] = {};
+    attribs[0].format = WGPUVertexFormat_Float32x3; attribs[0].offset = 0;  attribs[0].shaderLocation = 0;
+    attribs[1].format = WGPUVertexFormat_Float32x2; attribs[1].offset = 12; attribs[1].shaderLocation = 1;
+    WGPUVertexBufferLayout vbl = {};
+    vbl.arrayStride    = 20;
+    vbl.stepMode       = WGPUVertexStepMode_Vertex;
+    vbl.attributeCount = 2;
+    vbl.attributes     = attribs;
+
+    WGPUBlendState blend = {};
+    blend.color.srcFactor = WGPUBlendFactor_SrcAlpha;
+    blend.color.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+    blend.color.operation = WGPUBlendOperation_Add;
+    blend.alpha.srcFactor = WGPUBlendFactor_One;
+    blend.alpha.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+    blend.alpha.operation = WGPUBlendOperation_Add;
+
+    WGPUColorTargetState ct = {};
+    ct.format    = surface_format_;
+    ct.blend     = &blend;
+    ct.writeMask = WGPUColorWriteMask_All;
+
+    WGPUFragmentState frag = {};
+    frag.module      = image_quad_shader_module_;
+    frag.entryPoint  = svFromCStr("fs_main");
+    frag.targetCount = 1;
+    frag.targets     = &ct;
+
+    // Depth-tested against the main MSAA depth so the plan hides behind
+    // closer geometry; depth-write off so later overlays still draw over.
+    WGPUDepthStencilState depth = {};
+    depth.format               = WGPUTextureFormat_Depth32Float;
+    depth.depthWriteEnabled    = WGPUOptionalBool_False;
+    depth.depthCompare         = WGPUCompareFunction_LessEqual;
+    depth.stencilFront.compare = WGPUCompareFunction_Always;
+    depth.stencilBack.compare  = WGPUCompareFunction_Always;
+
+    WGPURenderPipelineDescriptor rp_desc = {};
+    rp_desc.layout              = image_quad_pipeline_layout_;
+    rp_desc.label               = svFromCStr("ifcviewer-wgpu.image_quad_pipeline");
+    rp_desc.vertex.module       = image_quad_shader_module_;
+    rp_desc.vertex.entryPoint   = svFromCStr("vs_main");
+    rp_desc.vertex.bufferCount  = 1;
+    rp_desc.vertex.buffers      = &vbl;
+    rp_desc.fragment            = &frag;
+    rp_desc.depthStencil        = &depth;
+    rp_desc.primitive.topology  = WGPUPrimitiveTopology_TriangleList;
+    rp_desc.primitive.cullMode  = WGPUCullMode_None;
+    rp_desc.multisample.count   = uint32_t(sample_count_);
+    rp_desc.multisample.mask    = 0xFFFFFFFFu;
+    image_quad_pipeline_ = wgpuDeviceCreateRenderPipeline(device_, &rp_desc);
+    return image_quad_pipeline_ != nullptr;
+}
+
+OverlayRenderer::ImageTexture*
+OverlayRenderer::getOrCreateImageTexture(const QString& cache_key,
+                                         const QImage& image) {
+    if (!device_ || !queue_) return nullptr;
+    auto it = image_tex_cache_.find(cache_key);
+    if (it != image_tex_cache_.end()) return &it.value();
+
+    // Straight-alpha RGBA8 for the SrcAlpha blend in the shader.
+    QImage rgba = image.convertToFormat(QImage::Format_RGBA8888);
+    if (rgba.isNull()) return nullptr;
+    const int w_px = rgba.width();
+    const int h_px = rgba.height();
+
+    ImageTexture entry;
+    WGPUTextureDescriptor td = {};
+    td.usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+    td.dimension     = WGPUTextureDimension_2D;
+    td.format        = WGPUTextureFormat_RGBA8Unorm;
+    td.size.width    = uint32_t(w_px);
+    td.size.height   = uint32_t(h_px);
+    td.size.depthOrArrayLayers = 1;
+    td.mipLevelCount = 1;
+    td.sampleCount   = 1;
+    td.label         = svFromCStr("ifcviewer-wgpu.image_quad_texture");
+    entry.texture = wgpuDeviceCreateTexture(device_, &td);
+    if (!entry.texture) return nullptr;
+
+    WGPUTexelCopyTextureInfo dst = {};
+    dst.texture = entry.texture;
+    dst.aspect  = WGPUTextureAspect_All;
+    WGPUTexelCopyBufferLayout layout = {};
+    layout.bytesPerRow  = uint32_t(w_px) * 4;
+    layout.rowsPerImage = uint32_t(h_px);
+    WGPUExtent3D extent = { uint32_t(w_px), uint32_t(h_px), 1 };
+    wgpuQueueWriteTexture(queue_, &dst, rgba.constBits(),
+                          size_t(w_px) * size_t(h_px) * 4,
+                          &layout, &extent);
+
+    WGPUTextureViewDescriptor tvd = {};
+    tvd.format          = WGPUTextureFormat_RGBA8Unorm;
+    tvd.dimension       = WGPUTextureViewDimension_2D;
+    tvd.baseMipLevel    = 0;
+    tvd.mipLevelCount   = 1;
+    tvd.baseArrayLayer  = 0;
+    tvd.arrayLayerCount = 1;
+    tvd.aspect          = WGPUTextureAspect_All;
+    tvd.label           = svFromCStr("ifcviewer-wgpu.image_quad_view");
+    entry.view = wgpuTextureCreateView(entry.texture, &tvd);
+
+    auto inserted = image_tex_cache_.insert(cache_key, entry);
+    return &inserted.value();
+}
+
+void OverlayRenderer::releaseImageTextures() {
+    for (auto it = image_tex_cache_.begin(); it != image_tex_cache_.end(); ++it) {
+        if (it->view)    { wgpuTextureViewRelease(it->view);    it->view = nullptr; }
+        if (it->texture) { wgpuTextureRelease(it->texture);     it->texture = nullptr; }
+    }
+    image_tex_cache_.clear();
+}
+
+void OverlayRenderer::setOverlayImages(const std::vector<ImageQuad>& quads) {
+    // Not initialised yet (device up) — nothing to upload to; the encode is
+    // a no-op until init, and a later set re-asserts the quads.
+    if (!device_ || !queue_) return;
+    for (auto& d : image_quad_draws_) {
+        if (d.bind_group) wgpuBindGroupRelease(d.bind_group);
+    }
+    image_quad_draws_.clear();
+    if (quads.empty()) {
+        releaseImageTextures(); // nothing referenced anymore
+        return;
+    }
+
+    // 6 vertices per quad (two triangles 0,1,2 / 0,2,3), 5 floats each.
+    std::vector<float> verts;
+    verts.reserve(quads.size() * 6 * 5);
+    const uint32_t first_of[6] = {0, 1, 2, 0, 2, 3};
+    image_quad_draws_.reserve(quads.size());
+    uint32_t first_vertex = 0;
+    for (const auto& q : quads) {
+        for (uint32_t v = 0; v < 6; ++v) {
+            const auto& c = q.corners[first_of[v]];
+            const auto& t = q.uvs[first_of[v]];
+            verts.push_back(c[0]); verts.push_back(c[1]); verts.push_back(c[2]);
+            verts.push_back(t[0]); verts.push_back(t[1]);
+        }
+        image_quad_draws_.push_back({first_vertex, 6, nullptr});
+        first_vertex += 6;
+    }
+
+    // Grow the vertex buffer if needed (1.5x headroom).
+    const uint64_t bytes = uint64_t(verts.size()) * sizeof(float);
+    if (bytes > image_quad_vertex_capacity_) {
+        const uint64_t new_cap = bytes + bytes / 2;
+        if (image_quad_vertex_buffer_) wgpuBufferRelease(image_quad_vertex_buffer_);
+        WGPUBufferDescriptor bdesc = {};
+        bdesc.usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
+        bdesc.size  = new_cap;
+        bdesc.label = svFromCStr("ifcviewer-wgpu.image_quad_vbo");
+        image_quad_vertex_buffer_   = wgpuDeviceCreateBuffer(device_, &bdesc);
+        image_quad_vertex_capacity_ = new_cap;
+    }
+    wgpuQueueWriteBuffer(queue_, image_quad_vertex_buffer_, 0,
+                         verts.data(), size_t(bytes));
+
+    // Grow the uniform buffer to one 256-byte slot per quad.
+    if (uint32_t(quads.size()) > image_quad_uniform_slots_) {
+        const uint32_t new_slots = uint32_t(quads.size());
+        if (image_quad_uniform_buffer_) wgpuBufferRelease(image_quad_uniform_buffer_);
+        WGPUBufferDescriptor bdesc = {};
+        bdesc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+        bdesc.size  = uint64_t(new_slots) * kImageQuadUniformSlotSize;
+        bdesc.label = svFromCStr("ifcviewer-wgpu.image_quad_uniforms");
+        image_quad_uniform_buffer_ = wgpuDeviceCreateBuffer(device_, &bdesc);
+        image_quad_uniform_slots_  = new_slots;
+    }
+
+    // Per-quad: upload/cache the texture, write the static tint tail of the
+    // slot (view_proj is written per-frame at encode), build the bind group.
+    QSet<QString> used_keys;
+    for (size_t i = 0; i < quads.size(); ++i) {
+        const auto& q = quads[i];
+        const uint64_t slot_off = uint64_t(i) * kImageQuadUniformSlotSize;
+        const float tint[4] = {1.0f, 1.0f, 1.0f, q.alpha};
+        wgpuQueueWriteBuffer(queue_, image_quad_uniform_buffer_,
+                             slot_off + 64, tint, sizeof(tint));
+
+        ImageTexture* tex = q.texture_key.isEmpty() ? nullptr
+                                                    : getOrCreateImageTexture(q.texture_key, q.image);
+        if (tex == nullptr || tex->view == nullptr) {
+            image_quad_draws_[i].vertex_count = 0; // draw skipped at encode
+            continue;
+        }
+        used_keys.insert(q.texture_key);
+
+        WGPUBindGroupEntry bge[3] = {};
+        bge[0].binding = 0;
+        bge[0].buffer  = image_quad_uniform_buffer_;
+        bge[0].offset  = 0;
+        bge[0].size    = 80;
+        bge[1].binding = 1;
+        bge[1].sampler = image_quad_sampler_;
+        bge[2].binding = 2;
+        bge[2].textureView = tex->view;
+        WGPUBindGroupDescriptor bgd = {};
+        bgd.layout     = image_quad_bgl_;
+        bgd.entryCount = 3;
+        bgd.entries    = bge;
+        bgd.label      = svFromCStr("ifcviewer-wgpu.image_quad_bind_group");
+        image_quad_draws_[i].bind_group = wgpuDeviceCreateBindGroup(device_, &bgd);
+    }
+
+    // Evict textures no longer referenced by the current set.
+    for (auto it = image_tex_cache_.begin(); it != image_tex_cache_.end();) {
+        if (!used_keys.contains(it.key())) {
+            if (it->view)    wgpuTextureViewRelease(it->view);
+            if (it->texture) wgpuTextureRelease(it->texture);
+            it = image_tex_cache_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void OverlayRenderer::encodeOverlayImages(WGPURenderPassEncoder pass,
+                                          const OverlayFrame& f) {
+    if (!image_quad_pipeline_ || image_quad_draws_.empty()) return;
+
+    float vp[16];
+    std::memcpy(vp, f.view_proj.data(), sizeof(vp));
+
+    wgpuRenderPassEncoderSetPipeline(pass, image_quad_pipeline_);
+    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, image_quad_vertex_buffer_,
+                                         0, WGPU_WHOLE_SIZE);
+    for (size_t i = 0; i < image_quad_draws_.size(); ++i) {
+        auto& d = image_quad_draws_[i];
+        if (d.vertex_count == 0 || d.bind_group == nullptr) continue;
+        const uint64_t slot_off = uint64_t(i) * kImageQuadUniformSlotSize;
+        wgpuQueueWriteBuffer(queue_, image_quad_uniform_buffer_,
+                             slot_off + 0, vp, sizeof(vp));
+        const uint32_t dynamic_offsets[1] = { uint32_t(slot_off) };
+        ifcviewer::setBindGroupDynamic(pass, 0, d.bind_group, 1, dynamic_offsets);
+        wgpuRenderPassEncoderDraw(pass, d.vertex_count, 1, d.first_vertex, 0);
+    }
 }
 
 // -----------------------------------------------------------------------------

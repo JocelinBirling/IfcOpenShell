@@ -30,7 +30,6 @@ namespace bonsaiviewer::modules::external_documents {
 
 namespace {
 
-constexpr double kPointToMeter = 25.4 / 72000.0; // 1 PDF point
 constexpr double kPi = 3.14159265358979323846;
 
 double degToRad(double deg) { return deg * kPi / 180.0; }
@@ -71,9 +70,15 @@ void nativeSize(const QString& path, int page, double& width_m, double& height_m
 }
 
 PlanGeometry planQuad(const QString& source_path, const PlanConfig& config) {
-    PlanGeometry geometry;
     double native_w = 0.0, native_h = 0.0;
     nativeSize(source_path, config.page, native_w, native_h);
+    return planQuad(source_path, config, native_w, native_h);
+}
+
+PlanGeometry planQuad(const QString& source_path, const PlanConfig& config,
+                      double native_w, double native_h) {
+    (void)source_path;
+    PlanGeometry geometry;
     const double w = native_w * config.scale;
     const double h = native_h * config.scale;
     geometry.width_m = w;
@@ -122,6 +127,7 @@ PlanGeometry planQuad(const QString& source_path, const PlanConfig& config) {
     double world[4][3];
     for (int i = 0; i < 4; ++i) {
         transform(corners[i][0], corners[i][1], world[i][0], world[i][1], world[i][2]);
+        for (int k = 0; k < 3; ++k) geometry.corners[i][k] = float(world[i][k]);
     }
     // Two triangles: (0,1,2) and (0,2,3).
     const int triangles[2][3] = {{0, 1, 2}, {0, 2, 3}};

@@ -81,6 +81,8 @@ set(BONSAIVIEWER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/DocumentStore.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PlanOverlay.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PlanOverlay.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PdfRender.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PdfRender.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/Panel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/GridPanel.cpp
@@ -535,6 +537,16 @@ add_executable(bonsaiviewer_mass_convert_bench EXCLUDE_FROM_ALL
 target_include_directories(bonsaiviewer_mass_convert_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bonsaiviewer_mass_convert_bench PRIVATE IfcViewer plugin Qt${QT_VERSION}::Core)
 target_compile_definitions(bonsaiviewer_mass_convert_bench PRIVATE BOOST_DLL_USE_STD_FS)
+
+# BonsaiViewer36: the 2D-plan geometry (quad, corners, UVs) and the PDF page
+# rasterization (Qt Core + Gui only; not built by default).
+add_executable(bonsaiviewer_plan_tests EXCLUDE_FROM_ALL
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PlanOverlay.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/external_documents/PdfRender.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_plan_overlay.cpp)
+target_include_directories(bonsaiviewer_plan_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(bonsaiviewer_plan_tests PRIVATE Qt${QT_VERSION}::Core Qt${QT_VERSION}::Gui)
+add_test(NAME bonsaiviewer_plan_tests COMMAND bonsaiviewer_plan_tests)
 
 # The trees read from the IFC relations (IfcParse; IFC2X3 test model).
 add_executable(bonsaiviewer_ifc_trees_tests EXCLUDE_FROM_ALL

@@ -23,6 +23,7 @@
 #include "Dialogs.h"
 #include "Panel.h"
 #include "GridPanel.h"
+#include "PdfRender.h"
 #include "PlanOverlay.h"
 
 #include "../../SessionState.h"
@@ -145,6 +146,7 @@ ExternalDocumentsView::ExternalDocumentsView(SessionState& session, ViewportWind
     connect(&session_, &SessionState::projectReset, this, [this]() {
         store_.clear();
         cache_.clear();
+        pdf_page_cache_.clear();
         if (grid_ != nullptr) grid_->clearTable();
         updatePlanOverlays();
     });
@@ -359,6 +361,7 @@ void ExternalDocumentsView::loadDocument(ExternalDocument& document) {
         document.state = DocumentState::FileNotFound;
     }
     cache_.remove(document.id);
+    pdf_page_cache_.clear(); // the source (path / mtime) may have changed
     emit store_.documentChanged(document.id);
 }
 
@@ -376,6 +379,7 @@ void ExternalDocumentsView::locateFile(ExternalDocument& document) {
 
 void ExternalDocumentsView::removeDocument(ExternalDocument& document) {
     cache_.remove(document.id);
+    pdf_page_cache_.clear();
     if (grid_ != nullptr && grid_->documentId() == document.id) grid_->clearTable();
     store_.removeDocument(document.id);
     updatePlanOverlays();
@@ -565,44 +569,109 @@ void ExternalDocumentsView::importPlanConfig(ExternalDocument& document) {
     }
 }
 
+QString ExternalDocumentsView::pdfPageCacheKey(const ExternalDocument& document) const {
+    const QFileInfo info(document.path);
+    return QStringLiteral("%1|%2|%3|%4")
+        .arg(document.path)
+        .arg(document.plan.page)
+        .arg(info.size())
+        .arg(info.lastModified().toMSecsSinceEpoch());
+}
+
+// The plan's native size in meters: for PDFs, pdfinfo is authoritative
+// (compressed page objects have no plain-text MediaBox for nativeSize);
+// otherwise the MediaBox scan with its fallback.
+void ExternalDocumentsView::planNativeSizeMeters(const ExternalDocument& document,
+                                                  double& w_m, double& h_m) {
+    nativeSize(document.path, document.plan.page, w_m, h_m);
+    if (QFileInfo(document.path).suffix().toLower() == QLatin1String("pdf")) {
+        double w_pt = 0.0, h_pt = 0.0;
+        if (pdfPageSizePoints(document.path, document.plan.page, w_pt, h_pt)) {
+            w_m = w_pt * kPointToMeter;
+            h_m = h_pt * kPointToMeter;
+        }
+    }
+}
+
+QImage ExternalDocumentsView::planPageImage(const ExternalDocument& document) {
+    // Phase 1: PDF pages only; the other plan formats fall back to the fill.
+    if (QFileInfo(document.path).suffix().toLower() != QLatin1String("pdf")) return {};
+    const QString key = pdfPageCacheKey(document);
+    const auto it = pdf_page_cache_.constFind(key);
+    if (it != pdf_page_cache_.constEnd()) return it.value(); // null QImage = negative cache
+    double w_m = 0.0, h_m = 0.0;
+    planNativeSizeMeters(document, w_m, h_m);
+    const QImage image = rasterizePdfPage(document.path, document.plan.page, w_m, h_m);
+    if (image.isNull()) {
+        qWarning("[external_documents] plan '%s': PDF page %d could not be rasterized "
+                 "(rasterizer available: %s) — falling back to the translucent quad",
+                 document.name.toUtf8().constData(), document.plan.page,
+                 pdfRasterizerAvailable() ? "yes" : "no");
+    }
+    pdf_page_cache_.insert(key, image);
+    return image;
+}
+
 void ExternalDocumentsView::updatePlanOverlays() {
-    std::vector<float> triangles;
+    std::vector<float> triangles; // fallback translucent fill (no rasterizer)
     std::vector<OverlayRenderer::LineGroup> lines;
     std::vector<OverlayRenderer::Label> labels;
-    float max_opacity = 0.0f;
+    std::vector<OverlayRenderer::ImageQuad> images;
+    float max_fill_alpha = 0.0f;
     for (const ExternalDocument& document : store_.documents()) {
         if (document.kind != DocumentKind::Plan || !document.plan.visible) continue;
         if (document.state == DocumentState::FileNotFound) continue;
-        const PlanGeometry geometry = planQuad(document.path, document.plan);
-        triangles.insert(triangles.end(), geometry.quad_triangles.begin(), geometry.quad_triangles.end());
-        // Outline of the quad, one segment per edge, with the plan's opacity.
-        // The quad triangles hold the 4 corners as vertices 0..3 (v0,v1,v2, v0,v2,v3).
+        double native_w = 0.0, native_h = 0.0;
+        planNativeSizeMeters(document, native_w, native_h);
+        const PlanGeometry geometry = planQuad(document.path, document.plan, native_w, native_h);
+        const float alpha = float(std::min(1.0, std::max(0.0, document.plan.opacity)));
+
+        // Per-plan outline: the four edges of the world-space quad.
         OverlayRenderer::LineGroup group;
-        const float* t = geometry.quad_triangles.data();
-        const int edge_vertex[4][2] = {{0, 3}, {3, 6}, {6, 9}, {9, 0}}; // v0-v1, v1-v2, v2-v3, v3-v0
-        for (const auto& edge : edge_vertex) {
+        static const int edges[4][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}};
+        for (const auto& edge : edges) {
             for (int k = 0; k < 2; ++k) {
                 for (int c = 0; c < 3; ++c) {
-                    group.world_xyz.push_back(t[edge[k] * 3 + c]);
+                    group.world_xyz.push_back(geometry.corners[edge[k]][c]);
                 }
             }
         }
-        const float alpha = float(std::min(1.0, std::max(0.0, document.plan.opacity)));
         group.color[0] = 0.35f; group.color[1] = 0.55f; group.color[2] = 0.95f; group.color[3] = alpha;
         group.line_width = 2.0f;
         lines.push_back(group);
+
         OverlayRenderer::Label label;
         label.world_pos[0] = geometry.center[0];
         label.world_pos[1] = geometry.center[1];
         label.world_pos[2] = geometry.center[2];
         label.text = document.name;
         labels.push_back(label);
-        max_opacity = std::max(max_opacity, alpha);
+
+        // The rasterised page is drawn on the quad as a textured image; when
+        // no rasterizer is available (or the format is not a PDF yet), the
+        // plan falls back to the translucent fill of its quad.
+        const QImage page = planPageImage(document);
+        if (!page.isNull()) {
+            OverlayRenderer::ImageQuad quad;
+            for (int i = 0; i < 4; ++i) {
+                for (int c = 0; c < 3; ++c) quad.corners[i][c] = geometry.corners[i][c];
+                quad.uvs[i][0] = geometry.uvs[i][0];
+                quad.uvs[i][1] = geometry.uvs[i][1];
+            }
+            quad.image = page;
+            quad.texture_key = pdfPageCacheKey(document);
+            quad.alpha = alpha;
+            images.push_back(quad);
+        } else {
+            triangles.insert(triangles.end(), geometry.quad_triangles.begin(), geometry.quad_triangles.end());
+            max_fill_alpha = std::max(max_fill_alpha, alpha);
+        }
     }
-    // The filled quad goes through the translucent-triangle channel (shared
-    // with the area measurement tool in phase 1); the outline and the label
-    // stay on their own channels.
-    viewport_.setHighlightTriangles(triangles, 0.35f, 0.55f, 0.95f, max_opacity * 0.35f);
+    // The textured page, the outline and the label are their own channels;
+    // the translucent fill (fallback) shares the highlight-triangle channel
+    // with the area measurement tool, like before.
+    viewport_.setOverlayImages(images);
+    viewport_.setHighlightTriangles(triangles, 0.35f, 0.55f, 0.95f, max_fill_alpha * 0.35f);
     viewport_.setOverlayLines(lines);
     viewport_.setOverlayLabels(labels);
 }

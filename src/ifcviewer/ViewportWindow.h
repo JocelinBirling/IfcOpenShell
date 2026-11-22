@@ -457,6 +457,10 @@ public:
                            float stroke_extra);
     void  setOverlayLabels(const std::vector<OverlayRenderer::Label>& labels);
     void  setHudText(const std::string& text);
+    // Textured world-space quads (BonsaiViewer36: a rasterised 2D plan page
+    // drawn flat in the scene, at its elevation, with its own transform and
+    // opacity). Empty list clears the set.
+    void  setOverlayImages(const std::vector<OverlayRenderer::ImageQuad>& quads);
     // Translucent world-space triangle overlay (Area-tool patch shading).
     // Empty list disables; color is RGBA in [0, 1].
     void  setHighlightTriangles(const std::vector<float>& world_xyz,
