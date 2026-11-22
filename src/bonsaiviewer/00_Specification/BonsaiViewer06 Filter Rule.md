@@ -226,6 +226,26 @@ The examples are ordinary filters: they can be modified, moved or deleted. They 
 
 
 
+### Filtre et échelle de couleur.
+Pour les filtres, on pourrait faire une échelle de couleur en fonction de la propriété. 
+En fonction des valeurs, on aurait automatiquement une coloration.
+
+On choissit une valeur
+On choissit une échelle de couleur.
+On peut avoir plusieurs échelles de couleur. 
+On peut choisir le sens normale des couleurs et l'inverse.
+
+De cette manière, les objets seraient classés en fonction de la propriété. On peut utiliser les principes qui sont décrit dans Qgis pour mettre cela en oeuvre.
+Est-ce plutôt une fonction à utiliser dans les tables ou bien dans les filtres ?
+
+### Est-ce complexe de mettre 
+Des couleurs avec des pois ?
+Des couleurs avec des lignes ?
+Dans Qgis, on peut mettre des couleurs qui ne sont pas unies. 
+Est-ce utile ? Est-ce complexe à mettre en oeuvre ?
+
+
+
 
 
 
