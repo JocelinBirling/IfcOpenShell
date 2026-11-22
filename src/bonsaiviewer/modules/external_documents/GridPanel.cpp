@@ -33,7 +33,9 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QSortFilterProxyModel>
+#include <QStyleOptionHeader>
 #include <QTableView>
 #include <QToolButton>
 #include <QWidgetAction>
@@ -47,6 +49,12 @@ namespace {
 
 // The four model columns prepended to the file's columns.
 constexpr int kModelColumnCount = 4; // Model, Class, Name, GlobalId
+
+// Header icons, same geometry as the Table panel header (TableHeader.cpp).
+constexpr int kIconSize = 12;
+constexpr int kIconGap = 4;
+// Room taken on the right of each section by the arrow and the funnel.
+constexpr int kIconsWidth = 2 * kIconSize + 3 * kIconGap;
 
 bool isNumber(const QString& text, double& out) {
     if (text.isEmpty()) return false;
@@ -177,7 +185,7 @@ private:
     std::map<int, QSet<QString>> filters_;
 };
 
-// --- header (sort arrow + funnel) --------------------------------------------
+// --- header (sort arrow + funnel, same icons as the Table panel header) ------
 
 class ExternalGridHeader : public QHeaderView {
     Q_OBJECT
@@ -207,26 +215,64 @@ signals:
     void filterRequested(int section, const QPoint& global_pos);
 
 protected:
+    QSize sectionSizeFromContents(int logical_index) const override {
+        QSize size = QHeaderView::sectionSizeFromContents(logical_index);
+        size.rwidth() += kIconsWidth;
+        return size;
+    }
+
     void paintSection(QPainter* painter, const QRect& rect, int logical_index) const override {
-        QHeaderView::paintSection(painter, rect, logical_index);
+        if (!rect.isValid()) return;
+        // Section frame on the whole rect, title left of the icons.
+        QStyleOptionHeader option;
+        initStyleOptionForIndex(&option, logical_index);
+        option.rect = rect;
+        option.text.clear();
+        style()->drawControl(QStyle::CE_HeaderSection, &option, painter, this);
+        initStyleOptionForIndex(&option, logical_index);
+        option.rect = rect.adjusted(0, 0, -kIconsWidth, 0);
+        option.sortIndicator = QStyleOptionHeader::None;
+        style()->drawControl(QStyle::CE_HeaderLabel, &option, painter, this);
+
         painter->save();
-        const QColor text = QApplication::palette().color(QPalette::Text);
-        painter->setPen(QPen(text, 1));
-        constexpr int kArrowW = 12;
-        constexpr int kFunnelW = 14;
-        const QRect arrow_rect(rect.right() - kFunnelW - kArrowW - 2, rect.top(), kArrowW, rect.height());
-        const QRect funnel_rect(rect.right() - kFunnelW, rect.top(), kFunnelW, rect.height());
-        if (logical_index == sort_section_) {
-            painter->drawText(arrow_rect, Qt::AlignCenter,
-                              sort_order_ == 0 ? QStringLiteral("▲") : sort_order_ == 1 ? QStringLiteral("▼") : QString());
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        const QColor idle = palette().color(QPalette::Disabled, QPalette::Text);
+        const QColor active = palette().color(QPalette::Highlight);
+
+        // Sort arrow: a triangle, down for A→Z, up for Z→A.
+        const QRect arrow = sortRect(rect).adjusted(1, 2, -1, -2);
+        const bool sorted = logical_index == sort_section_;
+        const bool up = sorted && sort_order_ == 1;
+        QPainterPath triangle;
+        if (up) {
+            triangle.moveTo(arrow.left(), arrow.bottom());
+            triangle.lineTo(arrow.right(), arrow.bottom());
+            triangle.lineTo(arrow.center().x() + 0.5, arrow.top());
+        } else {
+            triangle.moveTo(arrow.left(), arrow.top());
+            triangle.lineTo(arrow.right(), arrow.top());
+            triangle.lineTo(arrow.center().x() + 0.5, arrow.bottom());
         }
-        QPolygonF funnel;
-        funnel << QPointF(funnel_rect.left() + 2, funnel_rect.top() + 4)
-               << QPointF(funnel_rect.right() - 2, funnel_rect.top() + 4)
-               << QPointF(funnel_rect.center().x() + 2, funnel_rect.bottom() - 4)
-               << QPointF(funnel_rect.center().x() - 2, funnel_rect.bottom() - 4);
-        painter->setBrush(filtered_.contains(logical_index) ? QApplication::palette().color(QPalette::Highlight) : text);
-        painter->drawPolygon(funnel);
+        triangle.closeSubpath();
+        painter->fillPath(triangle, sorted ? active : idle);
+
+        // Filter funnel: a trapezoid over a short stem — the Table panel's icon.
+        const QRectF funnel = filterRect(rect);
+        const bool filtered = filtered_.contains(logical_index);
+        QPainterPath path;
+        path.moveTo(funnel.left(), funnel.top() + 1);
+        path.lineTo(funnel.right(), funnel.top() + 1);
+        path.lineTo(funnel.center().x() + 1.5, funnel.center().y() + 1);
+        path.lineTo(funnel.center().x() + 1.5, funnel.bottom());
+        path.lineTo(funnel.center().x() - 1.5, funnel.bottom() - 1.5);
+        path.lineTo(funnel.center().x() - 1.5, funnel.center().y() + 1);
+        path.closeSubpath();
+        if (filtered) {
+            painter->fillPath(path, active);
+        } else {
+            painter->setPen(QPen(idle, 1.2));
+            painter->drawPath(path);
+        }
         painter->restore();
     }
 
@@ -235,7 +281,7 @@ protected:
         press_section_ = logicalIndexAt(event->pos());
         const int section = press_section_;
         if (section >= 0 && event->button() == Qt::LeftButton &&
-            event->pos().x() >= sectionRectOf(section).right() - 14) {
+            filterRect(sectionRectOf(section)).adjusted(-2, -4, 2, 4).contains(event->pos())) {
             emit filterRequested(section, event->globalPosition().toPoint());
             return;
         }
@@ -243,17 +289,23 @@ protected:
     }
 
     void mouseReleaseEvent(QMouseEvent* event) override {
-        // A click (not a drag) on the label — not on the funnel — cycles the sort.
+        // A click (not a drag) on the label — not on the icons — cycles the sort.
         const int section = logicalIndexAt(event->pos());
         const bool click = event->button() == Qt::LeftButton && section >= 0 && section == press_section_ &&
                            (event->pos() - press_pos_).manhattanLength() < 5;
         QHeaderView::mouseReleaseEvent(event);
-        if (click && event->pos().x() < sectionRectOf(section).right() - 14) {
+        if (click && event->pos().x() < sectionRectOf(section).right() - kIconsWidth) {
             emit sortCycleRequested(section);
         }
     }
 
 private:
+    QRect filterRect(const QRect& section) const {
+        return {section.right() - kIconGap - kIconSize + 1, section.center().y() - kIconSize / 2, kIconSize, kIconSize};
+    }
+    QRect sortRect(const QRect& section) const {
+        return filterRect(section).translated(-(kIconSize + kIconGap), 0);
+    }
     QRect sectionRectOf(int logical_index) const {
         return QRect(sectionViewportPosition(logical_index), 0, sectionSize(logical_index), height());
     }
@@ -369,16 +421,29 @@ void ExternalGridPanel::showTable(const ExternalDocument& document, const TableD
     join_ = join;
     row_info_ = row_info;
 
-    delete model_;
-    model_ = new ExternalGridModel(data, join, row_info, this);
+    // Swap model/proxy/header without ever deleting the live model: the new
+    // pair is built first, the view is detached (setModel(nullptr)), the old
+    // pair deleted, then the header is reinstalled and explicitly bound to
+    // the new proxy — otherwise the header ends up with no model after a
+    // re-join and the columns vanish.
+    auto* new_model = new ExternalGridModel(data, join, row_info, this);
+    auto* new_proxy = new ExternalGridProxy(new_model, this);
+    new_proxy->setSourceModel(new_model);
+    view_->setModel(nullptr);
     delete proxy_;
-    proxy_ = new ExternalGridProxy(static_cast<ExternalGridModel*>(model_), this);
-    proxy_->setSourceModel(model_);
+    delete model_;
+    model_ = new_model;
+    proxy_ = new_proxy;
     // setHorizontalHeader: the view deletes the previous header itself.
     auto* header = new ExternalGridHeader(Qt::Horizontal, view_);
     header_ = header;
     view_->setHorizontalHeader(header_);
     view_->setModel(proxy_);
+    header_->setModel(proxy_);
+    // A header installed while the view is already visible stays hidden
+    // (setHorizontalHeader does not show it): without this, a re-join
+    // (Visualize → Edit Join → Visualize) hides the column titles.
+    header_->setVisible(true);
 
     // Sort cycle on the header label: A→Z, Z→A, then back to the file order.
     connect(header, &ExternalGridHeader::sortCycleRequested, this, [this, header](int section) {
