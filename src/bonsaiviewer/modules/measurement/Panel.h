@@ -26,6 +26,7 @@
 
 #include "../../../ifcviewer/OverlayRenderer.h"
 
+#include <QList>
 #include <QMap>
 #include <QTreeWidget>
 
@@ -44,6 +45,7 @@ namespace bonsaiviewer::services {
 class ActiveView;
 class SelectionService;
 }
+namespace bonsaiviewer::modules::bcf { class BcfView; }
 class ViewportWindow;
 
 namespace bonsaiviewer::modules::measurement {
@@ -67,6 +69,8 @@ public:
     void setSelectionService(bonsaiviewer::services::SelectionService* selection);
     // Same for the ActiveView (isolate a measure's objects).
     void setActiveView(bonsaiviewer::services::ActiveView* active_view);
+    // Same for the BCF view (create a BCF topic from a measure or a group).
+    void setBcfView(bonsaiviewer::modules::bcf::BcfView* view);
 
     // Clear all measurement overlays from the viewport and reset the result label.
     void resetMeasurements();
@@ -127,11 +131,18 @@ private:
 
     int addMeasureRecord(const QString& label, double value, const QString& unit,
                          int mode, const std::vector<MeasuredObject>& objects);
+    // One row of the functions box: the measure button plus, for the
+    // configurable rules, a small gear button opening a popup with the
+    // rule's configuration widgets.
+    QWidget* makeMeasureRow(QPushButton* button, const QString& config_title,
+                            const QList<QWidget*>& config_widgets);
     void onNewGroup();
     void onTreeContextMenu(const QPoint& pos);
     void deleteTreeItem(QTreeWidgetItem* item);
     void zoomOnRecord(int id);
     void isolateRecord(int id);
+    void createBcfFromItem(QTreeWidgetItem* item);
+    void collectRecordIds(const QTreeWidgetItem* item, std::vector<int>& ids) const;
     void onItemChanged(QTreeWidgetItem* item, int column);
     void refreshGroupSums();
     void refreshOverlays();
@@ -146,6 +157,7 @@ private:
 
     bonsaiviewer::services::SelectionService* selection_ = nullptr;
     bonsaiviewer::services::ActiveView* active_view_ = nullptr;
+    bonsaiviewer::modules::bcf::BcfView* bcf_view_ = nullptr;
     bonsaiviewer::SessionState* session_ = nullptr;
     ViewportWindow* viewport_ = nullptr;
 

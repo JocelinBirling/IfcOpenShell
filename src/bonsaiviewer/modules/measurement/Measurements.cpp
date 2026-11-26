@@ -23,6 +23,7 @@
 #include "../../../ifcviewer/ViewportWindow.h"
 
 #include <Eigen/Core>
+#include <Eigen/Eigenvalues>
 
 #include <algorithm>
 #include <array>
@@ -156,6 +157,70 @@ WorldMesh worldTriangles(ViewportWindow& vp, std::uint32_t object_id) {
     }
     if (result.triangles.empty()) { result.zmin = 0.0f; result.zmax = 0.0f; }
     return result;
+}
+
+MeshObb computeMeshObb(const WorldMesh& wm) {
+    MeshObb obb;
+    if (wm.triangles.size() < 9) return obb;
+    // PCA on the vertex cloud: principal directions of the covariance matrix.
+    Eigen::Vector3d mean = Eigen::Vector3d::Zero();
+    std::size_t n = 0;
+    for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
+        for (int c = 0; c < 3; ++c) {
+            mean += Eigen::Vector3d(wm.triangles[t + 3 * c], wm.triangles[t + 3 * c + 1],
+                                    wm.triangles[t + 3 * c + 2]);
+            ++n;
+        }
+    }
+    if (n == 0) return obb;
+    mean /= static_cast<double>(n);
+    Eigen::Matrix3d cov = Eigen::Matrix3d::Zero();
+    for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
+        for (int c = 0; c < 3; ++c) {
+            const Eigen::Vector3d v(wm.triangles[t + 3 * c], wm.triangles[t + 3 * c + 1],
+                                    wm.triangles[t + 3 * c + 2]);
+            cov += (v - mean) * (v - mean).transpose();
+        }
+    }
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es(cov);
+    // Eigenvalues ascend: take the eigenvectors descending so axis 0 is the
+    // longest extent (for a wall: length, then height, then thickness).
+    Eigen::Matrix3d axes = Eigen::Matrix3d::Zero();
+    Eigen::Vector3d mid = Eigen::Vector3d::Zero();
+    for (int k = 0; k < 3; ++k) {
+        Eigen::Vector3d a = es.eigenvectors().col(2 - k);
+        // Deterministic sign: the largest-magnitude component is positive.
+        int imax = 0;
+        for (int i = 1; i < 3; ++i)
+            if (std::abs(a[i]) > std::abs(a[imax])) imax = i;
+        if (a[imax] < 0) a = -a;
+        double mn = std::numeric_limits<double>::max(), mx = -std::numeric_limits<double>::max();
+        for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
+            for (int c = 0; c < 3; ++c) {
+                const Eigen::Vector3d v(wm.triangles[t + 3 * c], wm.triangles[t + 3 * c + 1],
+                                        wm.triangles[t + 3 * c + 2]);
+                const double d = a.dot(v);
+                mn = std::min(mn, d);
+                mx = std::max(mx, d);
+            }
+        }
+        axes.col(k) = a;
+        mid[k] = (mn + mx) / 2.0;
+        obb.half_extents[k] = static_cast<float>((mx - mn) / 2.0);
+        obb.axes[k][0] = static_cast<float>(a.x());
+        obb.axes[k][1] = static_cast<float>(a.y());
+        obb.axes[k][2] = static_cast<float>(a.z());
+    }
+    const Eigen::Vector3d center = mean + axes * mid;
+    for (int k = 0; k < 3; ++k) obb.center[k] = static_cast<float>(center[k]);
+    return obb;
+}
+
+void obbLocalCoords(const MeshObb& obb, const float p[3], float out[3]) {
+    for (int k = 0; k < 3; ++k) {
+        out[k] = obb.axes[k][0] * (p[0] - obb.center[0]) + obb.axes[k][1] * (p[1] - obb.center[1]) +
+                 obb.axes[k][2] * (p[2] - obb.center[2]);
+    }
 }
 
 namespace {
@@ -727,25 +792,30 @@ double measureVolumeEntre(ViewportWindow& vp,
                           std::vector<MeasuredObject>* objects_out) {
     if (object_ids.size() < 2) return 0.0;
     // Pair up consecutive objects: (0,1), (2,3), ... Each pair contributes
-    // top-area(lower) × vertical gap to bottom-face(upper).
+    // top-area(lower) × vertical gap to bottom-face(upper). Lower/upper is
+    // decided by the Z of the AABBs, not by the selection order: the input is
+    // a selection of 2 objects and any order must work.
     double total = 0.0;
-    float mn[3], mx[3];
     for (std::size_t i = 0; i + 1 < object_ids.size(); i += 2) {
-        const std::uint32_t lower_id = object_ids[i];
-        const std::uint32_t upper_id = object_ids[i + 1];
-        if (!objectAabb(vp, lower_id, mn, mx)) continue;
+        float mn0[3], mx0[3], mn1[3], mx1[3];
+        if (!objectAabb(vp, object_ids[i], mn0, mx0)) continue;
+        if (!objectAabb(vp, object_ids[i + 1], mn1, mx1)) continue;
+        // The lower object is the one whose top (mx z) is lower.
+        const bool first_is_lower = mx0[2] <= mx1[2];
+        const std::uint32_t lower_id = first_is_lower ? object_ids[i] : object_ids[i + 1];
+        const std::uint32_t upper_id = first_is_lower ? object_ids[i + 1] : object_ids[i];
+        const float* mn = first_is_lower ? mn0 : mn1;
+        const float* mx = first_is_lower ? mx0 : mx1;
+        const float* umn = first_is_lower ? mn1 : mn0;
+        const float* umx = first_is_lower ? mx1 : mx0;
         const TopFace lower_top = extractHorizontalFace(worldTriangles(vp, lower_id), /*up=*/true);
-        float umn[3], umx[3];
-        if (!objectAabb(vp, upper_id, umn, umx)) continue;
         const TopFace upper_bot = extractHorizontalFace(worldTriangles(vp, upper_id), /*up=*/false);
         const double gap = static_cast<double>(umn[2]) - static_cast<double>(mx[2]);
         if (gap <= 0.0 || lower_top.area <= 0.0) continue;
         total += lower_top.area * gap;
         recordObject(objects_out, lower_id, mn, mx);
-        float lmn[3] = {mn[0], mn[1], mn[2]};
-        float lmx[3] = {mx[0], mx[1], umx[2]};  // span both objects vertically
         recordObject(objects_out, upper_id, umn, umx);
-        (void)lmn; (void)lmx;
+        (void)upper_bot;
     }
     return total;
 }
@@ -754,7 +824,12 @@ double measurePente(ViewportWindow& vp,
                     const std::vector<std::uint32_t>& object_ids,
                     bool on_3d_length,
                     std::vector<MeasuredObject>* objects_out) {
-    // Mean normal over all triangles (area-weighted): slope% = sqrt(1-nz²)/|nz| × 100.
+    // The slope is read on the object's top surface ("dessus", the same
+    // extraction as M5's extractTopSurface), not on the whole mesh: on a long
+    // object (e.g. a 900 m railing) the vertical side faces dominate the mean
+    // normal and would report a huge slope. Area-weighted mean normal over the
+    // top-surface triangles: slope% = sqrt(1-nz²)/|nz| × 100. Fallback to the
+    // whole mesh when the object has no top surface.
     double total = 0.0;
     int count = 0;
     float mn[3], mx[3];
@@ -762,11 +837,13 @@ double measurePente(ViewportWindow& vp,
         if (!objectAabb(vp, id, mn, mx)) continue;
         const WorldMesh wm = worldTriangles(vp, id);
         if (wm.triangles.empty()) continue;
+        const TopSurface top = extractTopSurface(wm, 0.5f);
+        const std::vector<float>& tris = !top.triangles.empty() ? top.triangles : wm.triangles;
         double nx_sum = 0.0, ny_sum = 0.0, nz_sum = 0.0, area_sum = 0.0;
-        for (std::size_t t = 0; t + 8 < wm.triangles.size(); t += 9) {
-            const float* a = &wm.triangles[t];
-            const float* b = &wm.triangles[t + 3];
-            const float* c = &wm.triangles[t + 6];
+        for (std::size_t t = 0; t + 8 < tris.size(); t += 9) {
+            const float* a = &tris[t];
+            const float* b = &tris[t + 3];
+            const float* c = &tris[t + 6];
             const float ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
             const float vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
             const float nx = uy * vz - uz * vy;

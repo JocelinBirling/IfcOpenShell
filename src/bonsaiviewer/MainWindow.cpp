@@ -1348,6 +1348,8 @@ void MainWindow::setupLoader() {
         *session_state_, *viewport_widget_->viewport(), *selection_service_, *active_view_, *appearance_service_,
         *category_filter_, this);
     bcf_view_ = new modules::bcf::BcfView(static_cast<modules::bcf::BcfPanel*>(issues_panel_), *bcf_viewpoints, this);
+    // BonsaiViewer50: the Mesure panel can create a BCF topic from a measure or a group.
+    measurement_panel_->setBcfView(bcf_view_);
     // BonsaiViewer06 Activate: the colours of the activated filters, forced,
     // applied by a runner of their own so they never touch the view.
     auto* forced_runner = new bonsaiviewer::services::FilterRunner(

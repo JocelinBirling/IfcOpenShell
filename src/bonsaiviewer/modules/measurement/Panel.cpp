@@ -23,11 +23,14 @@
 #include "IfcMeasurements.h"
 
 #include "../../../ifcviewer/ViewportWindow.h"
+#include "../../components/SvgIcon.h"
 #include "../../ElementRegistry.h"
 #include "../../services/ActiveView.h"
+#include "../../services/BcfViewpoints.h"
 #include "../../services/SelectionService.h"
 #include "../../SessionState.h"
 #include "../../ViewerSettings.h"
+#include "../bcf/View.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -41,9 +44,11 @@
 #include <QGroupBox>
 #include <QFrame>
 
+#include <QList>
 #include <QMap>
 #include <QMenu>
 #include <QStringList>
+#include <QWidgetAction>
 
 #include <algorithm>
 #include <cmath>
@@ -122,7 +127,7 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     m16_button_ = new QPushButton(QStringLiteral("M16 — Surface ouverture"), functions_box);
     m16_button_->setToolTip(QStringLiteral("Aire (m²) des ouvertures liées (IfcOpeningElement via IfcRelVoidsElement)"));
     m20_button_ = new QPushButton(QStringLiteral("M20 — Volume entre 2 surfaces"), functions_box);
-    m20_button_->setToolTip(QStringLiteral("Volume (m³) entre deux objets sélectionnés (paires consécutives)"));
+    m20_button_->setToolTip(QStringLiteral("Volume (m³) entre 2 objets sélectionnés (bas/haut par Z, ordre indifférent)"));
     m27_button_ = new QPushButton(QStringLiteral("M27 — Pente"), functions_box);
     m27_button_->setToolTip(QStringLiteral("Pente (%) de la face dominante, ajustement de plan via la normale moyenne"));
     m21_button_ = new QPushButton(QStringLiteral("M21 — Local (surf/périm/hauteur/vol)"), functions_box);
@@ -157,23 +162,22 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     functions_layout->addWidget(m5_button_);
     functions_layout->addWidget(m6_button_);
     functions_layout->addWidget(m7_button_);
-    functions_layout->addWidget(m8_button_);
-    functions_layout->addWidget(m8_mode_combo_);
+    functions_layout->addWidget(makeMeasureRow(m8_button_, QStringLiteral("M8 — Surface latérale"),
+                                               {m8_mode_combo_}));
     functions_layout->addWidget(m11_button_);
-    functions_layout->addWidget(m12_button_);
-    functions_layout->addWidget(m12_abouts_check_);
-    functions_layout->addWidget(m12_top_check_);
+    functions_layout->addWidget(makeMeasureRow(m12_button_, QStringLiteral("M12 — Surface coffrage"),
+                                               {m12_abouts_check_, m12_top_check_}));
     functions_layout->addWidget(m13_button_);
     functions_layout->addWidget(m17_button_);
-    functions_layout->addWidget(m18_button_);
-    functions_layout->addWidget(m18_epaisseur_spin_);
+    functions_layout->addWidget(makeMeasureRow(m18_button_, QStringLiteral("M18 — Volume de couche"),
+                                               {m18_epaisseur_spin_}));
     functions_layout->addWidget(m9_button_);
     functions_layout->addWidget(m16_button_);
     functions_layout->addWidget(m20_button_);
     functions_layout->addWidget(m27_button_);
     functions_layout->addWidget(m21_button_);
-    functions_layout->addWidget(m22_button_);
-    functions_layout->addWidget(m22_seuil_spin_);
+    functions_layout->addWidget(makeMeasureRow(m22_button_, QStringLiteral("M22 — Surface sous plafond"),
+                                               {m22_seuil_spin_}));
     functions_layout->addWidget(m27b_button_);
 
     layout->addWidget(functions_box);
@@ -286,6 +290,37 @@ MeasurementPanel::MeasurementPanel(bonsaiviewer::services::SelectionService* sel
     connect(measures_tree_->model(), &QAbstractItemModel::rowsRemoved, this, onStructureChanged);
 }
 
+QWidget* MeasurementPanel::makeMeasureRow(QPushButton* button, const QString& config_title,
+                                          const QList<QWidget*>& config_widgets) {
+    auto* row = new QWidget(button->parentWidget());
+    auto* h = new QHBoxLayout(row);
+    h->setContentsMargins(0, 0, 0, 0);
+    h->setSpacing(2);
+    h->addWidget(button, 1);
+    if (config_widgets.isEmpty()) return row;
+    // Small gear button next to the measure button: opens a small config box
+    // (a persistent popup menu holding the rule's parameter widgets).
+    auto* gear = new QToolButton(row);
+    gear->setIcon(components::icons::makeSvgIcon(QStringLiteral(":/icons/settings.svg")));
+    gear->setIconSize(QSize(14, 14));
+    gear->setFixedSize(22, 22);
+    gear->setToolTip(QStringLiteral("Configurer : %1").arg(config_title));
+    gear->setPopupMode(QToolButton::InstantPopup);
+    auto* menu = new QMenu(gear);
+    auto* box = new QWidget(menu);
+    auto* v = new QVBoxLayout(box);
+    v->setContentsMargins(8, 6, 8, 8);
+    v->setSpacing(4);
+    v->addWidget(new QLabel(QStringLiteral("<b>%1</b>").arg(config_title), box));
+    for (QWidget* w : config_widgets) v->addWidget(w);
+    auto* act = new QWidgetAction(menu);
+    act->setDefaultWidget(box);
+    menu->addAction(act);
+    gear->setMenu(menu);
+    h->addWidget(gear);
+    return row;
+}
+
 bool MeasurementPanel::eventFilter(QObject* obj, QEvent* ev) {
     if (obj == measures_tree_ && ev->type() == QEvent::Resize) {
         // Fixed 70/30 split between the "Mesure" and "Valeur" columns.
@@ -304,6 +339,10 @@ void MeasurementPanel::setSelectionService(bonsaiviewer::services::SelectionServ
 
 void MeasurementPanel::setActiveView(bonsaiviewer::services::ActiveView* active_view) {
     active_view_ = active_view;
+}
+
+void MeasurementPanel::setBcfView(bonsaiviewer::modules::bcf::BcfView* view) {
+    bcf_view_ = view;
 }
 
 void MeasurementPanel::runM0() {
@@ -664,23 +703,35 @@ void MeasurementPanel::runM16() {
         updateResultLabel(QStringLiteral("M16 — Aucun élément sélectionné"));
         return;
     }
+    // One measure per discovered opening: the opening's surface, and its
+    // position in the host object's OBB frame (axis 0 = longest extent).
     double total_area = 0.0;
     int total_count = 0;
-    std::vector<MeasuredObject> all_objects;
     for (const std::uint32_t id : ids) {
         const auto entity = session_->elementRegistry()->findEntity(id);
         if (!entity) continue;
         std::vector<MeasuredObject> objects;
-        const OpeningResult r = measureSurfaceOuverture(*viewport_, *entity, id, &objects);
-        total_area += r.area_m2;
-        total_count += r.count;
-        all_objects.insert(all_objects.end(), objects.begin(), objects.end());
+        const auto openings = measureOuverturesObb(*viewport_, *entity, id, &objects);
+        int i = 0;
+        for (const auto& o : openings) {
+            ++i;
+            QString label = o.name.isEmpty() ? QStringLiteral("M16 — Ouverture %1").arg(i)
+                                             : QStringLiteral("M16 — %1").arg(o.name);
+            if (label.size() > 60) label = label.left(57) + QStringLiteral("…");
+            if (o.has_obb_pos) {
+                label += QStringLiteral(" @ (%1, %2, %3)")
+                             .arg(o.obb_pos[0], 0, 'f', 2)
+                             .arg(o.obb_pos[1], 0, 'f', 2)
+                             .arg(o.obb_pos[2], 0, 'f', 2);
+            }
+            addMeasureRecord(label, o.area_m2, QStringLiteral("m²"), 6, objects);
+            total_area += o.area_m2;
+            ++total_count;
+        }
     }
-    const QString text = QStringLiteral("M16 — Surface ouverture : %1 m² (%2 ouverture(s))")
+    const QString text = QStringLiteral("M16 — Surface ouvertures : %1 m² (%2 ouverture(s))")
                              .arg(total_area, 0, 'f', 3).arg(total_count);
     updateResultLabel(text);
-    addMeasureRecord(QStringLiteral("M16 — Surface ouverture"), total_area,
-                     QStringLiteral("m²"), 6, all_objects);
     if (session_) session_->setStatusMessage(QStringLiteral("Mesure"), text);
     emit measurementPerformed(QStringLiteral("M16 Surface ouverture"), total_area, QStringLiteral("m²"));
 }
@@ -688,8 +739,10 @@ void MeasurementPanel::runM16() {
 void MeasurementPanel::runM20() {
     if (!selection_ || !viewport_) return;
     const auto ids = selection_->selectionIdsAsVector();
-    if (ids.size() < 2) {
-        updateResultLabel(QStringLiteral("M20 — Sélectionnez au moins 2 éléments"));
+    // M20's input is a selection of exactly 2 objects (lower / upper decided
+    // by Z inside measureVolumeEntre, so the selection order does not matter).
+    if (ids.size() != 2) {
+        updateResultLabel(QStringLiteral("M20 — Sélectionnez exactement 2 objets (%1 sélectionné(s))").arg(ids.size()));
         return;
     }
     std::vector<MeasuredObject> objects;
@@ -932,6 +985,9 @@ void MeasurementPanel::onTreeContextMenu(const QPoint& pos) {
         connect(isolate, &QAction::triggered, this, [this, id]() { isolateRecord(id); });
         menu.addSeparator();
     }
+    QAction* bcf = menu.addAction(QStringLiteral("Créer un BCF"));
+    connect(bcf, &QAction::triggered, this, [this, item]() { createBcfFromItem(item); });
+    menu.addSeparator();
     QAction* del = menu.addAction(is_group ? QStringLiteral("Supprimer le groupe")
                                            : QStringLiteral("Supprimer la mesure"));
     connect(del, &QAction::triggered, this, [this, item]() { deleteTreeItem(item); });
@@ -971,6 +1027,88 @@ void MeasurementPanel::isolateRecord(int id) {
     std::vector<std::uint32_t> ids;
     for (const auto& obj : records_[id].objects) ids.push_back(obj.id);
     if (!ids.empty()) active_view_->isolate(ids);
+}
+
+void MeasurementPanel::collectRecordIds(const QTreeWidgetItem* item, std::vector<int>& ids) const {
+    for (int i = 0; i < item->childCount(); ++i) {
+        const QTreeWidgetItem* child = item->child(i);
+        const int id = child->data(0, kRoleRecordId).toInt();
+        if (id >= 0) {
+            ids.push_back(id);
+        } else {
+            collectRecordIds(child, ids);  // nested group
+        }
+    }
+}
+
+void MeasurementPanel::createBcfFromItem(QTreeWidgetItem* item) {
+    if (!item) return;
+    if (!bcf_view_) {
+        if (session_) session_->setStatusMessage(QStringLiteral("Mesure"),
+                                                 QStringLiteral("BCF indisponible (panneau BCF non initialisé)."));
+        return;
+    }
+    std::vector<int> ids;
+    const bool is_group = item->data(0, kRoleIsGroup).toBool();
+    if (is_group) {
+        collectRecordIds(item, ids);
+    } else {
+        const int id = item->data(0, kRoleRecordId).toInt();
+        if (id >= 0) ids.push_back(id);
+    }
+    if (ids.empty()) return;
+    // Description: the detail of every measured quantity; title: the group
+    // name (or the measure label) plus the total per unit.
+    QStringList lines;
+    QMap<QString, double> sums;
+    std::vector<std::uint32_t> object_ids;
+    for (int id : ids) {
+        if (id < 0 || id >= static_cast<int>(records_.size())) continue;
+        const MeasureRecord& rec = records_[id];
+        lines.append(QStringLiteral("%1 : %2 %3").arg(rec.label).arg(rec.value, 0, 'f', 3).arg(rec.unit));
+        sums[rec.unit] += rec.value;
+        for (const auto& obj : rec.objects) object_ids.push_back(obj.id);
+    }
+    QStringList total_parts;
+    for (auto it = sums.begin(); it != sums.end(); ++it) {
+        total_parts.append(QStringLiteral("%1 %2").arg(it.value(), 0, 'f', 3).arg(it.key()));
+    }
+    const QString total = total_parts.join(QStringLiteral(", "));
+    const QString base = is_group ? item->text(0) : records_[ids.front()].label;
+    const QString title = total.isEmpty() ? base : QStringLiteral("%1 — %2").arg(base, total);
+
+    const QString author = bcf_view_->ensureAuthor();
+    if (author.isEmpty()) return;
+    bcf_view_->ensureFile();
+    ports::bcf::Topic topic;
+    topic.guid = ports::bcf::newGuid();
+    topic.title = title;
+    topic.topic_type = bcf_view_->file()->extensions.topic_types.value(0, QStringLiteral("Issue"));
+    topic.topic_status = bcf_view_->file()->extensions.topic_statuses.value(0, QStringLiteral("Open"));
+    topic.creation_date = ports::bcf::now();
+    topic.creation_author = author;
+    topic.description = lines.join(QStringLiteral("\n"));
+    // The active view at the moment of the creation, with the measured
+    // elements selected; its image follows.
+    ports::bcf::Viewpoint viewpoint;
+    viewpoint.guid = ports::bcf::newGuid();
+    viewpoint.info = bcf_view_->viewpoints().capture();
+    viewpoint.info->guid = viewpoint.guid;
+    viewpoint.index = 0;
+    if (!object_ids.empty()) viewpoint.info->selection = bcf_view_->viewpoints().components(object_ids);
+    topic.viewpoints.push_back(viewpoint);
+    const QString viewpoint_guid = viewpoint.guid;
+    const QString guid = bcf_view_->addTopic(std::move(topic));
+    bcf_view_->viewpoints().captureSnapshot([bcf_view = bcf_view_, guid, viewpoint_guid](const QByteArray& png) {
+        if (ports::bcf::Topic* created = bcf_view->topic(guid)) {
+            for (auto& entry : created->viewpoints) {
+                if (entry.guid == viewpoint_guid) entry.snapshot = png;
+            }
+            bcf_view->topicChanged(guid);
+        }
+    });
+    if (session_) session_->setStatusMessage(QStringLiteral("Mesure"),
+                                             QStringLiteral("BCF créé : %1").arg(title));
 }
 
 void MeasurementPanel::onItemChanged(QTreeWidgetItem* /*item*/, int column) {

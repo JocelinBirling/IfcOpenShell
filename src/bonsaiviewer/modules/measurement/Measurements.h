@@ -70,6 +70,20 @@ struct WorldMesh {
 };
 WorldMesh worldTriangles(ViewportWindow& vp, std::uint32_t object_id);
 
+// Oriented bounding box of a world mesh, via PCA on its vertices: the axes
+// are the principal directions sorted by descending extent (for a wall:
+// length, height, thickness), the center is the mid-point of the projected
+// extents. Used by M16 to locate the openings relative to the host object.
+struct MeshObb {
+    float center[3] = {0, 0, 0};
+    float axes[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};  // rows: axis 0/1/2
+    float half_extents[3] = {0, 0, 0};
+};
+MeshObb computeMeshObb(const WorldMesh& wm);
+// `p` (world) expressed in the OBB local frame: metres along each axis from
+// the center.
+void obbLocalCoords(const MeshObb& obb, const float p[3], float out[3]);
+
 // M0 — aire_face_sup: detects the top face of `object_id` from its
 // triangulation — triangles whose normal points up (nz >= 0.9) and whose
 // height is at the very top of the object — and returns its area in m²
@@ -195,17 +209,20 @@ double measureVolumeCouche(ViewportWindow& vp,
 // M20 — volume_entre: volume (m³) between the two selected objects.
 // Approximation: for each pair (first half / second half of `object_ids`),
 // volume = top-face area of the lower object × vertical gap to the bottom
-// face of the upper object. Returns the summed volume over the pairs.
+// face of the upper object. Lower/upper is decided by the Z of the AABBs,
+// not by the selection order. Returns the summed volume over the pairs.
 double measureVolumeEntre(ViewportWindow& vp,
                           const std::vector<std::uint32_t>& object_ids,
                           std::vector<MeasuredObject>* objects_out = nullptr);
 
-// M27 — pente (surface): slope of each object's dominant face, in percent.
-// Fits a plane z = ax + by + c over all mesh triangles (least squares on
-// the area-weighted centroids); slope = sqrt(a² + b²) × 100, equivalent to
-// tan(arccos(|nz|)) × 100 via the mean normal. `on_3d_length` divides by the
-// 3D length instead of the horizontal one. Returns the mean slope (percent)
-// over all object_ids.
+// M27 — pente (surface): slope of each object's top surface, in percent.
+// The area-weighted mean normal is computed over the object's top surface
+// (extractTopSurface, the same "dessus" extraction as M5) — not over the
+// whole mesh, whose vertical side faces would dominate on long objects
+// (e.g. a 900 m railing) and report a huge slope. slope = sqrt(1-nz²)/|nz| ×
+// 100, i.e. tan(arccos(|nz|)) × 100. `on_3d_length` divides by the 3D length
+// instead of the horizontal one. Returns the mean slope (percent) over all
+// object_ids.
 double measurePente(ViewportWindow& vp,
                     const std::vector<std::uint32_t>& object_ids,
                     bool on_3d_length,

@@ -8,6 +8,8 @@ Panneau dock **Mesure** (visible par défaut à droite, également pilotable via
 
 ### Fonctions de mesure
 
+- Les règles **configurables** (M8, M12, M18, M22) ont un petit bouton **engrenage** (`:/icons/settings.svg`) à côté du bouton de mesure : il ouvre une petite box de configuration (menu popup avec les paramètres de la règle : mode M8, abouts/top M12, épaisseur M18, seuil sous plafond M22).
+
 | Bouton | Fonction | Unité | Géométrie | Implémentation |
 |---|---|---|---|---|
 | M0 | `aire_face_sup` | m² | Face supérieure surlignée (triangles) | Détection par triangulation : triangles de normale verticale vers le haut (nz ≥ 0.9) situés au sommet de l'objet. Aire = somme des triangles coplanaires. |
@@ -23,13 +25,13 @@ Panneau dock **Mesure** (visible par défaut à droite, également pilotable via
 | M11 | `surface_toiture_developpee` | m² | Faces inclinées surlignées | Somme des triangles non horizontaux (|nz| < 0.9) — aire réelle en rampant. |
 | M12 | `surface_coffrage` | m² | Faces de coffrage surlignées | Classification des faces par normale : joues + sous-face par défaut, abouts et top en option (checkboxes). |
 | M13 | `surface_section_projeté` | m² | Boîte AABB | Périmètre de section × longueur (axe principal = plus grande dimension AABB). |
-| M16 | `surface_ouverture` | m² / U | Boîte AABB de l'hôte | IfcOpeningElement liés via `IfcRelVoidsElement` (inverse `HasOpenings`) ; aire lue dans la représentation (polygone 2D) quand disponible. |
+| M16 | `surface_ouverture` | m² | OBB de l'hôte (PCA du mesh) | **Une mesure par ouverture** : OBB de l'objet hôte (`computeMeshObb`), puis pour chaque `IfcOpeningElement` (via `IfcRelVoidsElement`) sa surface (polygone 2D de la représentation) et sa position dans le repère de l'OBB (axes = longueurs décroissantes : longueur/hauteur/épaisseur pour un mur). Libellé : `M16 — <nom> @ (u, v, w)`. |
 | M17 | `volume_element` | m³ | Boîte AABB | Volume signé par théorème de la divergence (somme des tétraèdres sur le mesh). |
 | M18 | `volume_couche` | m³ | Face top surlignée | Surface top (M6) × épaisseur (spinbox, persisté). |
-| M20 | `volume_entre` | m³ | Boîte englobante | Aire top de l'objet bas × écart vertical jusqu'à la face basse de l'objet haut (paires consécutives de la sélection). |
+| M20 | `volume_entre` | m³ | Boîte englobante | Entrée = **sélection de exactement 2 objets** ; bas/haut décidé par le Z des AABB (l'ordre de sélection ne compte pas). Volume = aire top de l'objet bas × écart vertical jusqu'à la face basse de l'objet haut. |
 | M21 | `local_*` | m² / ml / m / m³ | Sol du local surligné | Par `IfcSpace` : surface sol (face bottom), périmètre **net** (base moins portes/fenêtres au sol, trouvées par scan AABB des `IfcDoor`/`IfcWindow` du modèle), hauteur (étendue Z), volume = surface × hauteur, plus hauteur/volume **sous plafond** quand un élément plafond (`IfcCovering` ou nom « plafond/ceiling ») est trouvé au-dessus du local. |
 | M22 | `local_surface_sous_plafond` | m² | Sol du local surligné | Surface sol des locaux dont la hauteur ≥ seuil (spinbox, défaut 1.80 m, persisté). |
-| M27 | `pente` | % | Plus longue arête AABB | Pente moyenne = tan(arccos(|nz|)) via la normale moyenne pondérée par l'aire. |
+| M27 | `pente` | % | Surface du dessus (composante crête, comme M5) | Pente = tan(arccos(|nz|)) × 100 via la normale moyenne pondérée par l'aire **des seuls triangles du dessus** (`extractTopSurface`, comme M5) — pas de tout le mesh, dont les faces verticales feraient exploser la pente sur un objet long (ex. raling 900 m). Repli sur tout le mesh si pas de dessus. |
 | M27b | `pente_ports` | % | Plus longue arête AABB | Pente entre les 2 ports des équipements connectés (`IfcRelConnectsPorts`) : Δz / Δx × 100. |
 
 Chaque mesure s'applique à la **sélection courante** ; le résultat de plusieurs éléments est additionné.
@@ -48,7 +50,7 @@ Chaque mesure s'applique à la **sélection courante** ; le résultat de plusieu
 - **Groupes imbriqués** (groupes de groupes) : bouton « Nouveau groupe », mesures déplaçables par drag & drop.
 - Chaque item a une **checkbox** : décocher masque le trait 3D (un groupe décoché masque tout son contenu).
 - Chaque groupe affiche la **somme de ses mesures par unité** (ex: `12.340 ml, 3 U`).
-- **Clic droit** : sur un groupe → Renommer / Supprimer le groupe (supprime aussi les mesures en dessous) ; sur une mesure → Zoomer dessus (fit caméra sur l'AABB) / Isoler (n'affiche que les objets mesurés) / Supprimer.
+- **Clic droit** : sur un groupe → Renommer / **Créer un BCF** / Supprimer le groupe (supprime aussi les mesures en dessous) ; sur une mesure → Zoomer dessus (fit caméra sur l'AABB) / Isoler (n'affiche que les objets mesurés) / **Créer un BCF** / Supprimer. « Créer un BCF » ajoute un topic BCF (vue active + éléments mesurés sélectionnés + snapshot) : le **titre** contient le nom du groupe (ou le libellé de la mesure) et la **quantité totale** par unité (ex. `Groupe 1 — 12,340 ml, 3 U`), la **description** détaille chaque quantité mesurée du groupe, une ligne par mesure (`M6 — Surface top : 12,500 m²`).
 - Boutons **Géométries** (masque/affiche tous les traits), **Réglages** (ouvre l'onglet Mesure des paramètres), **Nouveau groupe** et **Reset** (efface tout).
 
 ### Réglages Mesure (onglet « Mesure » des paramètres)

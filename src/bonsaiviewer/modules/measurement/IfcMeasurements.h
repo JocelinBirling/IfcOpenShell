@@ -54,19 +54,20 @@ double measureSurfaceVitrage(ViewportWindow& vp,
                              std::vector<MeasuredObject>* objects_out = nullptr,
                              std::vector<ClassifiedFace>* faces_out = nullptr);
 
-// M16 — surface_ouverture: total opening area (m²) related to an element
-// through IfcRelVoidsElement (HasOpenings inverse). Each IfcOpeningElement's
-// rectangle is read from its representation when available; otherwise the
-// opening's AABB footprint is used. Returns the summed area and the count.
-struct OpeningResult {
-    double area_m2 = 0.0;
-    int count = 0;
-    double perimeter_ml = 0.0;
+// M16 — one measure per opening: the surface (m²) of each IfcOpeningElement
+// voided in the host, with the opening's position expressed in the host
+// object's OBB frame (metres along each OBB axis from its center — for a
+// wall: along length / height / thickness).
+struct OpeningMeasure {
+    QString name;                       // opening Name (may be empty)
+    double area_m2 = 0.0;               // 2D representation rectangle area
+    float obb_pos[3] = {0, 0, 0};       // position in the host OBB frame
+    bool has_obb_pos = false;
 };
-OpeningResult measureSurfaceOuverture(ViewportWindow& vp,
-                                      const express::base& element,
-                                      std::uint32_t object_id,
-                                      std::vector<MeasuredObject>* objects_out = nullptr);
+std::vector<OpeningMeasure> measureOuverturesObb(ViewportWindow& vp,
+                                                  const express::base& host,
+                                                  std::uint32_t host_object_id,
+                                                  std::vector<MeasuredObject>* objects_out = nullptr);
 
 // M27 — pente via connected ports: slope (%) between the two ports of the
 // equipment connected through IfcRelConnectsPorts (Δz / horizontal distance

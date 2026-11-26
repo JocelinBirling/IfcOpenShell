@@ -26,6 +26,8 @@
 #include "../../ports/ifcopenshell_util/Attr.h"
 #include "../../ports/ifcopenshell_util/Element.h"
 
+#include <Eigen/Dense>
+
 #include <algorithm>
 #include <cctype>
 #include <cfloat>
@@ -91,6 +93,105 @@ bool elementIsGlazed(const util::Entity& element) {
         if (tmat && materialIsTransparent(tmat)) return true;
     }
     return false;
+}
+
+// Read a 3-component direction attribute (DirectionRatios) of an
+// IfcDirection; falls back to `fallback` when unset.
+Eigen::Vector3d directionRatios(const util::Entity& dir, const Eigen::Vector3d& fallback) {
+    if (!dir) return fallback;
+    auto ratios_attr = util::forward(dir, "DirectionRatios");
+    if (!ratios_attr || ratios_attr->isNull()) return fallback;
+    try {
+        const auto v = static_cast<std::vector<double>>(*ratios_attr);
+        if (v.size() >= 3) return Eigen::Vector3d(v[0], v[1], v[2]).normalized();
+    } catch (...) {}
+    return fallback;
+}
+
+// ifcopenshell.util.placement.a2p: 4x4 matrix of an IfcAxis2Placement*.
+Eigen::Matrix4d axis2placement(const util::Entity& p) {
+    Eigen::Matrix4d m = Eigen::Matrix4d::Identity();
+    if (!p) return m;
+    auto loc = util::forwardEntity(p, "Location");
+    if (loc) {
+        auto coords = util::forward(loc, "Coordinates");
+        if (coords && !coords->isNull()) {
+            try {
+                const auto v = static_cast<std::vector<double>>(*coords);
+                if (v.size() >= 3) {
+                    m(0, 3) = v[0];
+                    m(1, 3) = v[1];
+                    m(2, 3) = v[2];
+                }
+            } catch (...) {}
+        }
+    }
+    const std::string cls = util::className(p);
+    Eigen::Vector3d z(0, 0, 1), x(1, 0, 0);
+    if (cls == "IfcAxis2Placement3D" || cls == "IfcAxis2PlacementLinear") {
+        z = directionRatios(util::forwardEntity(p, "Axis"), z);
+        x = directionRatios(util::forwardEntity(p, "RefDirection"), x);
+    } else if (cls == "IfcAxis2Placement2D") {
+        x = directionRatios(util::forwardEntity(p, "RefDirection"), x);
+    } else if (cls == "IfcAxis1Placement") {
+        z = directionRatios(util::forwardEntity(p, "Axis"), z);
+    }
+    x.normalize();
+    Eigen::Vector3d y = z.cross(x);
+    if (y.norm() < 1e-9) {
+        y = z.cross(Eigen::Vector3d(1, 0, 0));
+        if (y.norm() < 1e-9) y = z.cross(Eigen::Vector3d(0, 1, 0));
+    }
+    y.normalize();
+    z = x.cross(y).normalized();
+    m.block<3, 1>(0, 0) = x;
+    m.block<3, 1>(0, 1) = y;
+    m.block<3, 1>(0, 2) = z;
+    return m;
+}
+
+// Absolute local placement of an entity: walk the IfcLocalPlacement chain up
+// to the project root and multiply the relative placements.
+Eigen::Matrix4d localPlacementOf(const util::Entity& placement) {
+    if (!placement || !util::isA(placement, "IfcLocalPlacement")) return Eigen::Matrix4d::Identity();
+    const util::Entity rel = util::forwardEntity(placement, "PlacementRelTo");
+    const Eigen::Matrix4d parent = rel ? localPlacementOf(rel) : Eigen::Matrix4d::Identity();
+    const util::Entity relative = util::forwardEntity(placement, "RelativePlacement");
+    return relative ? parent * axis2placement(relative) : parent;
+}
+
+// Surface (m²) of an IfcOpeningElement from its 2D representation: the
+// shoelace area of each PolyLoop boundary. 0 when there is none.
+double openingAreaFromRep(const util::Entity& opening) {
+    double best = 0.0;
+    auto rep = util::forwardEntity(opening, "Representation");
+    if (!rep) return 0.0;
+    for (const auto& r : util::forwardEntities(rep, "Representations")) {
+        for (const auto& item : util::forwardEntities(r, "Items")) {
+            for (const auto& bnd : util::forwardEntities(item, "Boundaries")) {
+                auto loop = util::forwardEntity(bnd, "Boundaries");
+                auto pts = util::forwardEntities(loop ? loop : bnd, "Points");
+                std::vector<std::pair<double, double>> xy;
+                for (const auto& p : pts) {
+                    auto coords = util::forward(p, "Coordinates");
+                    if (!coords || coords->isNull()) continue;
+                    try {
+                        const auto vec = static_cast<std::vector<double>>(*coords);
+                        if (vec.size() >= 2) xy.emplace_back(vec[0], vec[1]);
+                    } catch (...) {}
+                }
+                if (xy.size() < 3) continue;
+                double a = 0.0;
+                for (std::size_t i = 0; i < xy.size(); ++i) {
+                    const auto& p = xy[i];
+                    const auto& q = xy[(i + 1) % xy.size()];
+                    a += p.first * q.second - q.first * p.second;
+                }
+                best = std::max(best, std::abs(a) / 2.0);
+            }
+        }
+    }
+    return best;
 }
 
 } // namespace
@@ -203,73 +304,51 @@ double measureSurfaceVitrage(ViewportWindow& vp,
     return best->area;
 }
 
-OpeningResult measureSurfaceOuverture(ViewportWindow& vp,
-                                      const express::base& element,
-                                      std::uint32_t object_id,
-                                      std::vector<MeasuredObject>* objects_out) {
-    OpeningResult result;
+
+std::vector<OpeningMeasure> measureOuverturesObb(ViewportWindow& vp,
+                                                  const express::base& host,
+                                                  std::uint32_t host_object_id,
+                                                  std::vector<MeasuredObject>* objects_out) {
+    std::vector<OpeningMeasure> out;
+    // The host object's OBB (PCA of its world mesh): the frame the openings
+    // are located in — axis 0 = longest extent (a wall's length), then
+    // height, then thickness.
+    const WorldMesh wm = worldTriangles(vp, host_object_id);
+    if (wm.triangles.empty()) return out;
+    const MeshObb obb = computeMeshObb(wm);
+    // Model -> world of the host's model, to place each opening in world.
+    ViewportWindow::InstanceLookup lookup;
+    Eigen::Matrix4d mtw = Eigen::Matrix4d::Identity();
+    if (vp.findInstance(host_object_id, lookup)) vp.modelToWorld(lookup.session_model_id, mtw);
     // IfcRelVoidsElement: inverse "HasOpenings" on the host element.
-    for (const auto& rel : util::inverse(element, "HasOpenings")) {
+    for (const auto& rel : util::inverse(host, "HasOpenings")) {
         const auto opening = util::forwardEntity(rel, "RelatedOpeningElement");
         if (!opening) continue;
-        // Try to read the opening's rectangle from its representation:
-        // Representation -> Representations -> Items -> Boundaries -> PolyLoop
-        // points (2D). Area = |cross| of the rectangle; fall back to the
-        // opening's own object AABB when it exists in the viewport.
-        double w = 0.0;  // reused as the shoelace area
-        auto rep = util::forwardEntity(opening, "Representation");
-        if (rep) {
-            for (const auto& r : util::forwardEntities(rep, "Representations")) {
-                for (const auto& item : util::forwardEntities(r, "Items")) {
-                    for (const auto& bnd : util::forwardEntities(item, "Boundaries")) {
-                        auto loop = util::forwardEntity(bnd, "Boundaries");
-                        // IfcPolyLoop: Points is an aggregate of IfcCartesianPoint (2D).
-                        auto pts = util::forwardEntities(loop ? loop : bnd, "Points");
-                        std::vector<std::pair<double, double>> xy;
-                        for (const auto& p : pts) {
-                            auto coords = util::forward(p, "Coordinates");
-                            if (!coords || coords->isNull()) continue;
-                            try {
-                                const auto vec = static_cast<std::vector<double>>(*coords);
-                                if (vec.size() >= 2) xy.emplace_back(vec[0], vec[1]);
-                            } catch (...) {}
-                        }
-                        if (xy.size() >= 3) {
-                            // Shoelace area of the 2D polygon.
-                            double a = 0.0;
-                            for (std::size_t i = 0; i < xy.size(); ++i) {
-                                const auto& p = xy[i];
-                                const auto& q = xy[(i + 1) % xy.size()];
-                                a += p.first * q.second - q.first * p.second;
-                            }
-                            w = std::abs(a) / 2.0;  // shoelace area of the 2D loop
-                        }
-                    }
-                }
-            }
+        OpeningMeasure m;
+        if (auto name = util::forwardString(opening, "Name")) m.name = QString::fromStdString(*name);
+        m.area_m2 = openingAreaFromRep(opening);
+        const auto placement = util::forwardEntity(opening, "ObjectPlacement");
+        if (placement) {
+            const Eigen::Matrix4d local = localPlacementOf(placement);
+            const Eigen::Vector4d w = mtw * local * Eigen::Vector4d(0, 0, 0, 1);
+            const float p[3] = {static_cast<float>(w.x()), static_cast<float>(w.y()),
+                                static_cast<float>(w.z())};
+            obbLocalCoords(obb, p, m.obb_pos);
+            m.has_obb_pos = true;
         }
-        if (w > 0.0) {
-            result.area_m2 += w;
-            ++result.count;
-        } else {
-            // Fallback: use the host element's own AABB opening footprint —
-            // without the opening's mesh we approximate by counting one
-            // opening with the element's thickness × height is not possible,
-            // so we just count it and leave area to the mesh path later.
-            ++result.count;
-        }
+        out.push_back(std::move(m));
     }
-    if (objects_out && result.count > 0) {
+    if (objects_out && !out.empty()) {
         Eigen::Vector3f emn, emx;
-        if (vp.computeObjectAabb(object_id, emn, emx)) {
+        if (vp.computeObjectAabb(host_object_id, emn, emx)) {
             MeasuredObject obj;
-            obj.id = object_id;
+            obj.id = host_object_id;
             obj.mn[0] = emn.x(); obj.mn[1] = emn.y(); obj.mn[2] = emn.z();
             obj.mx[0] = emx.x(); obj.mx[1] = emx.y(); obj.mx[2] = emx.z();
             objects_out->push_back(obj);
         }
     }
-    return result;
+    return out;
 }
 
 std::optional<double> measurePentePorts(const express::base& element) {
@@ -448,7 +527,9 @@ MeasureDispatchResult runMeasureById(ViewportWindow& vp,
     } else if (measure_id == QLatin1String("M13")) {
         r.value = measureSurfaceSectionProjetee(vp, one); r.unit = QStringLiteral("m²");
     } else if (measure_id == QLatin1String("M16")) {
-        if (entity) r.value = measureSurfaceOuverture(vp, *entity, object_id).area_m2;
+        if (entity) {
+            for (const auto& o : measureOuverturesObb(vp, *entity, object_id)) r.value += o.area_m2;
+        }
         r.unit = QStringLiteral("m²");
     } else if (measure_id == QLatin1String("M17")) {
         r.value = measureVolumeElement(vp, one); r.unit = QStringLiteral("m³");
